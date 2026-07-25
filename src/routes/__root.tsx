@@ -77,19 +77,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "CreditAgent AI — 消费信贷 AI 全托管投放 Agent" },
+      {
+        name: "description",
+        content:
+          "面向消费信贷行业的白盒 AI 投放 Agent：Google 与 Meta 双渠道自动预算调配、合规风控与全链路放款归因。",
+      },
+      { name: "author", content: "CreditAgent AI" },
+      { property: "og:title", content: "CreditAgent AI" },
+      {
+        property: "og:description",
+        content: "白盒决策链、金融合规自愈盾与放款全链路归因的 AI 投放平台。",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
