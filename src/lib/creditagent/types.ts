@@ -84,3 +84,30 @@ export interface ChannelTrendPoint {
   googleTrueRoas: number;
   metaTrueRoas: number;
 }
+
+export interface FunnelStageRow extends FunnelStage {
+  note: string;
+}
+
+export interface ChannelBreakdownRow {
+  channel: string;
+  spend: number;
+  disbursed: number;
+  cps: number;
+  approval: number;
+}
+
+/** Full backend snapshot returned by the agent server API. */
+export interface AgentSnapshot {
+  decisions: AgentDecision[];
+  campaigns: Campaign[];
+  creatives: CreativeAsset[];
+  mode: ManagementMode;
+  riskFirst: boolean;
+  autoTakeovers: number;
+  cpsImprovementPct: number;
+  agentOnline: boolean;
+  funnel: FunnelStageRow[];
+  channelTrend: ChannelTrendPoint[];
+  channelBreakdown: ChannelBreakdownRow[];
+}
