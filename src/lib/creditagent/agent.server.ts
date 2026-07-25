@@ -191,7 +191,7 @@ export async function rollbackDecision(id: string) {
     const patch: Row = { ai_suggestion: `已回滚至：${decision.rollbackTo ?? "原配置"}` };
     if (decision.id === "dec_1042" && campaign.id === "cmp_g_search_01") patch.daily_budget = 4200;
     if (decision.id === "dec_1041" && campaign.status === "COMPLIANCE_HOLD") patch.status = "ACTIVE";
-    await supabase.from("campaigns").update(patch).eq("id", campaign.id);
+    await supabase.from("campaigns").update(patch as never).eq("id", campaign.id);
   }
 
   return { snapshot: await getSnapshot(), rolledBackTo: decision.rollbackTo ?? "原配置" };
