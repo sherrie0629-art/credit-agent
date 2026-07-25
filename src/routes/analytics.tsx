@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { AppShell } from "@/components/creditagent/AppShell";
-import { channelBreakdown, channelTrend, funnel } from "@/lib/creditagent/mock-data";
+import { useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/analytics")({
@@ -35,7 +35,10 @@ export const Route = createFileRoute("/analytics")({
 });
 
 function AnalyticsPage() {
-  const top = funnel[0].value;
+  const funnel = useAgentStore((s) => s.funnel);
+  const channelTrend = useAgentStore((s) => s.channelTrend);
+  const channelBreakdown = useAgentStore((s) => s.channelBreakdown);
+  const top = funnel[0]?.value ?? 1;
 
   return (
     <AppShell>

@@ -6,7 +6,7 @@ import {
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
-import { useAgentStore } from "@/lib/creditagent/store";
+import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
@@ -18,6 +18,7 @@ const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useAgentBootstrap();
   const mode = useAgentStore((s) => s.mode);
   const online = useAgentStore((s) => s.agentOnline);
 
