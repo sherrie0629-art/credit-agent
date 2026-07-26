@@ -3,10 +3,10 @@ import {
   Activity,
   BarChart3,
   FlaskConical,
-  ShieldCheck,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
+
 import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
