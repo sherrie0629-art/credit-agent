@@ -48,6 +48,14 @@ const STATUS_STYLE: Record<Campaign["status"], string> = {
   COMPLIANCE_HOLD: "border-compliance/40 bg-compliance/12 text-compliance",
 };
 
+const STATUS_LABEL: Record<Campaign["status"], string> = {
+  ACTIVE: "投放中",
+  PAUSED: "已暂停",
+  LEARNING: "学习期",
+  COMPLIANCE_HOLD: "合规拦截",
+};
+
+
 function BudgetCell({ campaign }: { campaign: Campaign }) {
   const [value, setValue] = useState(String(campaign.dailyBudget));
   const [editing, setEditing] = useState(false);
