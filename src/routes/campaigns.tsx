@@ -280,15 +280,15 @@ function CampaignsPage() {
                         size="sm"
                         variant="secondary"
                         disabled={busyId === c.id}
-                        className="font-mono text-[11px]"
+                        className="text-[11px]"
                         onClick={async () => {
                           setBusyId(c.id);
                           try {
                             const d = await agentApi.applyAiSuggestion(c.id);
                             if (d?.status === "EXECUTED") {
-                              toast.success("Full-Auto 已执行", { description: d.effect });
+                              toast.success("全自动模式已执行", { description: d.effect });
                             } else if (d) {
-                              toast.warning("已推送至审批队列", { description: d.effect });
+                              toast.warning("已推送至人工审批队列", { description: d.effect });
                             }
                           } finally {
                             setBusyId(null);
@@ -301,13 +301,14 @@ function CampaignsPage() {
                         size="sm"
                         variant="ghost"
                         disabled={busyId === c.id}
-                        className="font-mono text-[11px]"
+                        className="text-[11px]"
                         onClick={async () => {
                           setBusyId(c.id);
                           try {
                             const next = c.status === "PAUSED" ? "ACTIVE" : "PAUSED";
                             await agentApi.setCampaignStatus(c.id, next);
-                            toast(`${c.name} → ${next}`);
+                            toast(`${c.name} → ${STATUS_LABEL[next]}`);
+
                           } finally {
                             setBusyId(null);
                           }
