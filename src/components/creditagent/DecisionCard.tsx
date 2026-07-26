@@ -128,9 +128,10 @@ export function DecisionCard({
             ))}
             {decision.rollbackTo && (
               <li className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-                <CornerDownRight className="size-3" /> rollback snapshot: {decision.rollbackTo}
+                <CornerDownRight className="size-3" /> 回滚快照：{decision.rollbackTo}
               </li>
             )}
+
           </ol>
         </CollapsibleContent>
       </Collapsible>
