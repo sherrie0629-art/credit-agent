@@ -121,22 +121,22 @@ function CompliancePage() {
 
             <div className="flex flex-wrap gap-2">
               <Button
-                className="border border-neon/50 bg-neon/15 font-mono text-xs text-neon hover:bg-neon/25"
+                className="border border-neon/50 bg-neon/15 text-xs text-neon hover:bg-neon/25"
                 onClick={() => {
                   const { next, changes } = autoFixCompliance(draft);
                   setDraft(next);
                   setFixLog(changes);
                   toast.success("Compliance Agent 已自动改写", {
-                    description: `${changes.length} 项修复已应用`,
+                    description: `已应用 ${changes.length} 项合规修复`,
                   });
                 }}
               >
-                <Wand2 className="size-3.5" /> 一键合规修复 Auto-Fix
+                <Wand2 className="size-3.5" /> 一键合规修复
               </Button>
               <Button
                 variant="secondary"
                 disabled={busy}
-                className="font-mono text-xs"
+                className="text-xs"
                 onClick={async () => {
                   setBusy(true);
                   try {
@@ -150,7 +150,7 @@ function CompliancePage() {
                     });
                     if (result.blocked) {
                       toast.error("提交已被合规 Agent 阻断", {
-                        description: "存在 CRITICAL 违规项，请先执行 Auto-Fix",
+                        description: "存在严重违规项，请先执行一键合规修复",
                       });
                     } else {
                       toast.success("素材已通过合规审计并送审广告 API");
@@ -166,7 +166,8 @@ function CompliancePage() {
 
             {fixLog.length > 0 && (
               <div className="rounded-md border border-neon/30 bg-neon/5 p-3">
-                <p className="label-mono">auto-fix log</p>
+                <p className="label-mono">自动修复记录</p>
+
                 <ul className="mt-2 space-y-1">
                   {fixLog.map((c, i) => (
                     <li key={i} className="font-mono text-[11px] text-foreground/85">
