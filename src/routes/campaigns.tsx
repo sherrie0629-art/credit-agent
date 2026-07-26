@@ -109,11 +109,12 @@ function CampaignsPage() {
       <header className="panel p-5">
         <p className="label-mono">module 02</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Campaign &amp; Budget Allocation
+          广告投放与预算调配
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          全托管广告与预算调配引擎 · Planner Agent 按后端放款表现分配资金
+          全托管预算调配引擎 · Planner Agent 按后端放款表现分配资金
         </p>
+
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="rounded-md border border-border bg-background/50 p-4">
