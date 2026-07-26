@@ -218,14 +218,15 @@ function CampaignsPage() {
                   <TableCell className="max-w-[220px]">
                     <p className="truncate text-sm">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-foreground">
-                      {c.leads} leads · {c.approvedLoans} approved
+                      {c.leads} 条线索 · {c.approvedLoans} 笔通过
                     </p>
                   </TableCell>
                   <TableCell>
                     <BudgetCell campaign={c} />
                     <p className="font-mono text-[11px] text-muted-foreground">
-                      spent ${c.spentToday.toLocaleString()}
+                      已花费 ${c.spentToday.toLocaleString()}
                     </p>
+
                   </TableCell>
                   <TableCell className="font-mono text-xs">${c.cpl.toFixed(2)}</TableCell>
                   <TableCell>
