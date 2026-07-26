@@ -69,19 +69,19 @@ function CommandCenter() {
       <header className="panel flex flex-wrap items-center gap-4 p-5">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Badge className="border border-success/50 bg-success/15 font-mono text-[11px] tracking-wider text-success">
+            <Badge className="border border-success/50 bg-success/15 text-[11px] tracking-wide text-success">
               <span className="mr-1.5 inline-block size-1.5 rounded-full bg-success pulse-dot" />
-              AUTONOMOUS RUNNING
+              自动托管运行中
             </Badge>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              mode = {mode === "FULL_AUTO" ? "FULL-AUTO" : "SEMI-AUTO"} · next poll 04:12
+            <span className="text-[11px] text-muted-foreground">
+              托管模式：{mode === "FULL_AUTO" ? "全自动" : "半自动"} · 下次采集 04:12
             </span>
           </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">
-            Agent Decision Command Center
+            AI 投放决策指挥中心
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            白盒可观测决策指挥中心 · Google Ads &amp; Meta Ads 全托管投放
+            白盒可观测决策中枢 · Google Ads &amp; Meta Ads 全托管投放
           </p>
         </div>
       </header>
@@ -89,32 +89,33 @@ function CommandCenter() {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={Zap}
-          label="today ai takeovers"
+          label="今日 AI 接管次数"
           value={String(takeovers)}
-          hint="今日 Agent 自动接管调优次数"
+          hint="Agent 自动完成的调优操作"
         />
         <StatCard
           icon={Gauge}
-          label="cps reduction"
+          label="CPS 降幅"
           value={`−${cpsImprovement.toFixed(1)}%`}
-          hint="AI 调优带来的每放款成本降低"
+          hint="AI 调优带来的每笔放款成本下降"
           tone="success"
         />
         <StatCard
           icon={Bot}
-          label="pending approvals"
+          label="待审批决策"
           value={String(pending.length)}
-          hint="等待 Human-in-the-Loop 确认"
+          hint="等待人工确认（Human-in-the-Loop）"
           tone="warning"
         />
         <StatCard
           icon={ShieldAlert}
-          label="compliance holds"
+          label="合规拦截"
           value={String(holds)}
           hint="合规 Agent 拦截中的广告系列"
           tone="warning"
         />
       </div>
+
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <section className="panel flex min-h-0 flex-col p-4">
