@@ -1,4 +1,6 @@
-// Domain types for CreditAgent AI (per PRD §3). Mock-only, no real ad APIs.
+// Domain types for CreditAgent AI (per PRD §3).
+import type { CreativeExperiment, CreativeVariant } from "./creative-types";
+import type { CreativeMetricPoint, FatigueLevel } from "./fatigue";
 
 export type AgentType = "Planner" | "Creative" | "Compliance" | "Execution";
 
@@ -6,9 +8,12 @@ export type ActionType =
   | "BUDGET_SHIFT"
   | "BID_ADJUST"
   | "CREATIVE_PAUSE"
-  | "COMPLIANCE_REJECT";
+  | "COMPLIANCE_REJECT"
+  | "CREATIVE_REFRESH"
+  | "VARIANT_PROMOTE";
 
 export type Channel = "Google" | "Meta";
+
 
 export type DecisionStatus =
   | "EXECUTED"
@@ -68,7 +73,12 @@ export interface CreativeAsset {
   maxApr: number;
   complianceStatus: "PASSED" | "WARNING" | "FAILED";
   complianceLogs: string[];
+  fatigueScore: number;
+  fatigueLevel: FatigueLevel;
+  launchedAt?: string;
+  lastScannedAt?: string;
 }
+
 
 export type ManagementMode = "FULL_AUTO" | "SEMI_AUTO";
 
@@ -110,4 +120,8 @@ export interface AgentSnapshot {
   funnel: FunnelStageRow[];
   channelTrend: ChannelTrendPoint[];
   channelBreakdown: ChannelBreakdownRow[];
+  creativeMetrics: CreativeMetricPoint[];
+  variants: CreativeVariant[];
+  experiments: CreativeExperiment[];
 }
+
