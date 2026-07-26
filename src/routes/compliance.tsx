@@ -57,7 +57,7 @@ function CompliancePage() {
       <header className="panel p-5">
         <p className="label-mono">module 03</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Compliance &amp; Creative Studio
+          金融合规与素材实验室
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           金融合规自愈盾 · 所有素材提交广告 API 前强制经过 Compliance Agent 审计
@@ -66,10 +66,10 @@ function CompliancePage() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <section className="panel p-5">
-          <h2 className="font-mono text-sm uppercase tracking-widest">Creative Draft</h2>
+          <h2 className="text-sm font-semibold tracking-wide">素材草稿</h2>
           <div className="mt-4 space-y-4">
             <div>
-              <Label className="label-mono">headline</Label>
+              <Label className="label-mono">广告标题</Label>
               <Input
                 className="mt-2 font-mono text-sm"
                 value={draft.headline}
@@ -77,7 +77,7 @@ function CompliancePage() {
               />
             </div>
             <div>
-              <Label className="label-mono">body text</Label>
+              <Label className="label-mono">正文文案</Label>
               <Textarea
                 className="mt-2 min-h-40 font-mono text-sm"
                 value={draft.bodyText}
@@ -86,7 +86,7 @@ function CompliancePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label className="label-mono">loan term range</Label>
+                <Label className="label-mono">还款期限区间</Label>
                 <Input
                   className="mt-2 font-mono text-sm"
                   value={draft.loanTermRange}
@@ -94,7 +94,7 @@ function CompliancePage() {
                 />
               </div>
               <div>
-                <Label className="label-mono">max apr (%)</Label>
+                <Label className="label-mono">最高 APR (%)</Label>
                 <Input
                   type="number"
                   step="0.1"
@@ -104,6 +104,7 @@ function CompliancePage() {
                 />
               </div>
             </div>
+
             <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
               <div>
                 <p className="font-mono text-xs">Meta Special Ad Category</p>
