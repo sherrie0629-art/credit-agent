@@ -79,7 +79,7 @@ export function DecisionCard({
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-border bg-background/50 p-2.5">
-          <p className="label-mono">trigger · {METRIC_LABEL[trigger.metric]}</p>
+          <p className="label-mono">触发指标 · {METRIC_LABEL[trigger.metric]}</p>
           <p className="mt-1 font-mono text-xs">
             <span
               className={cn(
@@ -101,7 +101,7 @@ export function DecisionCard({
           </p>
         </div>
         <div className="rounded-md border border-border bg-background/50 p-2.5">
-          <p className="label-mono">confidence</p>
+          <p className="label-mono">决策置信度</p>
           <div className="mt-2 flex items-center gap-2">
             <Progress value={decision.confidenceScore * 100} className="h-1.5" />
             <span className="font-mono text-xs text-neon">
@@ -112,10 +112,11 @@ export function DecisionCard({
       </div>
 
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="mt-3 flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-left font-mono text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        <CollapsibleTrigger className="mt-3 flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-left text-[11px] tracking-wide text-muted-foreground transition-colors hover:text-foreground">
           <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-          thought chain · {decision.reasoningChain.length} steps
+          推理链 · 共 {decision.reasoningChain.length} 步
         </CollapsibleTrigger>
+
         <CollapsibleContent>
           <ol className="mt-2 space-y-2 border-l border-border pl-4">
             {decision.reasoningChain.map((step, i) => (
