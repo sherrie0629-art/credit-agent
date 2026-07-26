@@ -3,20 +3,20 @@ import {
   Activity,
   BarChart3,
   FlaskConical,
-  ShieldCheck,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
+
 import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
   { to: "/", label: "决策指挥中心", sub: "白盒 Agent 实时推理", icon: Activity },
   { to: "/campaigns", label: "预算与投放", sub: "全托管预算调配", icon: SlidersHorizontal },
-  { to: "/compliance", label: "合规素材", sub: "合规审计与素材实验室", icon: ShieldCheck },
-  { to: "/creative-lab", label: "创意实验室", sub: "疲劳预警与自动迭代", icon: FlaskConical },
+  { to: "/creative", label: "素材中心", sub: "合规审计 · 疲劳迭代 · A/B", icon: FlaskConical },
   { to: "/analytics", label: "全链路归因", sub: "放款转化与 ROAS", icon: BarChart3 },
 ];
+
 
 
 

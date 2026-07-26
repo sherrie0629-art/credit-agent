@@ -10,8 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as CreativeLabRouteImport } from './routes/creative-lab'
-import { Route as ComplianceRouteImport } from './routes/compliance'
+import { Route as CreativeRouteImport } from './routes/creative'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -22,14 +21,9 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CreativeLabRoute = CreativeLabRouteImport.update({
-  id: '/creative-lab',
-  path: '/creative-lab',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComplianceRoute = ComplianceRouteImport.update({
-  id: '/compliance',
-  path: '/compliance',
+const CreativeRoute = CreativeRouteImport.update({
+  id: '/creative',
+  path: '/creative',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -58,8 +52,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
-  '/compliance': typeof ComplianceRoute
-  '/creative-lab': typeof CreativeLabRoute
+  '/creative': typeof CreativeRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
@@ -67,8 +60,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
-  '/compliance': typeof ComplianceRoute
-  '/creative-lab': typeof CreativeLabRoute
+  '/creative': typeof CreativeRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
@@ -77,8 +69,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
-  '/compliance': typeof ComplianceRoute
-  '/creative-lab': typeof CreativeLabRoute
+  '/creative': typeof CreativeRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
@@ -88,8 +79,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
-    | '/compliance'
-    | '/creative-lab'
+    | '/creative'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
   fileRoutesByTo: FileRoutesByTo
@@ -97,8 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
-    | '/compliance'
-    | '/creative-lab'
+    | '/creative'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
   id:
@@ -106,8 +95,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
-    | '/compliance'
-    | '/creative-lab'
+    | '/creative'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
   fileRoutesById: FileRoutesById
@@ -116,8 +104,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   CampaignsRoute: typeof CampaignsRoute
-  ComplianceRoute: typeof ComplianceRoute
-  CreativeLabRoute: typeof CreativeLabRoute
+  CreativeRoute: typeof CreativeRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
 }
@@ -131,18 +118,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/creative-lab': {
-      id: '/creative-lab'
-      path: '/creative-lab'
-      fullPath: '/creative-lab'
-      preLoaderRoute: typeof CreativeLabRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/compliance': {
-      id: '/compliance'
-      path: '/compliance'
-      fullPath: '/compliance'
-      preLoaderRoute: typeof ComplianceRouteImport
+    '/creative': {
+      id: '/creative'
+      path: '/creative'
+      fullPath: '/creative'
+      preLoaderRoute: typeof CreativeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -180,21 +160,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   CampaignsRoute: CampaignsRoute,
-  ComplianceRoute: ComplianceRoute,
-  CreativeLabRoute: CreativeLabRoute,
+  CreativeRoute: CreativeRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
