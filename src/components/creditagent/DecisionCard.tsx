@@ -145,17 +145,17 @@ export function DecisionCard({
                 size="sm"
                 disabled={busy}
                 onClick={() => act("approve")}
-                className="border border-success/50 bg-success/15 font-mono text-xs text-success hover:bg-success/25"
+                className="border border-success/50 bg-success/15 text-xs text-success hover:bg-success/25"
               >
-                <Check className="size-3.5" /> Approve
+                <Check className="size-3.5" /> 批准执行
               </Button>
               <Button
                 size="sm"
                 disabled={busy}
                 onClick={() => act("reject")}
-                className="border border-warning/50 bg-warning/15 font-mono text-xs text-warning hover:bg-warning/25"
+                className="border border-warning/50 bg-warning/15 text-xs text-warning hover:bg-warning/25"
               >
-                <X className="size-3.5" /> Override
+                <X className="size-3.5" /> 人工否决
               </Button>
             </>
           )}
@@ -165,11 +165,12 @@ export function DecisionCard({
               variant="secondary"
               disabled={busy}
               onClick={() => act("rollback")}
-              className="font-mono text-xs"
+              className="text-xs"
             >
-              <Undo2 className="size-3.5" /> Rollback
+              <Undo2 className="size-3.5" /> 一键回滚
             </Button>
           )}
+
         </div>
       </div>
     </article>
