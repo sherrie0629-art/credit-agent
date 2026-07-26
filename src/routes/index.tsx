@@ -116,19 +116,18 @@ function CommandCenter() {
         />
       </div>
 
-
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <section className="panel flex min-h-0 flex-col p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-mono text-sm uppercase tracking-widest">
-                Live Agent Thought Feed
+              <h2 className="text-sm font-semibold tracking-wide">
+                实时决策推理流
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                实时推理脉络流 · 每 15 分钟采集 Google/Meta API + 借贷 CRM
+                每 15 分钟采集 Google / Meta API 与借贷 CRM 数据
               </p>
             </div>
-            <span className="label-mono">{decisions.length} events</span>
+            <span className="label-mono">{decisions.length} 条决策</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             <div className="space-y-3">
@@ -141,20 +140,21 @@ function CommandCenter() {
 
         <section className="panel flex min-h-0 flex-col p-4">
           <div>
-            <h2 className="font-mono text-sm uppercase tracking-widest text-warning">
-              Human-in-the-Loop Queue
+            <h2 className="text-sm font-semibold tracking-wide text-warning">
+              人工审批队列（Human-in-the-Loop）
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              变更幅度 &gt; 30% 的决策自动挂起，等待 Approve / Override
+              变更幅度 &gt; 30% 的决策自动挂起，等待批准或人工否决
             </p>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             {pending.length === 0 ? (
               <div className="rounded-md border border-dashed border-border p-6 text-center">
-                <p className="font-mono text-xs text-muted-foreground">
-                  QUEUE EMPTY — 所有决策已处理
+                <p className="text-xs text-muted-foreground">
+                  队列已清空 —— 所有决策均已处理
                 </p>
               </div>
+
             ) : (
               <div className="space-y-3">
                 {pending.map((d) => (
