@@ -69,12 +69,29 @@ function mapCreative(r: Row): CreativeAsset {
     maxApr: Number(r.max_apr),
     complianceStatus: r.compliance_status,
     complianceLogs: (r.compliance_logs ?? []) as string[],
+    fatigueScore: Number(r.fatigue_score ?? 0),
+    fatigueLevel: (r.fatigue_level ?? "HEALTHY") as CreativeAsset["fatigueLevel"],
+    launchedAt: r.launched_at ?? undefined,
+    lastScannedAt: r.last_scanned_at ?? undefined,
   };
 }
 
+
 export async function getSnapshot(): Promise<AgentSnapshot> {
   const supabase = await db();
-  const [decisions, campaigns, creatives, settings, funnel, trend, breakdown] = await Promise.all([
+  const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
+  const [
+    decisions,
+    campaigns,
+    creatives,
+    settings,
+    funnel,
+    trend,
+    breakdown,
+    metrics,
+    variants,
+    experiments,
+  ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
     supabase.from("creative_assets").select("*").order("sort_order"),
@@ -82,6 +99,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("funnel_stages").select("*").order("sort_order"),
     supabase.from("channel_trend").select("*").order("sort_order"),
     supabase.from("channel_breakdown").select("*").order("sort_order"),
+    supabase.from("creative_metrics").select("*").order("day"),
+    supabase.from("creative_variants").select("*").order("created_at", { ascending: false }),
+    supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
   ]);
 
   const s = (settings.data ?? {}) as Row;
@@ -116,8 +136,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       cps: Number(r.cps),
       approval: Number(r.approval),
     })),
+    creativeMetrics: ((metrics.data ?? []) as Row[]).map(mapMetric),
+    variants: ((variants.data ?? []) as Row[]).map(mapVariant),
+    experiments: ((experiments.data ?? []) as Row[]).map(mapExperiment),
   };
 }
+
 
 async function bumpTakeovers(by: number) {
   if (by === 0) return;

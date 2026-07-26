@@ -11,6 +11,13 @@ import {
   setModeFn,
   setRiskFirstFn,
 } from "./agent.functions";
+import {
+  generateVariantsFn,
+  launchExperimentFn,
+  scanFatigueFn,
+  setVariantImageFn,
+  settleExperimentFn,
+} from "./creative.functions";
 import type { AgentSnapshot, Campaign, ManagementMode } from "./types";
 
 // Client-side cache of the real backend state. Every mutation goes through a
@@ -34,10 +41,14 @@ const EMPTY: State = {
   funnel: [],
   channelTrend: [],
   channelBreakdown: [],
+  creativeMetrics: [],
+  variants: [],
+  experiments: [],
   loaded: false,
   loading: false,
   error: null,
 };
+
 
 let state: State = EMPTY;
 
