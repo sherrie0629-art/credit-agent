@@ -88,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={cn(
                 "shrink-0 rounded-md px-3 py-2 text-xs",
 
+
                 pathname === item.to
                   ? "bg-sidebar-accent text-neon"
                   : "text-muted-foreground",
