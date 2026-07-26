@@ -18,7 +18,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "CreditAgent AI — 白盒 AI 投放决策指挥中心" },
       {
         property: "og:description",
-        content: "查看 AI Agent 每一次调价与预算转移的推理依据，支持人工接管与回滚。",
+        content: "消费信贷 Google/Meta 全托管投放 Agent：实时推理链、待审批决策队列与一键回滚，优化目标是实际放款成本 CPS。",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

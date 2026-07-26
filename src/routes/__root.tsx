@@ -78,20 +78,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CreditAgent AI — 消费信贷 AI 全托管投放 Agent" },
+      { title: "CreditAgent AI — 白盒 AI 投放决策指挥中心" },
       {
         name: "description",
         content:
-          "面向消费信贷行业的白盒 AI 投放 Agent：Google 与 Meta 双渠道自动预算调配、合规风控与全链路放款归因。",
+          "消费信贷 Google/Meta 全托管投放 Agent：实时推理链、待审批决策队列与一键回滚，优化目标是实际放款成本 CPS。",
       },
       { name: "author", content: "CreditAgent AI" },
-      { property: "og:title", content: "CreditAgent AI" },
+      { property: "og:title", content: "CreditAgent AI — 白盒 AI 投放决策指挥中心" },
       {
         property: "og:description",
-        content: "白盒决策链、金融合规自愈盾与放款全链路归因的 AI 投放平台。",
+        content: "消费信贷 Google/Meta 全托管投放 Agent：实时推理链、待审批决策队列与一键回滚，优化目标是实际放款成本 CPS。",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "CreditAgent AI — 白盒 AI 投放决策指挥中心" },
+      { name: "twitter:description", content: "消费信贷 Google/Meta 全托管投放 Agent：实时推理链、待审批决策队列与一键回滚，优化目标是实际放款成本 CPS。" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/878e12bc-115f-4ab6-a9e2-5329e56f11c2/id-preview-41fc8022--fbb79c3c-e136-405b-91d9-6e9a53a5b400.lovable.app-1785025730114.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/878e12bc-115f-4ab6-a9e2-5329e56f11c2/id-preview-41fc8022--fbb79c3c-e136-405b-91d9-6e9a53a5b400.lovable.app-1785025730114.png" },
     ],
     links: [
       {
