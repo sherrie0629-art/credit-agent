@@ -257,13 +257,14 @@ function CampaignsPage() {
                   <TableCell>
                     <span
                       className={cn(
-                        "inline-flex rounded border px-2 py-0.5 font-mono text-[11px]",
+                        "inline-flex rounded border px-2 py-0.5 text-[11px]",
                         STATUS_STYLE[c.status],
                       )}
                     >
-                      {c.status}
+                      {STATUS_LABEL[c.status]}
                     </span>
                   </TableCell>
+
                   <TableCell className="max-w-[280px]">
                     <p className="text-xs text-muted-foreground">{c.aiSuggestion}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
