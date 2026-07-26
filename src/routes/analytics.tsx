@@ -44,15 +44,16 @@ function AnalyticsPage() {
     <AppShell>
       <header className="panel p-5">
         <p className="label-mono">module 04</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Full-Funnel Analytics</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">全链路放款归因</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          全链路放款数据归因中心 · Meta CAPI + Google Offline Conversion Tracking 回传
+          全链路放款数据归因中心 · Meta CAPI + Google 线下转化回传
         </p>
       </header>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
         <section className="panel p-5">
-          <h2 className="font-mono text-sm uppercase tracking-widest">Conversion Funnel</h2>
+          <h2 className="text-sm font-semibold tracking-wide">转化漏斗</h2>
+
           <p className="mt-1 text-xs text-muted-foreground">
             前端曝光到后端放款的真实衰减链路
           </p>
