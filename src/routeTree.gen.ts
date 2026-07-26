@@ -14,6 +14,7 @@ import { Route as ComplianceRouteImport } from './routes/compliance'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -40,6 +41,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateCreativeImageRoute =
+  ApiGenerateCreativeImageRouteImport.update({
+    id: '/api/generate-creative-image',
+    path: '/api/generate-creative-image',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/campaigns': typeof CampaignsRoute
   '/compliance': typeof ComplianceRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +62,7 @@ export interface FileRoutesByTo {
   '/campaigns': typeof CampaignsRoute
   '/compliance': typeof ComplianceRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +71,25 @@ export interface FileRoutesById {
   '/campaigns': typeof CampaignsRoute
   '/compliance': typeof ComplianceRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analytics' | '/campaigns' | '/compliance' | '/sitemap.xml'
+  fullPaths:
+    | '/'
+    | '/analytics'
+    | '/campaigns'
+    | '/compliance'
+    | '/sitemap.xml'
+    | '/api/generate-creative-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analytics' | '/campaigns' | '/compliance' | '/sitemap.xml'
+  to:
+    | '/'
+    | '/analytics'
+    | '/campaigns'
+    | '/compliance'
+    | '/sitemap.xml'
+    | '/api/generate-creative-image'
   id:
     | '__root__'
     | '/'
@@ -75,6 +97,7 @@ export interface FileRouteTypes {
     | '/campaigns'
     | '/compliance'
     | '/sitemap.xml'
+    | '/api/generate-creative-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,6 +106,7 @@ export interface RootRouteChildren {
   CampaignsRoute: typeof CampaignsRoute
   ComplianceRoute: typeof ComplianceRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate-creative-image': {
+      id: '/api/generate-creative-image'
+      path: '/api/generate-creative-image'
+      fullPath: '/api/generate-creative-image'
+      preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,6 +162,7 @@ const rootRouteChildren: RootRouteChildren = {
   CampaignsRoute: CampaignsRoute,
   ComplianceRoute: ComplianceRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
