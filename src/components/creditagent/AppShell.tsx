@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className={cn("mt-0.5 size-4", active ? "text-neon" : "text-muted-foreground")}
                 />
                 <span className="min-w-0">
-                  <span className="block truncate font-mono text-[13px]">{item.label}</span>
+                  <span className="block truncate text-[13px] font-medium">{item.label}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
                     {item.sub}
                   </span>
