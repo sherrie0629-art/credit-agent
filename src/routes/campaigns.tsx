@@ -242,7 +242,7 @@ function CampaignsPage() {
                     >
                       {(c.last20ApprovalRate * 100).toFixed(1)}%
                     </span>
-                    <p className="font-mono text-[11px] text-muted-foreground">last 20 leads</p>
+                    <p className="text-[11px] text-muted-foreground">最近 20 条线索</p>
                   </TableCell>
                   <TableCell>
                     <span
