@@ -183,14 +183,14 @@ function CompliancePage() {
         <section className="panel p-5">
           <div className="flex items-center gap-3">
             <ShieldCheck className="size-4 text-neon" />
-            <h2 className="font-mono text-sm uppercase tracking-widest">
-              Real-time Compliance Scanner
+            <h2 className="text-sm font-semibold tracking-wide">
+              实时合规扫描
             </h2>
           </div>
 
           <div className="mt-4 rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-end justify-between">
-              <p className="label-mono">compliance score</p>
+              <p className="label-mono">合规评分</p>
               <p className={cn("font-mono text-3xl font-semibold", scoreTone)}>
                 {result.score}
                 <span className="text-sm text-muted-foreground">/100</span>
@@ -199,7 +199,7 @@ function CompliancePage() {
             <Progress value={result.score} className="mt-3 h-2" />
             <p
               className={cn(
-                "mt-3 font-mono text-xs",
+                "mt-3 text-xs",
                 result.status === "PASSED"
                   ? "text-success"
                   : result.status === "WARNING"
@@ -207,9 +207,15 @@ function CompliancePage() {
                     : "text-destructive",
               )}
             >
-              STATUS = {result.status}
-              {result.blocked && " · 提交已阻断（Submission Blocked）"}
+              审核结论：
+              {result.status === "PASSED"
+                ? "通过"
+                : result.status === "WARNING"
+                  ? "存在风险提示"
+                  : "未通过"}
+              {result.blocked && " · 提交已被阻断"}
             </p>
+
           </div>
 
           <ul className="mt-4 space-y-2">
