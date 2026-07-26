@@ -84,9 +84,10 @@ function BudgetCell({ campaign }: { campaign: Campaign }) {
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
         await agentApi.setCampaignBudget(campaign.id, Math.round(next));
-        toast.success("预算已更新（Mock Ads API）", {
-          description: `${campaign.name} → $${Math.round(next).toLocaleString()}/日`,
+        toast.success("每日预算已更新", {
+          description: `${campaign.name} → $${Math.round(next).toLocaleString()} / 日`,
         });
+
       }}
     >
       <Input
