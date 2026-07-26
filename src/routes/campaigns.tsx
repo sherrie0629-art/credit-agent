@@ -170,10 +170,10 @@ function CampaignsPage() {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "daily budget", value: `$${totalBudget.toLocaleString()}` },
-          { label: "spent today", value: `$${totalSpent.toLocaleString()}` },
-          { label: "disbursed (30d)", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
-          { label: "blended cps", value: `$${blendedCps.toFixed(2)}` },
+          { label: "今日预算总额", value: `$${totalBudget.toLocaleString()}` },
+          { label: "今日已花费", value: `$${totalSpent.toLocaleString()}` },
+          { label: "30 天放款金额", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
+          { label: "综合放款成本 CPS", value: `$${blendedCps.toFixed(2)}` },
         ].map((s) => (
           <div key={s.label} className="panel p-4">
             <p className="label-mono">{s.label}</p>
@@ -184,13 +184,14 @@ function CampaignsPage() {
 
       <section className="panel mt-4 overflow-hidden">
         <div className="border-b border-border p-4">
-          <h2 className="font-mono text-sm uppercase tracking-widest">
-            Multi-Channel Budget Matrix
+          <h2 className="text-sm font-semibold tracking-wide">
+            多渠道预算矩阵
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             聚合 Google Search / Performance Max 与 Meta Feed / Reels · 点击预算可手动接管
           </p>
         </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
