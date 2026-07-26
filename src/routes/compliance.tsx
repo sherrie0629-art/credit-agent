@@ -107,10 +107,11 @@ function CompliancePage() {
 
             <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
               <div>
-                <p className="font-mono text-xs">Meta Special Ad Category</p>
+                <p className="text-xs">Meta 特殊广告类别</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Financial Products and Services
+                  金融产品与服务（Financial Products and Services）
                 </p>
+
               </div>
               <Switch
                 checked={draft.specialAdCategory}
