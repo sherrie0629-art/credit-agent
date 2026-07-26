@@ -45,18 +45,26 @@ const STATUS_STYLES: Record<DecisionStatus, string> = {
   ROLLED_BACK: "border-border bg-muted text-muted-foreground",
 };
 
+const STATUS_LABELS: Record<DecisionStatus, string> = {
+  EXECUTED: "已执行",
+  PENDING_APPROVAL: "待审批",
+  REJECTED_BY_USER: "已人工否决",
+  ROLLED_BACK: "已回滚",
+};
+
 export function StatusBadge({ status }: { status: DecisionStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded border px-2 py-0.5 font-mono text-[11px]",
+        "inline-flex items-center rounded border px-2 py-0.5 text-[11px]",
         STATUS_STYLES[status],
       )}
     >
-      {status}
+      {STATUS_LABELS[status]}
     </span>
   );
 }
+
 
 export function MetricPill({
   label,
