@@ -236,9 +236,13 @@ export type Database = {
           compliance_logs: Json
           compliance_status: string
           created_at: string
+          fatigue_level: string
+          fatigue_score: number
           headline: string
           id: string
           image_url: string | null
+          last_scanned_at: string | null
+          launched_at: string
           loan_term_range: string
           max_apr: number
           sort_order: number
@@ -248,9 +252,13 @@ export type Database = {
           compliance_logs?: Json
           compliance_status?: string
           created_at?: string
+          fatigue_level?: string
+          fatigue_score?: number
           headline: string
           id: string
           image_url?: string | null
+          last_scanned_at?: string | null
+          launched_at?: string
           loan_term_range?: string
           max_apr?: number
           sort_order?: number
@@ -260,14 +268,152 @@ export type Database = {
           compliance_logs?: Json
           compliance_status?: string
           created_at?: string
+          fatigue_level?: string
+          fatigue_score?: number
           headline?: string
           id?: string
           image_url?: string | null
+          last_scanned_at?: string | null
+          launched_at?: string
           loan_term_range?: string
           max_apr?: number
           sort_order?: number
         }
         Relationships: []
+      }
+      creative_experiments: {
+        Row: {
+          arm_stats: Json
+          created_at: string
+          decided_at: string | null
+          id: string
+          parent_creative_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          winner_variant_id: string | null
+        }
+        Insert: {
+          arm_stats?: Json
+          created_at?: string
+          decided_at?: string | null
+          id: string
+          parent_creative_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          winner_variant_id?: string | null
+        }
+        Update: {
+          arm_stats?: Json
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          parent_creative_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          winner_variant_id?: string | null
+        }
+        Relationships: []
+      }
+      creative_metrics: {
+        Row: {
+          clicks: number
+          cpl: number
+          cps: number
+          created_at: string
+          creative_id: string
+          ctr: number
+          day: string
+          frequency: number
+          id: number
+          impressions: number
+          spend: number
+        }
+        Insert: {
+          clicks?: number
+          cpl?: number
+          cps?: number
+          created_at?: string
+          creative_id: string
+          ctr?: number
+          day: string
+          frequency?: number
+          id?: number
+          impressions?: number
+          spend?: number
+        }
+        Update: {
+          clicks?: number
+          cpl?: number
+          cps?: number
+          created_at?: string
+          creative_id?: string
+          ctr?: number
+          day?: string
+          frequency?: number
+          id?: number
+          impressions?: number
+          spend?: number
+        }
+        Relationships: []
+      }
+      creative_variants: {
+        Row: {
+          angle: string
+          body_text: string
+          compliance_logs: Json
+          compliance_score: number
+          compliance_status: string
+          created_at: string
+          experiment_id: string | null
+          headline: string
+          id: string
+          image_url: string | null
+          parent_creative_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          angle?: string
+          body_text?: string
+          compliance_logs?: Json
+          compliance_score?: number
+          compliance_status?: string
+          created_at?: string
+          experiment_id?: string | null
+          headline?: string
+          id: string
+          image_url?: string | null
+          parent_creative_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          angle?: string
+          body_text?: string
+          compliance_logs?: Json
+          compliance_score?: number
+          compliance_status?: string
+          created_at?: string
+          experiment_id?: string | null
+          headline?: string
+          id?: string
+          image_url?: string | null
+          parent_creative_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_variants_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "creative_experiments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       funnel_stages: {
         Row: {
