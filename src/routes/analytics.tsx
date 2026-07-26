@@ -94,9 +94,10 @@ function AnalyticsPage() {
         </section>
 
         <section className="panel p-5">
-          <h2 className="font-mono text-sm uppercase tracking-widest">
-            Google vs Meta — 前端 ROI vs 真实 30 天 ROAS
+          <h2 className="text-sm font-semibold tracking-wide">
+            Google vs Meta · 前端 ROI 与真实 30 天 ROAS
           </h2>
+
           <p className="mt-1 text-xs text-muted-foreground">
             虚线 = 以 CPL 计算的前端 ROI；实线 = 以实际利息收入计算的 30 天 LTV/ROAS
           </p>
