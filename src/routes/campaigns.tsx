@@ -120,23 +120,23 @@ function CampaignsPage() {
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <Label className="font-mono text-xs">托管模式 Management Mode</Label>
+                <Label className="text-xs">托管模式</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {mode === "FULL_AUTO"
-                    ? "Full-Auto：Agent 直接调用广告 API 执行调价与预算转移。"
-                    : "Semi-Auto：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
+                    ? "全自动：Agent 直接调用广告 API 执行调价与预算转移。"
+                    : "半自动：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] text-muted-foreground">SEMI</span>
+                <span className="text-[11px] text-muted-foreground">半自动</span>
                 <Switch
                   checked={mode === "FULL_AUTO"}
                   onCheckedChange={async (v) => {
                     await agentApi.setMode(v ? "FULL_AUTO" : "SEMI_AUTO");
-                    toast.success(`托管模式 = ${v ? "Full-Auto" : "Semi-Auto"}`);
+                    toast.success(`托管模式已切换为${v ? "全自动" : "半自动"}`);
                   }}
                 />
-                <span className="font-mono text-[11px] text-neon">AUTO</span>
+                <span className="text-[11px] text-neon">全自动</span>
               </div>
             </div>
           </div>
@@ -144,7 +144,8 @@ function CampaignsPage() {
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <Label className="font-mono text-xs">风控优先模式 Risk-First</Label>
+                <Label className="text-xs">风控优先模式</Label>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   连续 20 个 Lead 授信通过率 &lt; 10% 时，Agent 自动暂停该广告组。
                 </p>
