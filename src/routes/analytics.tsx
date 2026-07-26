@@ -44,15 +44,16 @@ function AnalyticsPage() {
     <AppShell>
       <header className="panel p-5">
         <p className="label-mono">module 04</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Full-Funnel Analytics</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">全链路放款归因</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          全链路放款数据归因中心 · Meta CAPI + Google Offline Conversion Tracking 回传
+          全链路放款数据归因中心 · Meta CAPI + Google 线下转化回传
         </p>
       </header>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
         <section className="panel p-5">
-          <h2 className="font-mono text-sm uppercase tracking-widest">Conversion Funnel</h2>
+          <h2 className="text-sm font-semibold tracking-wide">转化漏斗</h2>
+
           <p className="mt-1 text-xs text-muted-foreground">
             前端曝光到后端放款的真实衰减链路
           </p>
@@ -93,9 +94,10 @@ function AnalyticsPage() {
         </section>
 
         <section className="panel p-5">
-          <h2 className="font-mono text-sm uppercase tracking-widest">
-            Google vs Meta — 前端 ROI vs 真实 30 天 ROAS
+          <h2 className="text-sm font-semibold tracking-wide">
+            Google vs Meta · 前端 ROI 与真实 30 天 ROAS
           </h2>
+
           <p className="mt-1 text-xs text-muted-foreground">
             虚线 = 以 CPL 计算的前端 ROI；实线 = 以实际利息收入计算的 30 天 LTV/ROAS
           </p>
@@ -159,7 +161,7 @@ function AnalyticsPage() {
             </ResponsiveContainer>
           </div>
           <p className="mt-3 rounded-md border border-warning/30 bg-warning/8 p-3 text-xs text-muted-foreground">
-            <span className="font-mono text-warning">INSIGHT · </span>
+            <span className="text-warning">关键洞察 · </span>
             Meta 前端 ROI 领先 26%，但真实 30 天 ROAS 已跌破盈亏平衡线 1.0x —— 前端 CPC/CPL
             与后端放款严重脱节，Planner Agent 已据此转移预算。
           </p>
@@ -167,32 +169,40 @@ function AnalyticsPage() {
       </div>
 
       <section className="panel mt-4 p-5">
-        <h2 className="font-mono text-sm uppercase tracking-widest">
-          Downstream Attribution by Channel
+        <h2 className="text-sm font-semibold tracking-wide">
+          分渠道后端归因
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {channelBreakdown.map((c) => (
             <div key={c.channel} className="rounded-md border border-border bg-background/50 p-4">
-              <p className="font-mono text-xs">{c.channel}</p>
-              <p className="mt-3 label-mono">disbursed</p>
+              <p className="text-xs">{c.channel}</p>
+              <p className="mt-3 label-mono">放款金额</p>
               <p className="font-mono text-lg neon-text">
                 ${(c.disbursed / 1000).toFixed(0)}k
               </p>
-              <div className="mt-3 space-y-1 font-mono text-[11px] text-muted-foreground">
-                <p>spend ${c.spend.toLocaleString()}</p>
+              <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
                 <p>
-                  cps{" "}
-                  <span className={c.cps > 19 ? "text-destructive" : "text-success"}>
+                  广告花费 <span className="font-mono">${c.spend.toLocaleString()}</span>
+                </p>
+                <p>
+                  CPS{" "}
+                  <span className={cn("font-mono", c.cps > 19 ? "text-destructive" : "text-success")}>
                     ${c.cps.toFixed(2)}
                   </span>
                 </p>
                 <p>
-                  approval{" "}
-                  <span className={c.approval < 0.1 ? "text-destructive" : "text-success"}>
+                  授信通过率{" "}
+                  <span
+                    className={cn(
+                      "font-mono",
+                      c.approval < 0.1 ? "text-destructive" : "text-success",
+                    )}
+                  >
                     {(c.approval * 100).toFixed(1)}%
                   </span>
                 </p>
               </div>
+
             </div>
           ))}
         </div>

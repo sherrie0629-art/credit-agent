@@ -10,11 +10,12 @@ import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
-  { to: "/", label: "Decision Command", sub: "白盒决策指挥中心", icon: Activity },
-  { to: "/campaigns", label: "Campaign & Budget", sub: "全托管预算调配", icon: SlidersHorizontal },
-  { to: "/compliance", label: "Compliance Studio", sub: "合规与素材实验室", icon: ShieldCheck },
-  { to: "/analytics", label: "Full-Funnel", sub: "全链路放款归因", icon: BarChart3 },
+  { to: "/", label: "决策指挥中心", sub: "白盒 Agent 实时推理", icon: Activity },
+  { to: "/campaigns", label: "预算与投放", sub: "全托管预算调配", icon: SlidersHorizontal },
+  { to: "/compliance", label: "合规素材", sub: "合规审计与素材实验室", icon: ShieldCheck },
+  { to: "/analytics", label: "全链路归因", sub: "放款转化与 ROAS", icon: BarChart3 },
 ];
+
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -54,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className={cn("mt-0.5 size-4", active ? "text-neon" : "text-muted-foreground")}
                 />
                 <span className="min-w-0">
-                  <span className="block truncate font-mono text-[13px]">{item.label}</span>
+                  <span className="block truncate text-[13px] font-medium">{item.label}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
                     {item.sub}
                   </span>
@@ -65,16 +66,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="m-3 rounded-md border border-sidebar-border bg-background/60 p-3">
-          <p className="label-mono">agent runtime</p>
-          <p className="mt-1 flex items-center gap-2 font-mono text-xs">
+          <p className="label-mono">agent 运行状态</p>
+          <p className="mt-1 flex items-center gap-2 text-xs">
             <span className={cn("size-1.5 rounded-full", online ? "bg-success" : "bg-destructive")} />
-            {online ? "AUTONOMOUS RUNNING" : "PAUSED"}
+            {online ? "自动托管运行中" : "已暂停"}
           </p>
-          <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-            mode = {mode === "FULL_AUTO" ? "full-auto" : "semi-auto"}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            托管模式：{mode === "FULL_AUTO" ? "全自动" : "半自动"}
           </p>
-          <p className="font-mono text-[11px] text-muted-foreground">poll = 15min</p>
+          <p className="text-[11px] text-muted-foreground">采集间隔：15 分钟</p>
         </div>
+
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -84,7 +86,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={item.to}
               to={item.to}
               className={cn(
-                "shrink-0 rounded-md px-3 py-2 font-mono text-xs",
+                "shrink-0 rounded-md px-3 py-2 text-xs",
+
+
                 pathname === item.to
                   ? "bg-sidebar-accent text-neon"
                   : "text-muted-foreground",

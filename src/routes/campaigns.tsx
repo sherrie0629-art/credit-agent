@@ -48,6 +48,14 @@ const STATUS_STYLE: Record<Campaign["status"], string> = {
   COMPLIANCE_HOLD: "border-compliance/40 bg-compliance/12 text-compliance",
 };
 
+const STATUS_LABEL: Record<Campaign["status"], string> = {
+  ACTIVE: "投放中",
+  PAUSED: "已暂停",
+  LEARNING: "学习期",
+  COMPLIANCE_HOLD: "合规拦截",
+};
+
+
 function BudgetCell({ campaign }: { campaign: Campaign }) {
   const [value, setValue] = useState(String(campaign.dailyBudget));
   const [editing, setEditing] = useState(false);
@@ -76,9 +84,10 @@ function BudgetCell({ campaign }: { campaign: Campaign }) {
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
         await agentApi.setCampaignBudget(campaign.id, Math.round(next));
-        toast.success("预算已更新（Mock Ads API）", {
-          description: `${campaign.name} → $${Math.round(next).toLocaleString()}/日`,
+        toast.success("每日预算已更新", {
+          description: `${campaign.name} → $${Math.round(next).toLocaleString()} / 日`,
         });
+
       }}
     >
       <Input
@@ -109,33 +118,34 @@ function CampaignsPage() {
       <header className="panel p-5">
         <p className="label-mono">module 02</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          Campaign &amp; Budget Allocation
+          广告投放与预算调配
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          全托管广告与预算调配引擎 · Planner Agent 按后端放款表现分配资金
+          全托管预算调配引擎 · Planner Agent 按后端放款表现分配资金
         </p>
+
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <Label className="font-mono text-xs">托管模式 Management Mode</Label>
+                <Label className="text-xs">托管模式</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {mode === "FULL_AUTO"
-                    ? "Full-Auto：Agent 直接调用广告 API 执行调价与预算转移。"
-                    : "Semi-Auto：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
+                    ? "全自动：Agent 直接调用广告 API 执行调价与预算转移。"
+                    : "半自动：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] text-muted-foreground">SEMI</span>
+                <span className="text-[11px] text-muted-foreground">半自动</span>
                 <Switch
                   checked={mode === "FULL_AUTO"}
                   onCheckedChange={async (v) => {
                     await agentApi.setMode(v ? "FULL_AUTO" : "SEMI_AUTO");
-                    toast.success(`托管模式 = ${v ? "Full-Auto" : "Semi-Auto"}`);
+                    toast.success(`托管模式已切换为${v ? "全自动" : "半自动"}`);
                   }}
                 />
-                <span className="font-mono text-[11px] text-neon">AUTO</span>
+                <span className="text-[11px] text-neon">全自动</span>
               </div>
             </div>
           </div>
@@ -143,7 +153,8 @@ function CampaignsPage() {
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <Label className="font-mono text-xs">风控优先模式 Risk-First</Label>
+                <Label className="text-xs">风控优先模式</Label>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   连续 20 个 Lead 授信通过率 &lt; 10% 时，Agent 自动暂停该广告组。
                 </p>
@@ -168,10 +179,10 @@ function CampaignsPage() {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "daily budget", value: `$${totalBudget.toLocaleString()}` },
-          { label: "spent today", value: `$${totalSpent.toLocaleString()}` },
-          { label: "disbursed (30d)", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
-          { label: "blended cps", value: `$${blendedCps.toFixed(2)}` },
+          { label: "今日预算总额", value: `$${totalBudget.toLocaleString()}` },
+          { label: "今日已花费", value: `$${totalSpent.toLocaleString()}` },
+          { label: "30 天放款金额", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
+          { label: "综合放款成本 CPS", value: `$${blendedCps.toFixed(2)}` },
         ].map((s) => (
           <div key={s.label} className="panel p-4">
             <p className="label-mono">{s.label}</p>
@@ -182,13 +193,14 @@ function CampaignsPage() {
 
       <section className="panel mt-4 overflow-hidden">
         <div className="border-b border-border p-4">
-          <h2 className="font-mono text-sm uppercase tracking-widest">
-            Multi-Channel Budget Matrix
+          <h2 className="text-sm font-semibold tracking-wide">
+            多渠道预算矩阵
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             聚合 Google Search / Performance Max 与 Meta Feed / Reels · 点击预算可手动接管
           </p>
         </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -215,14 +227,15 @@ function CampaignsPage() {
                   <TableCell className="max-w-[220px]">
                     <p className="truncate text-sm">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-foreground">
-                      {c.leads} leads · {c.approvedLoans} approved
+                      {c.leads} 条线索 · {c.approvedLoans} 笔通过
                     </p>
                   </TableCell>
                   <TableCell>
                     <BudgetCell campaign={c} />
                     <p className="font-mono text-[11px] text-muted-foreground">
-                      spent ${c.spentToday.toLocaleString()}
+                      已花费 ${c.spentToday.toLocaleString()}
                     </p>
+
                   </TableCell>
                   <TableCell className="font-mono text-xs">${c.cpl.toFixed(2)}</TableCell>
                   <TableCell>
@@ -238,7 +251,7 @@ function CampaignsPage() {
                     >
                       {(c.last20ApprovalRate * 100).toFixed(1)}%
                     </span>
-                    <p className="font-mono text-[11px] text-muted-foreground">last 20 leads</p>
+                    <p className="text-[11px] text-muted-foreground">最近 20 条线索</p>
                   </TableCell>
                   <TableCell>
                     <span
@@ -253,13 +266,14 @@ function CampaignsPage() {
                   <TableCell>
                     <span
                       className={cn(
-                        "inline-flex rounded border px-2 py-0.5 font-mono text-[11px]",
+                        "inline-flex rounded border px-2 py-0.5 text-[11px]",
                         STATUS_STYLE[c.status],
                       )}
                     >
-                      {c.status}
+                      {STATUS_LABEL[c.status]}
                     </span>
                   </TableCell>
+
                   <TableCell className="max-w-[280px]">
                     <p className="text-xs text-muted-foreground">{c.aiSuggestion}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -267,15 +281,15 @@ function CampaignsPage() {
                         size="sm"
                         variant="secondary"
                         disabled={busyId === c.id}
-                        className="font-mono text-[11px]"
+                        className="text-[11px]"
                         onClick={async () => {
                           setBusyId(c.id);
                           try {
                             const d = await agentApi.applyAiSuggestion(c.id);
                             if (d?.status === "EXECUTED") {
-                              toast.success("Full-Auto 已执行", { description: d.effect });
+                              toast.success("全自动模式已执行", { description: d.effect });
                             } else if (d) {
-                              toast.warning("已推送至审批队列", { description: d.effect });
+                              toast.warning("已推送至人工审批队列", { description: d.effect });
                             }
                           } finally {
                             setBusyId(null);
@@ -288,13 +302,14 @@ function CampaignsPage() {
                         size="sm"
                         variant="ghost"
                         disabled={busyId === c.id}
-                        className="font-mono text-[11px]"
+                        className="text-[11px]"
                         onClick={async () => {
                           setBusyId(c.id);
                           try {
                             const next = c.status === "PAUSED" ? "ACTIVE" : "PAUSED";
                             await agentApi.setCampaignStatus(c.id, next);
-                            toast(`${c.name} → ${next}`);
+                            toast(`${c.name} → ${STATUS_LABEL[next]}`);
+
                           } finally {
                             setBusyId(null);
                           }

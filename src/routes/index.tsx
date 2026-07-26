@@ -69,19 +69,19 @@ function CommandCenter() {
       <header className="panel flex flex-wrap items-center gap-4 p-5">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Badge className="border border-success/50 bg-success/15 font-mono text-[11px] tracking-wider text-success">
+            <Badge className="border border-success/50 bg-success/15 text-[11px] tracking-wide text-success">
               <span className="mr-1.5 inline-block size-1.5 rounded-full bg-success pulse-dot" />
-              AUTONOMOUS RUNNING
+              自动托管运行中
             </Badge>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              mode = {mode === "FULL_AUTO" ? "FULL-AUTO" : "SEMI-AUTO"} · next poll 04:12
+            <span className="text-[11px] text-muted-foreground">
+              托管模式：{mode === "FULL_AUTO" ? "全自动" : "半自动"} · 下次采集 04:12
             </span>
           </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">
-            Agent Decision Command Center
+            AI 投放决策指挥中心
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            白盒可观测决策指挥中心 · Google Ads &amp; Meta Ads 全托管投放
+            白盒可观测决策中枢 · Google Ads &amp; Meta Ads 全托管投放
           </p>
         </div>
       </header>
@@ -89,27 +89,27 @@ function CommandCenter() {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={Zap}
-          label="today ai takeovers"
+          label="今日 AI 接管次数"
           value={String(takeovers)}
-          hint="今日 Agent 自动接管调优次数"
+          hint="Agent 自动完成的调优操作"
         />
         <StatCard
           icon={Gauge}
-          label="cps reduction"
+          label="CPS 降幅"
           value={`−${cpsImprovement.toFixed(1)}%`}
-          hint="AI 调优带来的每放款成本降低"
+          hint="AI 调优带来的每笔放款成本下降"
           tone="success"
         />
         <StatCard
           icon={Bot}
-          label="pending approvals"
+          label="待审批决策"
           value={String(pending.length)}
-          hint="等待 Human-in-the-Loop 确认"
+          hint="等待人工确认（Human-in-the-Loop）"
           tone="warning"
         />
         <StatCard
           icon={ShieldAlert}
-          label="compliance holds"
+          label="合规拦截"
           value={String(holds)}
           hint="合规 Agent 拦截中的广告系列"
           tone="warning"
@@ -120,14 +120,14 @@ function CommandCenter() {
         <section className="panel flex min-h-0 flex-col p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-mono text-sm uppercase tracking-widest">
-                Live Agent Thought Feed
+              <h2 className="text-sm font-semibold tracking-wide">
+                实时决策推理流
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                实时推理脉络流 · 每 15 分钟采集 Google/Meta API + 借贷 CRM
+                每 15 分钟采集 Google / Meta API 与借贷 CRM 数据
               </p>
             </div>
-            <span className="label-mono">{decisions.length} events</span>
+            <span className="label-mono">{decisions.length} 条决策</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             <div className="space-y-3">
@@ -140,20 +140,21 @@ function CommandCenter() {
 
         <section className="panel flex min-h-0 flex-col p-4">
           <div>
-            <h2 className="font-mono text-sm uppercase tracking-widest text-warning">
-              Human-in-the-Loop Queue
+            <h2 className="text-sm font-semibold tracking-wide text-warning">
+              人工审批队列（Human-in-the-Loop）
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              变更幅度 &gt; 30% 的决策自动挂起，等待 Approve / Override
+              变更幅度 &gt; 30% 的决策自动挂起，等待批准或人工否决
             </p>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             {pending.length === 0 ? (
               <div className="rounded-md border border-dashed border-border p-6 text-center">
-                <p className="font-mono text-xs text-muted-foreground">
-                  QUEUE EMPTY — 所有决策已处理
+                <p className="text-xs text-muted-foreground">
+                  队列已清空 —— 所有决策均已处理
                 </p>
               </div>
+
             ) : (
               <div className="space-y-3">
                 {pending.map((d) => (
