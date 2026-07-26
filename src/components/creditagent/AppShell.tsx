@@ -66,16 +66,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="m-3 rounded-md border border-sidebar-border bg-background/60 p-3">
-          <p className="label-mono">agent runtime</p>
-          <p className="mt-1 flex items-center gap-2 font-mono text-xs">
+          <p className="label-mono">agent 运行状态</p>
+          <p className="mt-1 flex items-center gap-2 text-xs">
             <span className={cn("size-1.5 rounded-full", online ? "bg-success" : "bg-destructive")} />
-            {online ? "AUTONOMOUS RUNNING" : "PAUSED"}
+            {online ? "自动托管运行中" : "已暂停"}
           </p>
-          <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-            mode = {mode === "FULL_AUTO" ? "full-auto" : "semi-auto"}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            托管模式：{mode === "FULL_AUTO" ? "全自动" : "半自动"}
           </p>
-          <p className="font-mono text-[11px] text-muted-foreground">poll = 15min</p>
+          <p className="text-[11px] text-muted-foreground">采集间隔：15 分钟</p>
         </div>
+
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
