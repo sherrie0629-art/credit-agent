@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
+  FlaskConical,
   ShieldCheck,
   SlidersHorizontal,
   type LucideIcon,
@@ -13,8 +14,10 @@ const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
   { to: "/", label: "决策指挥中心", sub: "白盒 Agent 实时推理", icon: Activity },
   { to: "/campaigns", label: "预算与投放", sub: "全托管预算调配", icon: SlidersHorizontal },
   { to: "/compliance", label: "合规素材", sub: "合规审计与素材实验室", icon: ShieldCheck },
+  { to: "/creative-lab", label: "创意实验室", sub: "疲劳预警与自动迭代", icon: FlaskConical },
   { to: "/analytics", label: "全链路归因", sub: "放款转化与 ROAS", icon: BarChart3 },
 ];
+
 
 
 export function AppShell({ children }: { children: React.ReactNode }) {

@@ -11,6 +11,13 @@ import {
   setModeFn,
   setRiskFirstFn,
 } from "./agent.functions";
+import {
+  generateVariantsFn,
+  launchExperimentFn,
+  scanFatigueFn,
+  setVariantImageFn,
+  settleExperimentFn,
+} from "./creative.functions";
 import type { AgentSnapshot, Campaign, ManagementMode } from "./types";
 
 // Client-side cache of the real backend state. Every mutation goes through a
@@ -34,10 +41,14 @@ const EMPTY: State = {
   funnel: [],
   channelTrend: [],
   channelBreakdown: [],
+  creativeMetrics: [],
+  variants: [],
+  experiments: [],
   loaded: false,
   loading: false,
   error: null,
 };
+
 
 let state: State = EMPTY;
 
@@ -137,5 +148,33 @@ export const agentApi = {
     const res = await logComplianceDecisionFn({ data: payload });
     applySnapshot(res.snapshot);
     return res.decision;
+  },
+
+  async scanFatigue() {
+    const res = await scanFatigueFn();
+    applySnapshot(res.snapshot);
+    return res.alerts;
+  },
+
+  async generateVariants(creativeId: string) {
+    const res = await generateVariantsFn({ data: { creativeId } });
+    applySnapshot(res.snapshot);
+    return res.created;
+  },
+
+  async setVariantImage(variantId: string, imageUrl: string) {
+    applySnapshot(await setVariantImageFn({ data: { variantId, imageUrl } }));
+  },
+
+  async launchExperiment(creativeId: string, variantIds: string[]) {
+    const res = await launchExperimentFn({ data: { creativeId, variantIds } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async settleExperiment(experimentId: string) {
+    const res = await settleExperimentFn({ data: { experimentId } });
+    applySnapshot(res.snapshot);
+    return res;
   },
 };
