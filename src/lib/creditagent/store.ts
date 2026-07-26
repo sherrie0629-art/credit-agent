@@ -149,4 +149,32 @@ export const agentApi = {
     applySnapshot(res.snapshot);
     return res.decision;
   },
+
+  async scanFatigue() {
+    const res = await scanFatigueFn();
+    applySnapshot(res.snapshot);
+    return res.alerts;
+  },
+
+  async generateVariants(creativeId: string) {
+    const res = await generateVariantsFn({ data: { creativeId } });
+    applySnapshot(res.snapshot);
+    return res.created;
+  },
+
+  async setVariantImage(variantId: string, imageUrl: string) {
+    applySnapshot(await setVariantImageFn({ data: { variantId, imageUrl } }));
+  },
+
+  async launchExperiment(creativeId: string, variantIds: string[]) {
+    const res = await launchExperimentFn({ data: { creativeId, variantIds } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async settleExperiment(experimentId: string) {
+    const res = await settleExperimentFn({ data: { experimentId } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
 };
