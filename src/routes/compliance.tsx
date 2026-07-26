@@ -278,7 +278,7 @@ function CompliancePage() {
                 <span className="label-mono">{c.id}</span>
                 <span
                   className={cn(
-                    "rounded border px-2 py-0.5 font-mono text-[11px]",
+                    "rounded border px-2 py-0.5 text-[11px]",
                     c.complianceStatus === "PASSED"
                       ? "border-success/40 bg-success/12 text-success"
                       : c.complianceStatus === "WARNING"
@@ -286,14 +286,19 @@ function CompliancePage() {
                         : "border-destructive/40 bg-destructive/12 text-destructive",
                   )}
                 >
-                  {c.complianceStatus}
+                  {c.complianceStatus === "PASSED"
+                    ? "已通过"
+                    : c.complianceStatus === "WARNING"
+                      ? "风险提示"
+                      : "未通过"}
                 </span>
               </div>
               <p className="mt-2 text-sm font-medium">{c.headline}</p>
               <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{c.bodyText}</p>
               <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                {c.loanTermRange} · max APR {c.maxApr || "—"}%
+                {c.loanTermRange} · 最高 APR {c.maxApr || "—"}%
               </p>
+
             </button>
           ))}
         </div>
