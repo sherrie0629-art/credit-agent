@@ -257,7 +257,7 @@ function CompliancePage() {
       </div>
 
       <section className="panel mt-4 p-5">
-        <h2 className="font-mono text-sm uppercase tracking-widest">Creative Library</h2>
+        <h2 className="text-sm font-semibold tracking-wide">素材库</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {creatives.map((c) => (
             <button
