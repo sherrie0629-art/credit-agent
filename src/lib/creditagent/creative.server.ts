@@ -278,16 +278,20 @@ export async function generateVariants(creativeId: string) {
 
   if (rows.length) await supabase.from("creative_variants").insert(rows as never);
 
+  const genAttr = await attribution(creativeId, c.headline);
   await insertDecision({
     id: await newId("dec_gen"),
     timestamp: now,
     agent_type: "Creative",
     action_type: "CREATIVE_REFRESH",
-    target_channel: creativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: creativeId,
-    campaign_name: c.headline,
+    target_channel: genAttr.target_channel,
+    campaign_id: genAttr.campaign_id,
+    campaign_name: genAttr.campaign_name,
+    creative_id: genAttr.creative_id,
+    creative_name: genAttr.creative_name,
     confidence_score: 0.9,
     reasoning_chain: [
+      genAttr.placementNote,
       `素材「${c.headline}」疲劳分 ${fatigue.score}/100，触发自动迭代。`,
       ...reasons.map((r) => `疲劳信号：${r}`),
       `Creative Agent 调用生成模型产出 ${rows.length} 个新变体，覆盖不同创意角度。`,
@@ -299,6 +303,7 @@ export async function generateVariants(creativeId: string) {
     status: "EXECUTED",
     effect: `生成 ${rows.length} 个候选变体`,
   });
+
 
   return { snapshot: await getSnapshot(), created: rows.length };
 }
