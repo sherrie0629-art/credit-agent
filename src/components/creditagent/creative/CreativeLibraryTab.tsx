@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   ImageIcon,
@@ -13,8 +14,10 @@ import { agentApi, useAgentStore } from "@/lib/creditagent/store";
 import { computeFatigue, FATIGUE_LEVEL_LABEL, type FatigueLevel } from "@/lib/creditagent/fatigue";
 import { VARIANT_STATUS_LABEL } from "@/lib/creditagent/creative-types";
 import type { ComplianceInput } from "@/lib/creditagent/compliance";
+import type { CreativePlacement } from "@/lib/creditagent/types";
 import { streamImage } from "@/lib/streamImage";
 import { cn } from "@/lib/utils";
+
 
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
