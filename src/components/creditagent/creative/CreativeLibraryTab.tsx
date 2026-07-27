@@ -35,12 +35,23 @@ export function CreativeLibraryTab({
   const variants = useAgentStore((s) => s.variants);
   const experiments = useAgentStore((s) => s.experiments);
   const loaded = useAgentStore((s) => s.loaded);
+  const placements = useAgentStore((s) => s.placements);
 
   const [scanning, setScanning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, { src: string; final: boolean }>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const placementsByCreative = useMemo(() => {
+    const map = new Map<string, CreativePlacement[]>();
+    for (const p of placements) {
+      const list = map.get(p.creativeId) ?? [];
+      list.push(p);
+      map.set(p.creativeId, list);
+    }
+    return map;
+  }, [placements]);
 
   const fatigueByCreative = useMemo(() => {
     const map = new Map<string, ReturnType<typeof computeFatigue>>();
@@ -49,6 +60,7 @@ export function CreativeLibraryTab({
     }
     return map;
   }, [creatives, metrics]);
+
 
   async function handleScan() {
     setScanning(true);
