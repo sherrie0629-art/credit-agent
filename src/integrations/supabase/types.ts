@@ -230,6 +230,92 @@ export type Database = {
         }
         Relationships: []
       }
+      conversion_settings: {
+        Row: {
+          conversion_action: string
+          destination_id: string
+          enabled: boolean
+          lookback_days: number
+          mode: string
+          platform: string
+          updated_at: string
+          value_rules: Json
+        }
+        Insert: {
+          conversion_action?: string
+          destination_id?: string
+          enabled?: boolean
+          lookback_days?: number
+          mode?: string
+          platform: string
+          updated_at?: string
+          value_rules?: Json
+        }
+        Update: {
+          conversion_action?: string
+          destination_id?: string
+          enabled?: boolean
+          lookback_days?: number
+          mode?: string
+          platform?: string
+          updated_at?: string
+          value_rules?: Json
+        }
+        Relationships: []
+      }
+      conversion_uploads: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_code: string | null
+          event_id: string
+          id: string
+          match_quality: number
+          platform: string
+          request_payload: Json
+          response_body: Json
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          event_id: string
+          id: string
+          match_quality?: number
+          platform: string
+          request_payload?: Json
+          response_body?: Json
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          event_id?: string
+          id?: string
+          match_quality?: number
+          platform?: string
+          request_payload?: Json
+          response_body?: Json
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_uploads_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "lead_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creative_assets: {
         Row: {
           body_text: string
@@ -436,6 +522,101 @@ export type Database = {
           sort_order?: number
           stage?: string
           value?: number
+        }
+        Relationships: []
+      }
+      lead_events: {
+        Row: {
+          created_at: string
+          currency: string
+          event_type: string
+          external_ref: string | null
+          id: string
+          lead_id: string
+          occurred_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          event_type: string
+          external_ref?: string | null
+          id: string
+          lead_id: string
+          occurred_at?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          event_type?: string
+          external_ref?: string | null
+          id?: string
+          lead_id?: string
+          occurred_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          campaign_id: string
+          channel: string
+          click_at: string
+          created_at: string
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          gbraid: string | null
+          gclid: string | null
+          hashed_email: string | null
+          hashed_phone: string | null
+          id: string
+          landing_url: string
+          updated_at: string
+          wbraid: string | null
+        }
+        Insert: {
+          campaign_id: string
+          channel: string
+          click_at?: string
+          created_at?: string
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          hashed_email?: string | null
+          hashed_phone?: string | null
+          id: string
+          landing_url?: string
+          updated_at?: string
+          wbraid?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          channel?: string
+          click_at?: string
+          created_at?: string
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          hashed_email?: string | null
+          hashed_phone?: string | null
+          id?: string
+          landing_url?: string
+          updated_at?: string
+          wbraid?: string | null
         }
         Relationships: []
       }
