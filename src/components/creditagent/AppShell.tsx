@@ -3,6 +3,7 @@ import {
   Activity,
   BarChart3,
   FlaskConical,
+  Radio,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -15,7 +16,9 @@ const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
   { to: "/campaigns", label: "预算与投放", sub: "全托管预算调配", icon: SlidersHorizontal },
   { to: "/creative", label: "素材中心", sub: "合规审计 · 疲劳迭代 · A/B", icon: FlaskConical },
   { to: "/analytics", label: "全链路归因", sub: "放款转化与 ROAS", icon: BarChart3 },
+  { to: "/conversions", label: "离线转化回传", sub: "Google OCI · Meta CAPI", icon: Radio },
 ];
+
 
 
 

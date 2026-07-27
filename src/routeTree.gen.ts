@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LpRouteImport } from './routes/lp'
 import { Route as CreativeRouteImport } from './routes/creative'
+import { Route as ConversionsRouteImport } from './routes/conversions'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -33,6 +34,11 @@ const LpRoute = LpRouteImport.update({
 const CreativeRoute = CreativeRouteImport.update({
   id: '/creative',
   path: '/creative',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversionsRoute = ConversionsRouteImport.update({
+  id: '/conversions',
+  path: '/conversions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
+  '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
+  '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
+  '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
+    | '/conversions'
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
+    | '/conversions'
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/campaigns'
+    | '/conversions'
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   CampaignsRoute: typeof CampaignsRoute
+  ConversionsRoute: typeof ConversionsRoute
   CreativeRoute: typeof CreativeRoute
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -183,6 +196,13 @@ declare module '@tanstack/react-router' {
       path: '/creative'
       fullPath: '/creative'
       preLoaderRoute: typeof CreativeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conversions': {
+      id: '/conversions'
+      path: '/conversions'
+      fullPath: '/conversions'
+      preLoaderRoute: typeof ConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   CampaignsRoute: CampaignsRoute,
+  ConversionsRoute: ConversionsRoute,
   CreativeRoute: CreativeRoute,
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
