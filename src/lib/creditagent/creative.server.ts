@@ -65,6 +65,25 @@ async function insertDecision(row: Row) {
   await supabase.from("agent_decisions").insert(row as never);
 }
 
+/**
+ * Resolve which campaign a creative-driven decision belongs to, so the decision
+ * feed shows the real ad campaign while still naming the creative behind it.
+ */
+async function attribution(creativeId: string, creativeName: string) {
+  const p = await getPrimaryPlacement(creativeId);
+  return {
+    target_channel: p?.channel ?? (creativeId.includes("_g_") ? "Google" : "Meta"),
+    campaign_id: p?.campaignId ?? creativeId,
+    campaign_name: p?.campaignName ?? creativeName,
+    creative_id: creativeId,
+    creative_name: creativeName,
+    placementNote: p
+      ? `该素材当前投放于「${p.campaignName}」（${p.placement}），承担该系列 ${(p.share * 100).toFixed(0)}% 的流量。`
+      : "该素材当前未绑定任何广告系列，仅在素材库中待投。",
+  };
+}
+
+
 // ---------------------------------------------------------------- 疲劳巡检
 
 export async function scanFatigue() {
