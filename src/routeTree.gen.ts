@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
+import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -59,6 +60,12 @@ const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
   path: '/api/public/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCronUploadConversionsRoute =
+  ApiPublicCronUploadConversionsRouteImport.update({
+    id: '/api/public/cron/upload-conversions',
+    path: '/api/public/cron/upload-conversions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -69,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -79,6 +87,7 @@ export interface FileRoutesByTo {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -90,6 +99,7 @@ export interface FileRoutesById {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/upload-conversions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/upload-conversions'
   id:
     | '__root__'
     | '/'
@@ -122,6 +134,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/upload-conversions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -133,6 +146,7 @@ export interface RootRouteChildren {
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
+  ApiPublicCronUploadConversionsRoute: typeof ApiPublicCronUploadConversionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -193,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron/upload-conversions': {
+      id: '/api/public/cron/upload-conversions'
+      path: '/api/public/cron/upload-conversions'
+      fullPath: '/api/public/cron/upload-conversions'
+      preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -205,6 +226,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
+  ApiPublicCronUploadConversionsRoute: ApiPublicCronUploadConversionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
