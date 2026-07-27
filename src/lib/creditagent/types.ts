@@ -41,7 +41,24 @@ export interface AgentDecision {
   effect: string;
   /** Snapshot used by rollback simulation. */
   rollbackTo?: string;
+  /** Creative asset this decision was about, when the decision is creative-driven. */
+  creativeId?: string;
+  creativeName?: string;
 }
+
+/** Which campaigns a creative asset is currently delivered in. */
+export interface CreativePlacement {
+  creativeId: string;
+  campaignId: string;
+  campaignName: string;
+  channel: Channel;
+  placement: string;
+  status: "ACTIVE" | "PAUSED" | "ENDED";
+  /** Share of the campaign's delivery carried by this creative (0-1). */
+  share: number;
+  startedAt: string;
+}
+
 
 export interface Campaign {
   id: string;
@@ -123,5 +140,7 @@ export interface AgentSnapshot {
   creativeMetrics: CreativeMetricPoint[];
   variants: CreativeVariant[];
   experiments: CreativeExperiment[];
+  placements: CreativePlacement[];
 }
+
 

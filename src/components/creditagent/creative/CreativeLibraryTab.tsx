@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   ImageIcon,
@@ -13,8 +14,10 @@ import { agentApi, useAgentStore } from "@/lib/creditagent/store";
 import { computeFatigue, FATIGUE_LEVEL_LABEL, type FatigueLevel } from "@/lib/creditagent/fatigue";
 import { VARIANT_STATUS_LABEL } from "@/lib/creditagent/creative-types";
 import type { ComplianceInput } from "@/lib/creditagent/compliance";
+import type { CreativePlacement } from "@/lib/creditagent/types";
 import { streamImage } from "@/lib/streamImage";
 import { cn } from "@/lib/utils";
+
 
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
@@ -32,12 +35,23 @@ export function CreativeLibraryTab({
   const variants = useAgentStore((s) => s.variants);
   const experiments = useAgentStore((s) => s.experiments);
   const loaded = useAgentStore((s) => s.loaded);
+  const placements = useAgentStore((s) => s.placements);
 
   const [scanning, setScanning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, { src: string; final: boolean }>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const placementsByCreative = useMemo(() => {
+    const map = new Map<string, CreativePlacement[]>();
+    for (const p of placements) {
+      const list = map.get(p.creativeId) ?? [];
+      list.push(p);
+      map.set(p.creativeId, list);
+    }
+    return map;
+  }, [placements]);
 
   const fatigueByCreative = useMemo(() => {
     const map = new Map<string, ReturnType<typeof computeFatigue>>();
@@ -46,6 +60,7 @@ export function CreativeLibraryTab({
     }
     return map;
   }, [creatives, metrics]);
+
 
   async function handleScan() {
     setScanning(true);
@@ -185,7 +200,33 @@ export function CreativeLibraryTab({
                 <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                   {c.loanTermRange} · 最高 APR {c.maxApr || "—"}%
                 </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="label-mono">投放于</span>
+                  {placementsByCreative.get(c.id)?.length ? (
+                    placementsByCreative.get(c.id)!.map((p) => (
+                      <Link
+                        key={p.campaignId}
+                        to="/campaigns"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon",
+                          p.status === "ACTIVE"
+                            ? "border-border bg-background/60"
+                            : "border-border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <span className="font-mono text-[10px] opacity-70">{p.channel}</span>
+                        {p.campaignName}
+                        <span className="font-mono text-[10px] text-neon">
+                          {p.status === "ACTIVE" ? `${(p.share * 100).toFixed(0)}%` : "已暂停"}
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">未绑定广告系列</span>
+                  )}
+                </div>
               </div>
+
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() =>

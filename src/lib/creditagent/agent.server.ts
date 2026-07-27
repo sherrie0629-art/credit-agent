@@ -5,10 +5,12 @@ import type {
   Campaign,
   ChannelTrendPoint,
   CreativeAsset,
+  CreativePlacement,
   ManagementMode,
 } from "./types";
 
 type Row = Record<string, any>;
+
 
 async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -56,8 +58,43 @@ function mapDecision(r: Row): AgentDecision {
     status: r.status,
     effect: r.effect,
     rollbackTo: r.rollback_to ?? undefined,
+    creativeId: r.creative_id ?? undefined,
+    creativeName: r.creative_name ?? undefined,
   };
 }
+
+/** All creative → campaign delivery links, enriched with campaign metadata. */
+export async function getPlacements(): Promise<CreativePlacement[]> {
+  const supabase = await db();
+  const [{ data: links }, { data: campaigns }] = await Promise.all([
+    supabase.from("creative_placements").select("*").order("share", { ascending: false }),
+    supabase.from("campaigns").select("id,name,channel,placement"),
+  ]);
+  const byId = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
+  return ((links ?? []) as Row[]).map((r) => {
+    const c = byId.get(r.campaign_id);
+    return {
+      creativeId: r.creative_id,
+      campaignId: r.campaign_id,
+      campaignName: c?.name ?? r.campaign_id,
+      channel: (c?.channel ?? "Google") as CreativePlacement["channel"],
+      placement: c?.placement ?? "",
+      status: r.status,
+      share: Number(r.share),
+      startedAt: r.started_at,
+    };
+  });
+}
+
+/** Primary (highest-share ACTIVE) campaign a creative is delivered in. */
+export async function getPrimaryPlacement(creativeId: string): Promise<CreativePlacement | null> {
+  const all = await getPlacements();
+  const active = all
+    .filter((p) => p.creativeId === creativeId && p.status === "ACTIVE")
+    .sort((a, b) => b.share - a.share);
+  return active[0] ?? null;
+}
+
 
 function mapCreative(r: Row): CreativeAsset {
   return {
@@ -91,6 +128,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     metrics,
     variants,
     experiments,
+    placements,
   ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
@@ -102,7 +140,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("creative_metrics").select("*").order("day"),
     supabase.from("creative_variants").select("*").order("created_at", { ascending: false }),
     supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
+    getPlacements(),
   ]);
+
 
   const s = (settings.data ?? {}) as Row;
 
@@ -139,7 +179,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     creativeMetrics: ((metrics.data ?? []) as Row[]).map(mapMetric),
     variants: ((variants.data ?? []) as Row[]).map(mapVariant),
     experiments: ((experiments.data ?? []) as Row[]).map(mapExperiment),
+    placements,
   };
+
 }
 
 

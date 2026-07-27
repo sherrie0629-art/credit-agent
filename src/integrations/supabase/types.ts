@@ -22,6 +22,8 @@ export type Database = {
           campaign_name: string
           confidence_score: number
           created_at: string
+          creative_id: string | null
+          creative_name: string | null
           effect: string
           id: string
           reasoning_chain: Json
@@ -40,6 +42,8 @@ export type Database = {
           campaign_name: string
           confidence_score?: number
           created_at?: string
+          creative_id?: string | null
+          creative_name?: string | null
           effect?: string
           id: string
           reasoning_chain?: Json
@@ -58,6 +62,8 @@ export type Database = {
           campaign_name?: string
           confidence_score?: number
           created_at?: string
+          creative_id?: string | null
+          creative_name?: string | null
           effect?: string
           id?: string
           reasoning_chain?: Json
@@ -442,6 +448,36 @@ export type Database = {
           id?: number
           impressions?: number
           spend?: number
+        }
+        Relationships: []
+      }
+      creative_placements: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          creative_id: string
+          share: number
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          creative_id: string
+          share?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          creative_id?: string
+          share?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }

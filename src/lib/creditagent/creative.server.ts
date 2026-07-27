@@ -2,7 +2,7 @@
 import { computeFatigue, FATIGUE_LEVEL_LABEL, type CreativeMetricPoint } from "./fatigue";
 import { autoFixCompliance, scanCompliance, BANNED_PHRASES } from "./compliance";
 import type { CreativeExperiment, CreativeVariant, ExperimentArm } from "./creative-types";
-import { getSnapshot } from "./agent.server";
+import { getPrimaryPlacement, getSnapshot } from "./agent.server";
 
 type Row = Record<string, any>;
 
@@ -65,6 +65,25 @@ async function insertDecision(row: Row) {
   await supabase.from("agent_decisions").insert(row as never);
 }
 
+/**
+ * Resolve which campaign a creative-driven decision belongs to, so the decision
+ * feed shows the real ad campaign while still naming the creative behind it.
+ */
+async function attribution(creativeId: string, creativeName: string) {
+  const p = await getPrimaryPlacement(creativeId);
+  return {
+    target_channel: p?.channel ?? (creativeId.includes("_g_") ? "Google" : "Meta"),
+    campaign_id: p?.campaignId ?? creativeId,
+    campaign_name: p?.campaignName ?? creativeName,
+    creative_id: creativeId,
+    creative_name: creativeName,
+    placementNote: p
+      ? `该素材当前投放于「${p.campaignName}」（${p.placement}），承担该系列 ${(p.share * 100).toFixed(0)}% 的流量。`
+      : "该素材当前未绑定任何广告系列，仅在素材库中待投。",
+  };
+}
+
+
 // ---------------------------------------------------------------- 疲劳巡检
 
 export async function scanFatigue() {
@@ -103,22 +122,23 @@ export async function scanFatigue() {
         score: result.score,
         level: result.level,
       });
+      const attr = await attribution(c.id, c.headline);
+      const { placementNote, ...attrCols } = attr;
       await insertDecision({
         id: `dec_fatigue_${c.id}_${now.slice(0, 10)}`,
         timestamp: now,
         agent_type: "Creative",
         action_type: "CREATIVE_REFRESH",
-        target_channel: c.id.includes("_g_") ? "Google" : "Meta",
-        campaign_id: c.id,
-        campaign_name: c.headline,
+        ...attrCols,
         confidence_score: Math.min(0.99, 0.6 + result.score / 250),
-        reasoning_chain: result.reasoning,
+        reasoning_chain: [placementNote, ...result.reasoning],
         trigger_metric: "CPL",
         trigger_current_value: result.score,
         trigger_threshold_value: 70,
         status: "EXECUTED",
         effect: `素材「${c.headline}」判定为${FATIGUE_LEVEL_LABEL[result.level]}，建议生成新变体`,
       });
+
     }
   }
 
@@ -258,16 +278,20 @@ export async function generateVariants(creativeId: string) {
 
   if (rows.length) await supabase.from("creative_variants").insert(rows as never);
 
+  const genAttr = await attribution(creativeId, c.headline);
   await insertDecision({
     id: await newId("dec_gen"),
     timestamp: now,
     agent_type: "Creative",
     action_type: "CREATIVE_REFRESH",
-    target_channel: creativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: creativeId,
-    campaign_name: c.headline,
+    target_channel: genAttr.target_channel,
+    campaign_id: genAttr.campaign_id,
+    campaign_name: genAttr.campaign_name,
+    creative_id: genAttr.creative_id,
+    creative_name: genAttr.creative_name,
     confidence_score: 0.9,
     reasoning_chain: [
+      genAttr.placementNote,
       `素材「${c.headline}」疲劳分 ${fatigue.score}/100，触发自动迭代。`,
       ...reasons.map((r) => `疲劳信号：${r}`),
       `Creative Agent 调用生成模型产出 ${rows.length} 个新变体，覆盖不同创意角度。`,
@@ -279,6 +303,7 @@ export async function generateVariants(creativeId: string) {
     status: "EXECUTED",
     effect: `生成 ${rows.length} 个候选变体`,
   });
+
 
   return { snapshot: await getSnapshot(), created: rows.length };
 }
@@ -363,16 +388,20 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
       variants.map((v) => v.id),
     );
 
+  const expAttr = await attribution(creativeId, (creative as Row)?.headline ?? creativeId);
   await insertDecision({
     id: await newId("dec_exp"),
     timestamp: now,
     agent_type: "Execution",
     action_type: "CREATIVE_REFRESH",
-    target_channel: creativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: creativeId,
-    campaign_name: (creative as Row)?.headline ?? creativeId,
+    target_channel: expAttr.target_channel,
+    campaign_id: expAttr.campaign_id,
+    campaign_name: expAttr.campaign_name,
+    creative_id: expAttr.creative_id,
+    creative_name: expAttr.creative_name,
     confidence_score: 0.88,
     reasoning_chain: [
+      expAttr.placementNote,
       `准备上线 ${variants.length} 个新变体，与原素材组成 A/B 赛马。`,
       `预算按 ${arms.length} 臂均分，胜负判定条件：单臂曝光 ≥ 1000 且置信度 ≥ 95%。`,
       mode === "FULL_AUTO"
@@ -386,6 +415,7 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
     effect: `实验 ${expId} 上线（${arms.length} 个投放臂）`,
     rollback_to: `仅保留原素材 ${creativeId}`,
   });
+
 
   return { snapshot: await getSnapshot(), experimentId: expId, mode };
 }
@@ -513,16 +543,20 @@ export async function settleExperiment(experimentId: string) {
       .eq("id", exp.parentCreativeId);
   }
 
+  const winAttr = await attribution(exp.parentCreativeId, wv?.headline ?? winner.label);
   await insertDecision({
     id: await newId("dec_win"),
     timestamp: now,
     agent_type: "Execution",
     action_type: "VARIANT_PROMOTE",
-    target_channel: exp.parentCreativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: exp.parentCreativeId,
-    campaign_name: wv?.headline ?? winner.label,
+    target_channel: winAttr.target_channel,
+    campaign_id: winAttr.campaign_id,
+    campaign_name: winAttr.campaign_name,
+    creative_id: winAttr.creative_id,
+    creative_name: winAttr.creative_name,
     confidence_score: winner.confidence,
     reasoning_chain: [
+      winAttr.placementNote,
       `实验 ${experimentId} 累计曝光 ${arms.reduce((s, a) => s + a.impressions, 0).toLocaleString()}。`,
       `对照组 CTR ${(control.ctr * 100).toFixed(2)}% / CPS $${control.cps.toFixed(2)}。`,
       `胜出臂「${winner.label}」CTR ${(winner.ctr * 100).toFixed(2)}% / CPS $${winner.cps.toFixed(2)}，置信度 ${(winner.confidence * 100).toFixed(1)}%。`,
@@ -535,6 +569,7 @@ export async function settleExperiment(experimentId: string) {
     effect: `变体「${winner.label}」胜出并全量上线`,
     rollback_to: `恢复原素材 ${exp.parentCreativeId}`,
   });
+
 
   return {
     snapshot: await getSnapshot(),

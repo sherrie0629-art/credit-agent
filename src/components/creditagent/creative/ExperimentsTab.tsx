@@ -6,7 +6,10 @@ import { cn } from "@/lib/utils";
 
 export function ExperimentsTab() {
   const experiments = useAgentStore((s) => s.experiments);
+  const placements = useAgentStore((s) => s.placements);
+  const creatives = useAgentStore((s) => s.creatives);
   const [busyId, setBusyId] = useState<string | null>(null);
+
 
   async function handleSettle(experimentId: string) {
     setBusyId(experimentId);
@@ -61,7 +64,17 @@ export function ExperimentsTab() {
             </button>
           </div>
 
+          <p className="text-[11px] text-muted-foreground">
+            <span className="label-mono mr-1.5">原素材</span>
+            {creatives.find((c) => c.id === exp.parentCreativeId)?.headline ?? exp.parentCreativeId}
+            <span className="label-mono mx-1.5">投放于</span>
+            {placements
+              .filter((p) => p.creativeId === exp.parentCreativeId && p.status === "ACTIVE")
+              .map((p) => `${p.campaignName}（${p.channel}）`)
+              .join("、") || "未绑定广告系列"}
+          </p>
           <div className="overflow-x-auto">
+
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr>

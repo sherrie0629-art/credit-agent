@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+
 import { Pause, Play, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/creditagent/AppShell";
@@ -224,12 +225,14 @@ function CampaignsPage() {
                       {c.placement}
                     </p>
                   </TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="max-w-[260px]">
                     <p className="truncate text-sm">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-foreground">
                       {c.leads} 条线索 · {c.approvedLoans} 笔通过
                     </p>
+                    <CampaignCreatives campaignId={c.id} />
                   </TableCell>
+
                   <TableCell>
                     <BudgetCell campaign={c} />
                     <p className="font-mono text-[11px] text-muted-foreground">
@@ -336,3 +339,45 @@ function CampaignsPage() {
     </AppShell>
   );
 }
+
+/** In-flight creatives carried by a campaign, with fatigue warning. */
+function CampaignCreatives({ campaignId }: { campaignId: string }) {
+  const placements = useAgentStore((s) => s.placements);
+  const creatives = useAgentStore((s) => s.creatives);
+  const rows = placements.filter((p) => p.campaignId === campaignId && p.status === "ACTIVE");
+  if (rows.length === 0) {
+    return <p className="mt-1.5 text-[11px] text-muted-foreground">暂无在投素材</p>;
+  }
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="label-mono">在投素材</span>
+      {rows.map((p) => {
+        const c = creatives.find((x) => x.id === p.creativeId);
+        const fatigued = c?.fatigueLevel === "FATIGUED";
+        const watch = c?.fatigueLevel === "WATCH";
+        return (
+          <Link
+            key={p.creativeId}
+            to="/creative"
+            search={{ tab: "library" as const }}
+            className={cn(
+              "inline-flex max-w-[180px] items-center gap-1.5 truncate rounded border px-2 py-0.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon",
+              fatigued
+                ? "border-destructive/50 text-destructive"
+                : watch
+                  ? "border-warning/50"
+                  : "border-border",
+            )}
+          >
+            <span className="truncate">{c?.headline ?? p.creativeId}</span>
+            <span className="font-mono text-[10px] opacity-70">
+              {(p.share * 100).toFixed(0)}%
+            </span>
+            {fatigued && <span className="font-mono text-[10px]">疲劳</span>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
