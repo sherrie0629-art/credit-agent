@@ -179,7 +179,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     creativeMetrics: ((metrics.data ?? []) as Row[]).map(mapMetric),
     variants: ((variants.data ?? []) as Row[]).map(mapVariant),
     experiments: ((experiments.data ?? []) as Row[]).map(mapExperiment),
+    placements,
   };
+
 }
 
 
