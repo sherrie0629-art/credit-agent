@@ -5,10 +5,12 @@ import type {
   Campaign,
   ChannelTrendPoint,
   CreativeAsset,
+  CreativePlacement,
   ManagementMode,
 } from "./types";
 
 type Row = Record<string, any>;
+
 
 async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
