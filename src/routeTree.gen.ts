@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as LpRouteImport } from './routes/lp'
 import { Route as CreativeRouteImport } from './routes/creative'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
@@ -22,6 +23,11 @@ import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LpRoute = LpRouteImport.update({
+  id: '/lp',
+  path: '/lp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreativeRoute = CreativeRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
   '/creative': typeof CreativeRoute
+  '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
   '/creative': typeof CreativeRoute
+  '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/analytics': typeof AnalyticsRoute
   '/campaigns': typeof CampaignsRoute
   '/creative': typeof CreativeRoute
+  '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/campaigns'
     | '/creative'
+    | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/campaigns'
     | '/creative'
+    | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/campaigns'
     | '/creative'
+    | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   AnalyticsRoute: typeof AnalyticsRoute
   CampaignsRoute: typeof CampaignsRoute
   CreativeRoute: typeof CreativeRoute
+  LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
@@ -156,6 +169,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lp': {
+      id: '/lp'
+      path: '/lp'
+      fullPath: '/lp'
+      preLoaderRoute: typeof LpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/creative': {
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnalyticsRoute: AnalyticsRoute,
   CampaignsRoute: CampaignsRoute,
   CreativeRoute: CreativeRoute,
+  LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
