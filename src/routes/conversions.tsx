@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -332,8 +332,8 @@ function ConversionsPage() {
             </thead>
             <tbody>
               {uploads.slice(0, 60).map((u) => (
-                <>
-                  <tr key={u.id} className="border-b border-border/60">
+                <Fragment key={u.id}>
+                  <tr className="border-b border-border/60">
                     <td className="py-2">
                       <p className="font-medium">{EVENT_LABELS[u.eventType]}</p>
                       <p className="font-mono text-[10px] text-muted-foreground">{u.leadId}</p>
@@ -385,7 +385,7 @@ function ConversionsPage() {
                     </td>
                   </tr>
                   {open === u.id ? (
-                    <tr key={`${u.id}_detail`} className="border-b border-border/60 bg-muted/20">
+                    <tr className="border-b border-border/60 bg-muted/20">
                       <td colSpan={7} className="p-3">
                         <p className="label-mono">request payload</p>
                         <pre className="mt-1 max-h-56 overflow-auto rounded bg-background/60 p-2 font-mono text-[10px]">
@@ -398,7 +398,7 @@ function ConversionsPage() {
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
