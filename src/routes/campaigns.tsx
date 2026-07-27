@@ -365,7 +365,7 @@ function CampaignCreatives({ campaignId }: { campaignId: string }) {
               fatigued
                 ? "border-destructive/50 text-destructive"
                 : watch
-                  ? "border-warn/50"
+                  ? "border-warning/50"
                   : "border-border",
             )}
           >
