@@ -140,5 +140,7 @@ export interface AgentSnapshot {
   creativeMetrics: CreativeMetricPoint[];
   variants: CreativeVariant[];
   experiments: CreativeExperiment[];
+  placements: CreativePlacement[];
 }
+
 
