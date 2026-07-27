@@ -44,6 +44,8 @@ const EMPTY: State = {
   creativeMetrics: [],
   variants: [],
   experiments: [],
+  placements: [],
+
   loaded: false,
   loading: false,
   error: null,
