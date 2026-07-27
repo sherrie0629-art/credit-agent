@@ -64,7 +64,17 @@ export function ExperimentsTab() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <p className="text-[11px] text-muted-foreground">
+            <span className="label-mono mr-1.5">原素材</span>
+            {creatives.find((c) => c.id === exp.parentCreativeId)?.headline ?? exp.parentCreativeId}
+            <span className="label-mono mx-1.5">投放于</span>
+            {placements
+              .filter((p) => p.creativeId === exp.parentCreativeId && p.status === "ACTIVE")
+              .map((p) => `${p.campaignName}（${p.channel}）`)
+              .join("、") || "未绑定广告系列"}
+          </p>
+
+
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr>
