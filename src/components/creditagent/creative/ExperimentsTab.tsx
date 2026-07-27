@@ -6,7 +6,10 @@ import { cn } from "@/lib/utils";
 
 export function ExperimentsTab() {
   const experiments = useAgentStore((s) => s.experiments);
+  const placements = useAgentStore((s) => s.placements);
+  const creatives = useAgentStore((s) => s.creatives);
   const [busyId, setBusyId] = useState<string | null>(null);
+
 
   async function handleSettle(experimentId: string) {
     setBusyId(experimentId);
