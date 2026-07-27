@@ -185,7 +185,33 @@ export function CreativeLibraryTab({
                 <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                   {c.loanTermRange} · 最高 APR {c.maxApr || "—"}%
                 </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="label-mono">投放于</span>
+                  {placementsByCreative.get(c.id)?.length ? (
+                    placementsByCreative.get(c.id)!.map((p) => (
+                      <Link
+                        key={p.campaignId}
+                        to="/campaigns"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon",
+                          p.status === "ACTIVE"
+                            ? "border-border bg-background/60"
+                            : "border-border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <span className="font-mono text-[10px] opacity-70">{p.channel}</span>
+                        {p.campaignName}
+                        <span className="font-mono text-[10px] text-neon">
+                          {p.status === "ACTIVE" ? `${(p.share * 100).toFixed(0)}%` : "已暂停"}
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">未绑定广告系列</span>
+                  )}
+                </div>
               </div>
+
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() =>
