@@ -224,12 +224,14 @@ function CampaignsPage() {
                       {c.placement}
                     </p>
                   </TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="max-w-[260px]">
                     <p className="truncate text-sm">{c.name}</p>
                     <p className="font-mono text-[11px] text-muted-foreground">
                       {c.leads} 条线索 · {c.approvedLoans} 笔通过
                     </p>
+                    <CampaignCreatives campaignId={c.id} />
                   </TableCell>
+
                   <TableCell>
                     <BudgetCell campaign={c} />
                     <p className="font-mono text-[11px] text-muted-foreground">
