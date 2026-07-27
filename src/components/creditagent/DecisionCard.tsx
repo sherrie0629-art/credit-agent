@@ -74,8 +74,19 @@ export function DecisionCard({
         </span>
       </div>
 
-      <h3 className="mt-3 text-sm font-semibold">{decision.campaignName}</h3>
+      <h3 className="mt-3 text-sm font-semibold">
+        <span className="label-mono mr-1.5">广告系列</span>
+        {decision.campaignName}
+      </h3>
+      {decision.creativeName && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          <span className="label-mono mr-1.5">关联素材</span>
+          {decision.creativeName}
+          <span className="ml-1.5 font-mono text-[10px] opacity-70">{decision.creativeId}</span>
+        </p>
+      )}
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
+
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-border bg-background/50 p-2.5">
