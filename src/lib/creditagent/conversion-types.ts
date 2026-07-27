@@ -45,8 +45,8 @@ export interface UploadRow {
   matchQuality: number;
   sentAt?: string;
   createdAt: string;
-  requestPayload: unknown;
-  responseBody: unknown;
+  requestPayload: Record<string, any>;
+  responseBody: Record<string, any>;
   eventType: LeadEventType;
   value: number;
   occurredAt: string;
