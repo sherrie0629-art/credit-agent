@@ -388,16 +388,20 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
       variants.map((v) => v.id),
     );
 
+  const expAttr = await attribution(creativeId, (creative as Row)?.headline ?? creativeId);
   await insertDecision({
     id: await newId("dec_exp"),
     timestamp: now,
     agent_type: "Execution",
     action_type: "CREATIVE_REFRESH",
-    target_channel: creativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: creativeId,
-    campaign_name: (creative as Row)?.headline ?? creativeId,
+    target_channel: expAttr.target_channel,
+    campaign_id: expAttr.campaign_id,
+    campaign_name: expAttr.campaign_name,
+    creative_id: expAttr.creative_id,
+    creative_name: expAttr.creative_name,
     confidence_score: 0.88,
     reasoning_chain: [
+      expAttr.placementNote,
       `准备上线 ${variants.length} 个新变体，与原素材组成 A/B 赛马。`,
       `预算按 ${arms.length} 臂均分，胜负判定条件：单臂曝光 ≥ 1000 且置信度 ≥ 95%。`,
       mode === "FULL_AUTO"
@@ -411,6 +415,7 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
     effect: `实验 ${expId} 上线（${arms.length} 个投放臂）`,
     rollback_to: `仅保留原素材 ${creativeId}`,
   });
+
 
   return { snapshot: await getSnapshot(), experimentId: expId, mode };
 }
