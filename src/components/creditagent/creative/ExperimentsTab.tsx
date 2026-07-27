@@ -73,7 +73,7 @@ export function ExperimentsTab() {
               .map((p) => `${p.campaignName}（${p.channel}）`)
               .join("、") || "未绑定广告系列"}
           </p>
-
+          <div className="overflow-x-auto">
 
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
