@@ -543,16 +543,20 @@ export async function settleExperiment(experimentId: string) {
       .eq("id", exp.parentCreativeId);
   }
 
+  const winAttr = await attribution(exp.parentCreativeId, wv?.headline ?? winner.label);
   await insertDecision({
     id: await newId("dec_win"),
     timestamp: now,
     agent_type: "Execution",
     action_type: "VARIANT_PROMOTE",
-    target_channel: exp.parentCreativeId.includes("_g_") ? "Google" : "Meta",
-    campaign_id: exp.parentCreativeId,
-    campaign_name: wv?.headline ?? winner.label,
+    target_channel: winAttr.target_channel,
+    campaign_id: winAttr.campaign_id,
+    campaign_name: winAttr.campaign_name,
+    creative_id: winAttr.creative_id,
+    creative_name: winAttr.creative_name,
     confidence_score: winner.confidence,
     reasoning_chain: [
+      winAttr.placementNote,
       `实验 ${experimentId} 累计曝光 ${arms.reduce((s, a) => s + a.impressions, 0).toLocaleString()}。`,
       `对照组 CTR ${(control.ctr * 100).toFixed(2)}% / CPS $${control.cps.toFixed(2)}。`,
       `胜出臂「${winner.label}」CTR ${(winner.ctr * 100).toFixed(2)}% / CPS $${winner.cps.toFixed(2)}，置信度 ${(winner.confidence * 100).toFixed(1)}%。`,
@@ -565,6 +569,7 @@ export async function settleExperiment(experimentId: string) {
     effect: `变体「${winner.label}」胜出并全量上线`,
     rollback_to: `恢复原素材 ${exp.parentCreativeId}`,
   });
+
 
   return {
     snapshot: await getSnapshot(),
