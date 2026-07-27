@@ -15,6 +15,7 @@ import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
+import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -48,6 +49,11 @@ const ApiGenerateCreativeImageRoute =
     path: '/api/generate-creative-image',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLoanEventsRoute = ApiPublicLoanEventsRouteImport.update({
+  id: '/api/public/loan-events',
+  path: '/api/public/loan-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
   id: '/api/public/leads',
   path: '/api/public/leads',
@@ -62,6 +68,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
+  '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
+  '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -81,6 +89,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
+  '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
+    | '/api/public/loan-events'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
+    | '/api/public/loan-events'
   id:
     | '__root__'
     | '/'
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/api/generate-creative-image'
     | '/api/public/leads'
+    | '/api/public/loan-events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -120,6 +132,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
+  ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/loan-events': {
+      id: '/api/public/loan-events'
+      path: '/api/public/loan-events'
+      fullPath: '/api/public/loan-events'
+      preLoaderRoute: typeof ApiPublicLoanEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/leads': {
       id: '/api/public/leads'
       path: '/api/public/leads'
@@ -184,6 +204,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
+  ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
