@@ -122,22 +122,23 @@ export async function scanFatigue() {
         score: result.score,
         level: result.level,
       });
+      const attr = await attribution(c.id, c.headline);
+      const { placementNote, ...attrCols } = attr;
       await insertDecision({
         id: `dec_fatigue_${c.id}_${now.slice(0, 10)}`,
         timestamp: now,
         agent_type: "Creative",
         action_type: "CREATIVE_REFRESH",
-        target_channel: c.id.includes("_g_") ? "Google" : "Meta",
-        campaign_id: c.id,
-        campaign_name: c.headline,
+        ...attrCols,
         confidence_score: Math.min(0.99, 0.6 + result.score / 250),
-        reasoning_chain: result.reasoning,
+        reasoning_chain: [placementNote, ...result.reasoning],
         trigger_metric: "CPL",
         trigger_current_value: result.score,
         trigger_threshold_value: 70,
         status: "EXECUTED",
         effect: `素材「${c.headline}」判定为${FATIGUE_LEVEL_LABEL[result.level]}，建议生成新变体`,
       });
+
     }
   }
 
