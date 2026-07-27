@@ -128,6 +128,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     metrics,
     variants,
     experiments,
+    placements,
   ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
@@ -139,7 +140,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("creative_metrics").select("*").order("day"),
     supabase.from("creative_variants").select("*").order("created_at", { ascending: false }),
     supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
+    getPlacements(),
   ]);
+
 
   const s = (settings.data ?? {}) as Row;
 
