@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
+import { Route as ApiPublicDebugConvRouteImport } from './routes/api/public/debug-conv'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -72,6 +73,11 @@ const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
   path: '/api/public/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDebugConvRoute = ApiPublicDebugConvRouteImport.update({
+  id: '/api/public/debug-conv',
+  path: '/api/public/debug-conv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronUploadConversionsRoute =
   ApiPublicCronUploadConversionsRouteImport.update({
     id: '/api/public/cron/upload-conversions',
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/public/debug-conv': typeof ApiPublicDebugConvRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/public/debug-conv': typeof ApiPublicDebugConvRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/public/debug-conv': typeof ApiPublicDebugConvRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/public/debug-conv'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/cron/upload-conversions'
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/public/debug-conv'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/cron/upload-conversions'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/public/debug-conv'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/cron/upload-conversions'
@@ -170,6 +182,7 @@ export interface RootRouteChildren {
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
+  ApiPublicDebugConvRoute: typeof ApiPublicDebugConvRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
   ApiPublicCronUploadConversionsRoute: typeof ApiPublicCronUploadConversionsRoute
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/debug-conv': {
+      id: '/api/public/debug-conv'
+      path: '/api/public/debug-conv'
+      fullPath: '/api/public/debug-conv'
+      preLoaderRoute: typeof ApiPublicDebugConvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron/upload-conversions': {
       id: '/api/public/cron/upload-conversions'
       path: '/api/public/cron/upload-conversions'
@@ -266,6 +286,7 @@ const rootRouteChildren: RootRouteChildren = {
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
+  ApiPublicDebugConvRoute: ApiPublicDebugConvRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
   ApiPublicCronUploadConversionsRoute: ApiPublicCronUploadConversionsRoute,
