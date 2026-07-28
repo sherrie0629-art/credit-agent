@@ -27,7 +27,7 @@ export const setRiskFirstFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ riskFirst: z.boolean() }).parse(d))
   .handler(async ({ data }) => agent.setRiskFirst(data.riskFirst));
 
-export const setCampaignStatusFn = createServerFn({ method: "POST" })
+export const setAdGroupStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
@@ -36,9 +36,9 @@ export const setCampaignStatusFn = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data }) => agent.setCampaignStatus(data.id, data.status));
+  .handler(async ({ data }) => agent.setAdGroupStatus(data.id, data.status));
 
-export const setCampaignBudgetFn = createServerFn({ method: "POST" })
+export const setAdGroupBudgetFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
@@ -47,7 +47,7 @@ export const setCampaignBudgetFn = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data }) => agent.setCampaignBudget(data.id, data.dailyBudget));
+  .handler(async ({ data }) => agent.setAdGroupBudget(data.id, data.dailyBudget));
 
 export const applyAiSuggestionFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().min(1).max(120) }).parse(d))

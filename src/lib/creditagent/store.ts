@@ -6,8 +6,8 @@ import {
   logComplianceDecisionFn,
   rejectDecisionFn,
   rollbackDecisionFn,
-  setCampaignBudgetFn,
-  setCampaignStatusFn,
+  setAdGroupBudgetFn,
+  setAdGroupStatusFn,
   setModeFn,
   setRiskFirstFn,
 } from "./agent.functions";
@@ -128,12 +128,12 @@ export const agentApi = {
     return { pausedCampaigns: res.pausedCampaigns };
   },
 
-  async setCampaignStatus(id: string, status: Campaign["status"]) {
-    applySnapshot(await setCampaignStatusFn({ data: { id, status } }));
+  async setAdGroupStatus(id: string, status: Campaign["status"]) {
+    applySnapshot(await setAdGroupStatusFn({ data: { id, status } }));
   },
 
-  async setCampaignBudget(id: string, dailyBudget: number) {
-    applySnapshot(await setCampaignBudgetFn({ data: { id, dailyBudget } }));
+  async setAdGroupBudget(id: string, dailyBudget: number) {
+    applySnapshot(await setAdGroupBudgetFn({ data: { id, dailyBudget } }));
   },
 
   async applyAiSuggestion(id: string) {
