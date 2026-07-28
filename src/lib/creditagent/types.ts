@@ -169,6 +169,7 @@ export interface AgentSnapshot {
   variants: CreativeVariant[];
   experiments: CreativeExperiment[];
   placements: CreativePlacement[];
+  feedbackHealth: FeedbackHealth[];
 }
 
 
