@@ -585,8 +585,8 @@ export async function setAdGroupBudget(id: string, dailyBudget: number) {
 
 export async function applyAiSuggestion(id: string) {
   const supabase = await db();
-  const campaign = await getCampaign(id);
-  if (!campaign) return { snapshot: await getSnapshot(), decision: null };
+  const group = await getAdGroup(id);
+  if (!group) return { snapshot: await getSnapshot(), decision: null };
 
   const { data: settings } = await supabase
     .from("agent_settings")
@@ -595,8 +595,8 @@ export async function applyAiSuggestion(id: string) {
     .maybeSingle();
   const mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
 
-  const scaleUp = campaign.last20ApprovalRate >= 0.22;
-  const nextBudget = Math.round(campaign.dailyBudget * (scaleUp ? 1.15 : 0.6));
+  const scaleUp = group.last20ApprovalRate >= 0.22;
+  const nextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
   const decisionId = await nextDecisionId();
 
   const row = {
@@ -604,37 +604,42 @@ export async function applyAiSuggestion(id: string) {
     timestamp: new Date().toISOString(),
     agent_type: "Planner",
     action_type: "BUDGET_SHIFT",
-    target_channel: campaign.channel,
-    campaign_id: campaign.id,
-    campaign_name: campaign.name,
+    target_channel: group.channel,
+    campaign_id: group.campaignId,
+    campaign_name: group.campaignName,
+    ad_group_id: group.id,
+    ad_group_name: group.name,
     confidence_score: scaleUp ? 0.89 : 0.82,
     reasoning_chain: [
-      `${campaign.name} 近 20 条线索授信通过率 ${(campaign.last20ApprovalRate * 100).toFixed(1)}%。`,
-      `CPL $${campaign.cpl.toFixed(2)} / CPS $${campaign.cps.toFixed(2)}（目标 CPS $19.00）。`,
-      await feedbackNote(campaign.channel),
+      `广告组「${group.name}」（${group.campaignName}）近 20 条线索授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}%。`,
+      `CPL $${group.cpl.toFixed(2)} / CPS $${group.cps.toFixed(2)}（目标 CPS $19.00）。`,
+      await feedbackNote(group.channel),
       scaleUp
         ? "后端放款率高于阈值，触发正向扩量策略：预算 +15%。"
-        : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率渠道。",
+        : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率广告组。",
       mode === "FULL_AUTO"
         ? "托管模式 = Full-Auto：直接调用广告 API 执行。"
         : "托管模式 = Semi-Auto：推送审批卡片，等待人工确认。",
     ],
     trigger_metric: "CostPerDisbursement",
-    trigger_current_value: campaign.cps,
+    trigger_current_value: group.cps,
     trigger_threshold_value: 19,
     status: mode === "FULL_AUTO" ? "EXECUTED" : "PENDING_APPROVAL",
-    effect: `日预算 $${campaign.dailyBudget.toLocaleString()} → $${nextBudget.toLocaleString()}`,
-    rollback_to: `$${campaign.dailyBudget.toLocaleString()}`,
+    effect: `日预算 $${group.dailyBudget.toLocaleString()} → $${nextBudget.toLocaleString()}`,
+    rollback_to: `$${group.dailyBudget.toLocaleString()}`,
   };
 
   const { data: inserted } = await supabase
     .from("agent_decisions")
-    .insert(row)
+    .insert(row as never)
     .select("*")
     .maybeSingle();
 
   if (mode === "FULL_AUTO") {
-    await supabase.from("campaigns").update({ daily_budget: nextBudget }).eq("id", campaign.id);
+    await supabase
+      .from("ad_groups")
+      .update({ daily_budget: nextBudget } as never)
+      .eq("id", group.id);
     await bumpTakeovers(1);
   }
 
