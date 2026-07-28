@@ -124,6 +124,10 @@ export async function scanFatigue() {
       });
       const attr = await attribution(c.id, c.headline);
       const { placementNote, ...attrCols } = attr;
+      const facts = (await getCreativeFacts()).get(c.id);
+      const backendNote = facts
+        ? `后端真实表现：${facts.leads} 条线索 / 授信通过 ${facts.approvedLoans} 条（${(facts.approvalRate * 100).toFixed(1)}%）/ 放款 ${facts.disbursedCount} 笔，实际 CPS $${facts.cps.toFixed(2)}。`
+        : "该素材尚无后端线索数据，仅依据前端指标判定。";
       await insertDecision({
         id: `dec_fatigue_${c.id}_${now.slice(0, 10)}`,
         timestamp: now,
@@ -131,7 +135,7 @@ export async function scanFatigue() {
         action_type: "CREATIVE_REFRESH",
         ...attrCols,
         confidence_score: Math.min(0.99, 0.6 + result.score / 250),
-        reasoning_chain: [placementNote, ...result.reasoning],
+        reasoning_chain: [placementNote, backendNote, ...result.reasoning],
         trigger_metric: "CPL",
         trigger_current_value: result.score,
         trigger_threshold_value: 70,
