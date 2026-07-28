@@ -139,7 +139,14 @@ function CampaignsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">半自动</span>
+                <span
+                  className={cn(
+                    "text-[11px] transition-colors",
+                    mode === "FULL_AUTO" ? "text-muted-foreground" : "text-neon",
+                  )}
+                >
+                  半自动
+                </span>
                 <Switch
                   checked={mode === "FULL_AUTO"}
                   onCheckedChange={async (v) => {
@@ -147,8 +154,16 @@ function CampaignsPage() {
                     toast.success(`托管模式已切换为${v ? "全自动" : "半自动"}`);
                   }}
                 />
-                <span className="text-[11px] text-neon">全自动</span>
+                <span
+                  className={cn(
+                    "text-[11px] transition-colors",
+                    mode === "FULL_AUTO" ? "text-neon" : "text-muted-foreground",
+                  )}
+                >
+                  全自动
+                </span>
               </div>
+
             </div>
           </div>
 
