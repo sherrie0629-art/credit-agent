@@ -210,19 +210,43 @@ function ConversionsPage() {
           <div className="mt-4 h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={snap?.attribution ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    fontSize: 12,
-                  }}
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--grid-line)" />
+                <XAxis
+                  dataKey="day"
+                  stroke="var(--muted-foreground)"
+                  tick={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="dbDisbursed" name="数据库真实放款" fill="hsl(var(--muted-foreground))" />
-                <Bar dataKey="platformReported" name="平台已接收" fill="hsl(var(--neon))" />
+                <YAxis
+                  stroke="var(--muted-foreground)"
+                  tick={{ fontSize: 11, fontFamily: "var(--font-mono)" }}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "var(--muted)", opacity: 0.25 }}
+                  contentStyle={{
+                    background: "var(--popover)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: "var(--font-mono)",
+                  }}
+                  labelStyle={{ color: "var(--popover-foreground)" }}
+                  itemStyle={{ color: "var(--popover-foreground)" }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, fontFamily: "var(--font-mono)" }} />
+                <Bar
+                  dataKey="dbDisbursed"
+                  name="数据库真实放款"
+                  fill="var(--muted-foreground)"
+                  radius={[3, 3, 0, 0]}
+                />
+                <Bar
+                  dataKey="platformReported"
+                  name="平台已接收"
+                  fill="var(--neon)"
+                  radius={[3, 3, 0, 0]}
+                />
+
               </BarChart>
             </ResponsiveContainer>
           </div>
