@@ -30,6 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useAgentBootstrap();
   const mode = useAgentStore((s) => s.mode);
   const online = useAgentStore((s) => s.agentOnline);
+  const error = useAgentStore((s) => s.error);
+  const loading = useAgentStore((s) => s.loading);
+
 
   return (
     <div className="flex min-h-screen">
