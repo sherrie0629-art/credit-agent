@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Pause, Play, Sparkles } from "lucide-react";
@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { agentApi, useAgentStore } from "@/lib/creditagent/store";
-import type { Campaign } from "@/lib/creditagent/types";
+import type { AdGroup } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/campaigns")({
