@@ -75,11 +75,13 @@ async function attribution(creativeId: string, creativeName: string) {
     target_channel: p?.channel ?? (creativeId.includes("_g_") ? "Google" : "Meta"),
     campaign_id: p?.campaignId ?? creativeId,
     campaign_name: p?.campaignName ?? creativeName,
+    ad_group_id: p?.adGroupId ?? null,
+    ad_group_name: p?.adGroupName ?? null,
     creative_id: creativeId,
     creative_name: creativeName,
     placementNote: p
-      ? `该素材当前投放于「${p.campaignName}」（${p.placement}），承担该系列 ${(p.share * 100).toFixed(0)}% 的流量。`
-      : "该素材当前未绑定任何广告系列，仅在素材库中待投。",
+      ? `该素材当前投放于「${p.campaignName} › ${p.adGroupName}」（${p.placement}），承担该广告组 ${(p.share * 100).toFixed(0)}% 的流量。`
+      : "该素材当前未绑定任何广告组，仅在素材库中待投。",
   };
 }
 
