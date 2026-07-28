@@ -343,7 +343,10 @@ async function nextDecisionId() {
 async function getCampaign(id: string) {
   const supabase = await db();
   const { data } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
-  return data ? mapCampaign(data as Row) : null;
+  if (!data) return null;
+  const c = mapCampaign(data as Row);
+  const f = (await getCampaignFacts()).get(c.id);
+  return f ? { ...c, ...f } : c;
 }
 
 export async function approveDecision(id: string) {
