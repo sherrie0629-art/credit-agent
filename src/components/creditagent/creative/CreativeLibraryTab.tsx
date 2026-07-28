@@ -205,7 +205,7 @@ export function CreativeLibraryTab({
                   {placementsByCreative.get(c.id)?.length ? (
                     placementsByCreative.get(c.id)!.map((p) => (
                       <Link
-                        key={p.campaignId}
+                        key={p.adGroupId}
                         to="/campaigns"
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon",
@@ -215,14 +215,16 @@ export function CreativeLibraryTab({
                         )}
                       >
                         <span className="font-mono text-[10px] opacity-70">{p.channel}</span>
-                        {p.campaignName}
+                        <span className="opacity-70">{p.campaignName}</span>
+                        <span className="opacity-60">›</span>
+                        {p.adGroupName}
                         <span className="font-mono text-[10px] text-neon">
                           {p.status === "ACTIVE" ? `${(p.share * 100).toFixed(0)}%` : "已暂停"}
                         </span>
                       </Link>
                     ))
                   ) : (
-                    <span className="text-[11px] text-muted-foreground">未绑定广告系列</span>
+                    <span className="text-[11px] text-muted-foreground">未绑定广告组</span>
                   )}
                 </div>
 
