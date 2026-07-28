@@ -250,7 +250,11 @@ function ChannelCreatives({ campaignId }: { campaignId?: string }) {
           >
             <span className="truncate">{c?.headline ?? p.creativeId}</span>
             <span className="shrink-0 font-mono text-muted-foreground">
-              {b ? `${b.leads}线索 / CPS $${b.cps.toFixed(0)}` : "—"}
+              {p.leads > 0
+                ? `${p.leads}线索 / ${p.disbursedCount}放款`
+                : b
+                  ? `全域 ${b.leads}线索`
+                  : "—"}
             </span>
           </Link>
         );
