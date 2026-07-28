@@ -1,72 +1,35 @@
-## 已核查的现状
-
-用 psql 直接查了库，除了已修复的「素材↔广告系列」，还存在 4 处断链：
-
-**1. 线索(leads)只到广告系列，没到素材**
-`leads` 表只有 `campaign_id`，没有 `creative_id`。所以：
-- 无法算「单条素材的真实 CPS / 授信通过率」，素材好坏只能看前端 CTR。
-- 疲劳引擎读的 `creative_metrics`（impressions/clicks/cpl/cps）是独立造的数，跟 `leads`/`lead_events` 里 448 条真实事件毫无关系——两套数字各说各话。
-- 离线回传的转化也回不到素材维度。
-
-**2. campaigns 上的汇总数字是写死的，跟事实表对不上**
-
-| 广告系列 | campaigns.leads | leads 表实际条数 |
-|---|---|---|
-| cmp_g_pmax_02 | 498 | 65 |
-| cmp_m_reels_04 | 388 | 43 |
-| cmp_m_feed_03 | 1042 | 87 |
-| cmp_g_search_01 | 612 | 67 |
-
-`approved_loans`(合计 469) 与 `lead_events` 里 `CREDIT_APPROVED`(104) 也对不上；`disbursed_amount` 合计 251.5 万，而 `lead_events` 放款金额合计仅 1.4 万。同一个数在两个页面会显示两个值。
-
-**3. 漏斗与渠道拆分表是孤立的静态表**
-- `funnel_stages`（Form Leads 2540 / Credit Approved 469 / Loan Disbursed 312）不是从 `leads`+`lead_events` 汇总来的。
-- `channel_breakdown` 用的是 `"Google Search"` 这类字符串，没有 `campaign_id` 外键，无法下钻到系列或素材。
-- `channel_trend` 同理，按 Google/Meta 两个字符串写死。
-
-**4. 离线回传结果没有回流到决策**
-`conversion_uploads` 的成功率、匹配质量、归因缺口，目前只在 `/conversions` 页面展示，不进入 `agent_decisions` 的推理链——Agent 做预算决策时看不到「这个渠道的回传成功率只有 60%，CPS 被高估了」。
-
 ## 目标
 
-让所有指标只有一个事实来源：`leads` + `lead_events` + `creative_placements`，其余表要么补外键，要么改为派生视图。
+产出一份可交付的中文架构设计文档 PDF（存放到 `/mnt/documents/CreditAgent_AI_架构设计文档.pdf`），让新同事一眼看懂：系统有哪些模块、每张表存什么、业务含义是什么、数据从哪来流到哪去。
 
-## 方案
+## 文档结构（约 14-18 页）
 
-### 第 1 步：数据层补关联（迁移）
+1. **封面 + 阅读指引**：系统一句话定位（消费信贷广告投放 Agent）、文档适用对象、版本日期。
+2. **系统总览**：六大模块（决策指挥中心、广告系列矩阵、素材中心、全链路归因、离线转化回传、公开接入 API）与它们的职责边界。
+3. **技术架构**：前端路由层 → server function（RPC）→ server 层业务逻辑 → 数据库（含 service_role 边界与 RLS 说明）；公开 API 路由（线索捕获、放款回调、回传定时任务）的位置与鉴权方式。
+4. **数据实体设计**：逐表说明，每张表一个小节，含字段表（字段名 / 类型 / 业务含义）与「谁写入、谁读取」：
+   - 投放侧：`campaigns`、`creative_assets`、`creative_placements`、`creative_metrics`
+   - 实验侧：`creative_variants`、`creative_experiments`
+   - 事实侧：`leads`、`lead_events`
+   - 回传侧：`conversion_uploads`、`conversion_settings`
+   - 决策/配置：`agent_decisions`、`agent_settings`
+   - 展示派生：`funnel_stages`、`channel_trend`、`channel_breakdown`
+   - 视图：`v_campaign_facts`、`v_creative_facts`、`v_funnel`（口径公式写清楚：CPL、CPS、授信通过率如何算）
+5. **实体关系图（ER）**：一张全局关系图 + 一张「素材 × 广告系列 × 线索」归因关系放大图，标注外键与权重（`share`）含义。
+6. **数据流向图**：
+   - 主链路：落地页点击 → `/api/public/leads` → `leads`（按 placement 权重带上 `creative_id`）→ 放款系统 webhook `/api/public/loan-events` → `lead_events` → 视图汇总 → 快照 `getSnapshot()` → 前端各页面。
+   - 回传链路：`lead_events` → 入队 `conversion_uploads` → Mock/Live 适配器 → 平台 → 回传健康度 → 反哺决策推理链。
+   - 素材迭代链路：`creative_metrics` + 后端事实 → 疲劳打分 → AI 生成变体 → 合规扫描 → A/B 实验 → 胜出上线。
+7. **核心业务规则**：单一事实来源原则（所有绩效指标只认 `leads` + `lead_events`）、风控优先自动暂停、Human-in-the-Loop 审批与回滚、合规红线（APR ≤ 36%、贷期 ≥ 61 天、禁用话术）。
+8. **维护指引**：新增一张表/一个指标的标准做法、常见坑（写死汇总值与事实表打架）、关键文件索引（`agent.server.ts`、`creative.server.ts`、`conversions.server.ts`、`fatigue.ts`、`compliance.ts`）。
 
-- `leads` 增加 `creative_id`（可空，外键概念上指向 `creative_assets`）与索引；回填：按每条线索所属系列的 `creative_placements`，用 `share` 作权重随机分配到具体素材。
-- `channel_breakdown` 增加 `campaign_id`，回填现有 4 行到对应系列（Google Search→cmp_g_search_01 等）。
-- `creative_metrics` 增加 `campaign_id`，按主投放回填，使素材日指标可归到系列。
+## 实施步骤
 
-### 第 2 步：指标改为派生
-
-新增数据库视图（或 server 端聚合函数，二选一，倾向视图便于复用）：
-- `v_campaign_facts`：按 campaign 汇总 leads 数、CREDIT_APPROVED 数、LOAN_DISBURSED 金额与笔数、近 20 条线索通过率。
-- `v_creative_facts`：按 creative 汇总同样口径，让素材第一次有真实后端 CPS。
-- `v_funnel`：Impressions/Clicks 仍取 campaigns 的投放侧数据，Leads/Approved/Disbursed 改为从事实表实时汇总。
-
-`campaigns` 表保留 `daily_budget`、`status` 等配置字段；`leads/approved_loans/disbursed_amount/cpl/cps/last20_approval_rate` 由 `agent.server.ts` 的 `getSnapshot()` 用视图覆盖后再返回，避免两套数字。
-
-### 第 3 步：服务层串联
-
-- `getSnapshot()`：campaign 与 creative 的绩效字段改读视图；`funnel`、`channelBreakdown` 同样改为派生。
-- 疲劳引擎 `computeFatigue` 的 CPL/CPS 输入改用 `v_creative_facts` 的真实值，前端 CTR 仍用 `creative_metrics`。
-- 预算决策（`applyAiSuggestion`、风控优先自动暂停）的推理链中追加一行回传健康度：「该渠道离线回传成功率 X%，平台侧 CPS 可能被高估 Y%」，数据取自 `conversion_uploads`。
-- 新线索写入（`/api/public/leads`）时按 placement 权重带上 `creative_id`。
-
-### 第 4 步：界面呈现
-
-- **素材中心**：素材卡新增「后端表现」一行——真实线索数 / 授信通过率 / CPS，与现有疲劳分并列。
-- **全链路归因**：漏斗与渠道拆分支持按素材下钻；渠道卡片可点进对应广告系列。
-- **广告系列页**：展开区的在投素材补上各自贡献的线索与放款笔数。
-- **离线回传页**：回传健康度补一句对决策的影响说明，并在决策卡里可见。
-
-### 第 5 步：验证
-
-- psql 交叉校验：`campaigns` 派生值 = `leads`/`lead_events` 直查值；`funnel` 各层单调递减。
-- Playwright 走查 `/`、`/campaigns`、`/creative`、`/analytics`、`/conversions`，确认同一指标在各页数值一致。
+1. 读取当前 server 层代码与数据库真实 schema（含视图定义、外键、RLS 策略），保证文档与实现完全一致，不写想象中的字段。
+2. 用 ReportLab 生成 PDF，注册 DejaVu / Noto CJK 字体保证中文与图表文字正常渲染；表格用 Platypus Table，配色沿用应用的深色霓虹风格（深底 + 青/柠檬绿点缀），但正文页用浅底保证打印可读。
+3. ER 图与数据流向图直接用 ReportLab 绘制矢量框线图（不依赖外部渲染），保证清晰可缩放。
+4. 生成后逐页转图片做视觉 QA：检查中文是否出现方块、表格是否越界、图是否重叠，修完再交付。
 
 ## 技术备注
 
-`leads` 表已有 448 条 `lead_events`，回填 `creative_id` 只影响归因维度，不改动既有事件。视图与新列都在 `service_role` 权限内，沿用现有 RLS 策略，不新增对外读权限。
+文档只做只读产出，不改动应用代码与数据库。字段口径以线上 schema 与视图 SQL 为准，文中每个指标公式都会标出来源表。
