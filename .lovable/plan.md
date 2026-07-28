@@ -1,35 +1,51 @@
-## 目标
+## 结论：同意，现在就把「广告组」层级加上
 
-产出一份可交付的中文架构设计文档 PDF（存放到 `/mnt/documents/CreditAgent_AI_架构设计文档.pdf`），让新同事一眼看懂：系统有哪些模块、每张表存什么、业务含义是什么、数据从哪来流到哪去。
+理由：当前 `campaigns` 表的每一行其实同时带着 `channel` + `placement` + 预算 + 出价，语义上就是广告组，但名字叫广告系列 —— 这正是歧义来源。未来接真实 Google/Meta API 时，平台回传的是 campaign_id 与 ad_group_id 两层，现在不加，届时要动 `leads` / 视图 / 决策日志全链路。趁 MVP 数据量小，一次性把三层理顺成本最低。
 
-## 文档结构（约 14-18 页）
+## 目标层级
 
-1. **封面 + 阅读指引**：系统一句话定位（消费信贷广告投放 Agent）、文档适用对象、版本日期。
-2. **系统总览**：六大模块（决策指挥中心、广告系列矩阵、素材中心、全链路归因、离线转化回传、公开接入 API）与它们的职责边界。
-3. **技术架构**：前端路由层 → server function（RPC）→ server 层业务逻辑 → 数据库（含 service_role 边界与 RLS 说明）；公开 API 路由（线索捕获、放款回调、回传定时任务）的位置与鉴权方式。
-4. **数据实体设计**：逐表说明，每张表一个小节，含字段表（字段名 / 类型 / 业务含义）与「谁写入、谁读取」：
-   - 投放侧：`campaigns`、`creative_assets`、`creative_placements`、`creative_metrics`
-   - 实验侧：`creative_variants`、`creative_experiments`
-   - 事实侧：`leads`、`lead_events`
-   - 回传侧：`conversion_uploads`、`conversion_settings`
-   - 决策/配置：`agent_decisions`、`agent_settings`
-   - 展示派生：`funnel_stages`、`channel_trend`、`channel_breakdown`
-   - 视图：`v_campaign_facts`、`v_creative_facts`、`v_funnel`（口径公式写清楚：CPL、CPS、授信通过率如何算）
-5. **实体关系图（ER）**：一张全局关系图 + 一张「素材 × 广告系列 × 线索」归因关系放大图，标注外键与权重（`share`）含义。
-6. **数据流向图**：
-   - 主链路：落地页点击 → `/api/public/leads` → `leads`（按 placement 权重带上 `creative_id`）→ 放款系统 webhook `/api/public/loan-events` → `lead_events` → 视图汇总 → 快照 `getSnapshot()` → 前端各页面。
-   - 回传链路：`lead_events` → 入队 `conversion_uploads` → Mock/Live 适配器 → 平台 → 回传健康度 → 反哺决策推理链。
-   - 素材迭代链路：`creative_metrics` + 后端事实 → 疲劳打分 → AI 生成变体 → 合规扫描 → A/B 实验 → 胜出上线。
-7. **核心业务规则**：单一事实来源原则（所有绩效指标只认 `leads` + `lead_events`）、风控优先自动暂停、Human-in-the-Loop 审批与回滚、合规红线（APR ≤ 36%、贷期 ≥ 61 天、禁用话术）。
-8. **维护指引**：新增一张表/一个指标的标准做法、常见坑（写死汇总值与事实表打架）、关键文件索引（`agent.server.ts`、`creative.server.ts`、`conversions.server.ts`、`fatigue.ts`、`compliance.ts`）。
+```text
+广告系列 campaigns        目标 + 渠道 + 总预算（如「Google 消费贷-获客」）
+  └ 广告组 ad_groups      版位 + 受众 + 日预算 + 出价（如「Search 品牌词」「PMax 泛人群」）
+      └ 素材 creative_assets  通过 creative_placements 挂到广告组
+```
 
-## 实施步骤
+## 数据库改动（一次迁移）
 
-1. 读取当前 server 层代码与数据库真实 schema（含视图定义、外键、RLS 策略），保证文档与实现完全一致，不写想象中的字段。
-2. 用 ReportLab 生成 PDF，注册 DejaVu / Noto CJK 字体保证中文与图表文字正常渲染；表格用 Platypus Table，配色沿用应用的深色霓虹风格（深底 + 青/柠檬绿点缀），但正文页用浅底保证打印可读。
-3. ER 图与数据流向图直接用 ReportLab 绘制矢量框线图（不依赖外部渲染），保证清晰可缩放。
-4. 生成后逐页转图片做视觉 QA：检查中文是否出现方块、表格是否越界、图是否重叠，修完再交付。
+1. 新建 `ad_groups`：`id`、`campaign_id`（外键）、`name`、`placement`、`audience`、`status`、`daily_budget`、`bid_strategy`、`sort_order`、时间戳。仅 `service_role` 可访问，与现有表策略一致。
+2. 把现有 `campaigns` 的每一行**下沉**为一条 `ad_groups` 记录（沿用原 id 便于兼容），再按 `channel` + 投放目标聚合出 4 条以内的新 `campaigns` 父记录；`campaigns` 保留 `channel`、`status`、`daily_budget`（父级总预算），`placement` 字段迁走。
+3. `creative_placements` 增加 `ad_group_id`，`leads` 增加 `ad_group_id`，按现有 `campaign_id` 回填。两个字段都保留 `campaign_id` 作冗余，避免归因链每次都要多跳一次连表。
+4. 视图升级：新增 `v_adgroup_facts`（线索/通过/放款/CPL/CPS，口径与现有一致），`v_campaign_facts` 改为对广告组事实做上卷汇总；`v_placement_facts` 的主键从 creative×campaign 改为 creative×ad_group。
+5. `agent_decisions` 增加 `ad_group_id` 与 `ad_group_name`，让决策卡能精确指到执行单元。
+
+## 服务端改动
+
+- `agent.server.ts`：快照增加 `adGroups` 数组与广告组事实；预算转移、暂停、AI 建议应用等动作的目标从 campaign 改为 ad group，campaign 层只做汇总展示与总预算约束。
+- `conversions.server.ts`：线索生成与素材加权归因按 `ad_group_id` 取 `creative_placements` 池，写入 `leads` 时带上 ad_group_id。
+- `creative.server.ts`：疲劳扫描、变体实验、胜出上线产生的决策带上广告组归属。
+- `/api/public/leads`：接受可选 `ad_group_id`，缺省时按 campaign 下权重最高的在投广告组落位。
+- 类型层：`types.ts` 新增 `AdGroup`，`Campaign` 去掉 `placement` 并增加 `adGroupIds`，`CreativePlacement` 增加广告组字段。
+
+## 前端改动
+
+- **广告系列页**：改为两级表格 —— 广告系列汇总行（总预算、已花费、汇总 CPS）可展开出广告组子行（版位、受众、日预算、CPL、后端授信通过率、CPS、在投素材）。预算编辑、暂停/启用、应用 AI 建议都下沉到广告组行。
+- **素材中心**：「投放于」标签从「广告系列名」改为「广告系列 · 广告组」，后端表现按广告组拆分。
+- **决策卡**：展示「广告系列 → 广告组 → 素材」完整路径。
+- **全链路归因**：渠道下钻多一层广告组，再到素材。
+- **落地页 `/lp`**：链接参数带上广告组，方便演示归因。
+
+## 文档改动
+
+重新生成 `CreditAgent_AI_架构设计文档.pdf`：更新 ER 图与三条数据流向图为三层结构，新增 `ad_groups` 表的字段说明，并补一节「广告层级与平台对照」，说明本系统层级如何对应 Google/Meta 的 campaign / ad group / ad。
+
+## 实施顺序
+
+1. 数据库迁移（建表 + 数据下沉 + 回填 + 视图重建）
+2. 类型与服务端逻辑
+3. 前端三个页面的层级展示与操作下沉
+4. 端到端验证：落地页投线索 → 广告组事实 → 决策执行 → 回传
+5. 重生成架构 PDF 并逐页视觉 QA
 
 ## 技术备注
 
-文档只做只读产出，不改动应用代码与数据库。字段口径以线上 schema 与视图 SQL 为准，文中每个指标公式都会标出来源表。
+迁移采用「保 id 下沉」策略：老 campaign id 直接成为 ad group id，所有历史 `leads` / `creative_placements` / `agent_decisions` 的引用无需改写，只需补 `ad_group_id` 冗余列，避免历史事实数据错位。视图口径公式（CPL = 花费/线索，CPS = 花费/放款笔数）保持不变，只改分组维度。

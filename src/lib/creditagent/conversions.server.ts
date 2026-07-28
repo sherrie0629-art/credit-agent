@@ -488,8 +488,10 @@ async function maybeRaiseAgentAlert() {
     agent_type: "Execution",
     action_type: "CONVERSION_FEEDBACK_ALERT",
     target_channel: "Google",
-    campaign_id: "cmp_g_search_01",
-    campaign_name: "离线转化回传通道",
+    campaign_id: "cmp_google_acq",
+    campaign_name: "Google — 美国消费信贷获客",
+    ad_group_id: "cmp_g_search_01",
+    ad_group_name: "Search — 高意图关键词",
     confidence_score: 0.94,
     reasoning_chain: [
       `近 24 小时回传成功率 ${(successRate * 100).toFixed(1)}%，低于 85% 阈值。`,
@@ -510,11 +512,12 @@ async function maybeRaiseAgentAlert() {
  * Simulation helpers (stand-in for the real loan origination system)
  * ------------------------------------------------------------------ */
 
-const CAMPAIGNS: { id: string; channel: string }[] = [
-  { id: "cmp_g_search_01", channel: "Google" },
-  { id: "cmp_g_pmax_02", channel: "Google" },
-  { id: "cmp_m_feed_03", channel: "Meta" },
-  { id: "cmp_m_reels_04", channel: "Meta" },
+/** Fallback delivery units (ad group id → parent campaign) if the table is empty. */
+const AD_GROUPS: { id: string; campaignId: string; channel: string }[] = [
+  { id: "cmp_g_search_01", campaignId: "cmp_google_acq", channel: "Google" },
+  { id: "cmp_g_pmax_02", campaignId: "cmp_google_acq", channel: "Google" },
+  { id: "cmp_m_feed_03", campaignId: "cmp_meta_acq", channel: "Meta" },
+  { id: "cmp_m_reels_04", campaignId: "cmp_meta_acq", channel: "Meta" },
 ];
 
 async function sha256(value: string) {
@@ -539,15 +542,28 @@ export async function captureLead(input: {
   const supabase = await db();
   const id = `lead_live_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
   const channel = input.channel ?? (input.gclid || input.gbraid ? "Google" : "Meta");
-  const campaignId =
-    input.campaignId ?? (channel === "Google" ? "cmp_g_search_01" : "cmp_m_feed_03");
+
+  // Resolve the delivery unit: the tracking param may carry either an ad group
+  // id (real execution unit) or a campaign id (parent). Always land on an ad group.
+  const { data: groupRows } = await supabase
+    .from("ad_groups")
+    .select("id, campaign_id, channel")
+    .order("sort_order");
+  const groups = (groupRows ?? []) as Row[];
+  const hinted = input.campaignId
+    ? (groups.find((g) => g.id === input.campaignId) ??
+      groups.find((g) => g.campaign_id === input.campaignId))
+    : undefined;
+  const group = hinted ?? groups.find((g) => g.channel === channel) ?? groups[0];
+  const adGroupId = group?.id ?? null;
+  const campaignId = group?.campaign_id ?? input.campaignId ?? null;
 
   // Attribute the lead to a creative by traffic share, so downstream loan
   // outcomes roll up to the asset that actually earned the click.
   const { data: placements } = await supabase
     .from("creative_placements")
     .select("creative_id, share")
-    .eq("campaign_id", campaignId)
+    .eq("ad_group_id", adGroupId ?? "")
     .eq("status", "ACTIVE");
   let creativeId: string | null = null;
   const pool = (placements ?? []) as { creative_id: string; share: number }[];
@@ -568,6 +584,7 @@ export async function captureLead(input: {
     id,
     channel,
     campaign_id: campaignId,
+    ad_group_id: adGroupId,
     creative_id: creativeId,
     gclid: input.gclid ?? null,
     gbraid: input.gbraid ?? null,
@@ -601,16 +618,16 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
 
   const { data: allPlacements } = await supabase
     .from("creative_placements")
-    .select("creative_id, campaign_id, share")
+    .select("creative_id, ad_group_id, share")
     .eq("status", "ACTIVE");
-  const poolByCampaign = new Map<string, { creative_id: string; share: number }[]>();
+  const poolByGroup = new Map<string, { creative_id: string; share: number }[]>();
   for (const p of (allPlacements ?? []) as Row[]) {
-    const list = poolByCampaign.get(p.campaign_id) ?? [];
+    const list = poolByGroup.get(p.ad_group_id) ?? [];
     list.push({ creative_id: p.creative_id, share: Number(p.share) });
-    poolByCampaign.set(p.campaign_id, list);
+    poolByGroup.set(p.ad_group_id, list);
   }
-  const pickCreative = (campaignId: string) => {
-    const pool = poolByCampaign.get(campaignId);
+  const pickCreative = (adGroupId: string) => {
+    const pool = poolByGroup.get(adGroupId);
     if (!pool || pool.length === 0) return null;
     const total = pool.reduce((a, p) => a + p.share, 0) || 1;
     let roll = Math.random() * total;
@@ -621,16 +638,28 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
     return pool[pool.length - 1].creative_id;
   };
 
+  const { data: groupRows } = await supabase
+    .from("ad_groups")
+    .select("id, campaign_id, channel")
+    .order("sort_order");
+  const groups = ((groupRows ?? []) as Row[]).map((g) => ({
+    id: g.id as string,
+    campaignId: g.campaign_id as string,
+    channel: g.channel as string,
+  }));
+  const units = groups.length > 0 ? groups : AD_GROUPS;
+
   for (let i = 0; i < count; i++) {
-    const campaign = CAMPAIGNS[i % CAMPAIGNS.length];
+    const unit = units[i % units.length];
     const id = `lead_sim_${stamp}_${i}`;
     const clickAt = new Date(Date.now() - Math.floor(Math.random() * 3) * 86_400_000);
-    const isGoogle = campaign.channel === "Google";
+    const isGoogle = unit.channel === "Google";
     leadRows.push({
       id,
-      channel: campaign.channel,
-      campaign_id: campaign.id,
-      creative_id: pickCreative(campaign.id),
+      channel: unit.channel,
+      campaign_id: unit.campaignId,
+      ad_group_id: unit.id,
+      creative_id: pickCreative(unit.id),
       gclid: isGoogle ? `Cj0KCQ${stamp}${i}` : null,
       fbclid: isGoogle ? null : `IwAR${stamp}${i}`,
       fbp: isGoogle ? null : `fb.1.${Math.floor(clickAt.getTime() / 1000)}.${100000 + i}`,

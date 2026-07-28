@@ -78,13 +78,21 @@ export function DecisionCard({
         <span className="label-mono mr-1.5">广告系列</span>
         {decision.campaignName}
       </h3>
-      {decision.creativeName && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          <span className="label-mono mr-1.5">关联素材</span>
-          {decision.creativeName}
-          <span className="ml-1.5 font-mono text-[10px] opacity-70">{decision.creativeId}</span>
-        </p>
-      )}
+      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="label-mono">投放层级</span>
+        <span>{decision.campaignName}</span>
+        <span className="opacity-60">›</span>
+        <span className={decision.adGroupName ? "text-foreground" : ""}>
+          {decision.adGroupName ?? "全系列"}
+        </span>
+        {decision.creativeName && (
+          <>
+            <span className="opacity-60">›</span>
+            <span className="text-foreground">{decision.creativeName}</span>
+            <span className="font-mono text-[10px] opacity-70">{decision.creativeId}</span>
+          </>
+        )}
+      </p>
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
 
 

@@ -1,5 +1,6 @@
 // Server-only data access + agent business logic backed by the Lovable Cloud database.
 import type {
+  AdGroup,
   AgentDecision,
   AgentSnapshot,
   Campaign,
@@ -40,6 +41,45 @@ function mapCampaign(r: Row): Campaign {
   };
 }
 
+function mapAdGroup(
+  r: Row,
+  campaignName: string,
+  f?: {
+    leads: number;
+    approvedLoans: number;
+    disbursedCount: number;
+    disbursedAmount: number;
+    cpl: number;
+    cps: number;
+    last20ApprovalRate: number;
+  },
+): AdGroup {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    campaignName,
+    name: r.name,
+    channel: r.channel,
+    placement: r.placement,
+    audience: r.audience,
+    bidStrategy: r.bid_strategy,
+    status: r.status,
+    dailyBudget: Number(r.daily_budget),
+    spentToday: Number(r.spent_today),
+    impressions: Number(r.impressions),
+    clicks: Number(r.clicks),
+    leads: f?.leads ?? 0,
+    approvedLoans: f?.approvedLoans ?? 0,
+    disbursedCount: f?.disbursedCount ?? 0,
+    disbursedAmount: f?.disbursedAmount ?? 0,
+    cpl: f?.cpl ?? 0,
+    cps: f?.cps ?? 0,
+    compliancePassRate: Number(r.compliance_pass_rate),
+    last20ApprovalRate: f?.last20ApprovalRate ?? 0,
+    aiSuggestion: r.ai_suggestion,
+  };
+}
+
 function mapDecision(r: Row): AgentDecision {
   return {
     id: r.id,
@@ -49,6 +89,8 @@ function mapDecision(r: Row): AgentDecision {
     targetChannel: r.target_channel,
     campaignId: r.campaign_id,
     campaignName: r.campaign_name,
+    adGroupId: r.ad_group_id ?? undefined,
+    adGroupName: r.ad_group_name ?? undefined,
     confidenceScore: Number(r.confidence_score),
     reasoningChain: (r.reasoning_chain ?? []) as string[],
     dataMetricsTrigger: {
@@ -64,27 +106,33 @@ function mapDecision(r: Row): AgentDecision {
   };
 }
 
-/** All creative → campaign delivery links, enriched with campaign metadata and real lead facts. */
+/** All creative → ad group delivery links, enriched with hierarchy metadata and real lead facts. */
 export async function getPlacements(): Promise<CreativePlacement[]> {
   const supabase = await db();
-  const [{ data: links }, { data: campaigns }, { data: facts }] = await Promise.all([
-    supabase.from("creative_placements").select("*").order("share", { ascending: false }),
-    supabase.from("campaigns").select("id,name,channel,placement"),
-    (supabase as any).from("v_placement_facts").select("*"),
-  ]);
-  const byId = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
+  const [{ data: links }, { data: groups }, { data: campaigns }, { data: facts }] =
+    await Promise.all([
+      supabase.from("creative_placements").select("*").order("share", { ascending: false }),
+      supabase.from("ad_groups").select("id,name,campaign_id,channel,placement"),
+      supabase.from("campaigns").select("id,name"),
+      (supabase as any).from("v_placement_facts").select("*"),
+    ]);
+  const groupById = new Map(((groups ?? []) as Row[]).map((g) => [g.id, g]));
+  const campaignById = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
   const factByPair = new Map(
-    ((facts ?? []) as Row[]).map((f) => [`${f.creative_id}::${f.campaign_id}`, f]),
+    ((facts ?? []) as Row[]).map((f) => [`${f.creative_id}::${f.ad_group_id}`, f]),
   );
   return ((links ?? []) as Row[]).map((r) => {
-    const c = byId.get(r.campaign_id);
-    const f = factByPair.get(`${r.creative_id}::${r.campaign_id}`);
+    const g = groupById.get(r.ad_group_id);
+    const c = campaignById.get(g?.campaign_id ?? r.campaign_id);
+    const f = factByPair.get(`${r.creative_id}::${r.ad_group_id}`);
     return {
       creativeId: r.creative_id,
-      campaignId: r.campaign_id,
-      campaignName: c?.name ?? r.campaign_id,
-      channel: (c?.channel ?? "Google") as CreativePlacement["channel"],
-      placement: c?.placement ?? "",
+      adGroupId: r.ad_group_id,
+      adGroupName: g?.name ?? r.ad_group_id,
+      campaignId: g?.campaign_id ?? r.campaign_id,
+      campaignName: c?.name ?? g?.campaign_id ?? r.campaign_id,
+      channel: (g?.channel ?? "Google") as CreativePlacement["channel"],
+      placement: g?.placement ?? "",
       status: r.status,
       share: Number(r.share),
       startedAt: r.started_at,
@@ -96,7 +144,7 @@ export async function getPlacements(): Promise<CreativePlacement[]> {
   });
 }
 
-/** Primary (highest-share ACTIVE) campaign a creative is delivered in. */
+/** Primary (highest-share ACTIVE) ad group a creative is delivered in. */
 export async function getPrimaryPlacement(creativeId: string): Promise<CreativePlacement | null> {
   const all = await getPlacements();
   const active = all
@@ -147,6 +195,25 @@ export async function getCampaignFacts(): Promise<Map<string, CampaignFacts>> {
   return new Map(
     ((data ?? []) as Row[]).map((r) => [
       r.campaign_id as string,
+      {
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        last20ApprovalRate: Number(r.last20_approval_rate),
+      },
+    ]),
+  );
+}
+
+export async function getAdGroupFacts(): Promise<Map<string, CampaignFacts>> {
+  const supabase = await db();
+  const { data } = await (supabase as any).from("v_adgroup_facts").select("*");
+  return new Map(
+    ((data ?? []) as Row[]).map((r) => [
+      r.ad_group_id as string,
       {
         leads: Number(r.leads),
         approvedLoans: Number(r.approved_loans),
@@ -235,6 +302,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
   const [
     decisions,
     campaigns,
+    adGroups,
     creatives,
     settings,
     funnel,
@@ -245,12 +313,14 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     experiments,
     placements,
     campaignFacts,
+    adGroupFacts,
     creativeFacts,
     feedbackHealth,
     funnelFacts,
   ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
+    supabase.from("ad_groups").select("*").order("sort_order"),
     supabase.from("creative_assets").select("*").order("sort_order"),
     supabase.from("agent_settings").select("*").eq("id", "default").maybeSingle(),
     supabase.from("funnel_stages").select("*").order("sort_order"),
@@ -261,6 +331,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
     getPlacements(),
     getCampaignFacts(),
+    getAdGroupFacts(),
     getCreativeFacts(),
     getFeedbackHealth(),
     (supabase as any).from("v_funnel").select("*").order("sort_order"),
@@ -271,6 +342,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
   const noteByStage = new Map(
     ((funnel.data ?? []) as Row[]).map((r) => [r.stage as string, r.note as string]),
   );
+  const campaignNameById = new Map(
+    ((campaigns.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
+  );
+  const adGroupNameById = new Map(
+    ((adGroups.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
+  );
 
   return {
     decisions: ((decisions.data ?? []) as Row[]).map(mapDecision),
@@ -279,6 +356,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       const f = campaignFacts.get(c.id);
       return f ? { ...c, ...f } : c;
     }),
+    adGroups: ((adGroups.data ?? []) as Row[]).map((r) =>
+      mapAdGroup(r, campaignNameById.get(r.campaign_id) ?? r.campaign_id, adGroupFacts.get(r.id)),
+    ),
     creatives: ((creatives.data ?? []) as Row[]).map((r) => {
       const c = mapCreative(r);
       const f = creativeFacts.get(c.id);
@@ -304,10 +384,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       }),
     ),
     channelBreakdown: ((breakdown.data ?? []) as Row[]).map((r) => {
-      const f = r.campaign_id ? campaignFacts.get(r.campaign_id) : undefined;
+      const f = r.ad_group_id ? adGroupFacts.get(r.ad_group_id) : undefined;
       return {
         channel: r.channel,
         campaignId: r.campaign_id ?? undefined,
+        adGroupId: r.ad_group_id ?? undefined,
+        adGroupName: r.ad_group_id ? adGroupNameById.get(r.ad_group_id) : undefined,
         spend: Number(r.spend),
         disbursed: f ? f.disbursedAmount : Number(r.disbursed),
         cps: f ? f.cps : Number(r.cps),
@@ -349,13 +431,18 @@ async function nextDecisionId() {
   return `dec_${1043 + (count ?? 0)}`;
 }
 
-async function getCampaign(id: string) {
+async function getAdGroup(id: string) {
   const supabase = await db();
-  const { data } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("ad_groups").select("*").eq("id", id).maybeSingle();
   if (!data) return null;
-  const c = mapCampaign(data as Row);
-  const f = (await getCampaignFacts()).get(c.id);
-  return f ? { ...c, ...f } : c;
+  const row = data as Row;
+  const { data: parent } = await supabase
+    .from("campaigns")
+    .select("name")
+    .eq("id", row.campaign_id)
+    .maybeSingle();
+  const facts = (await getAdGroupFacts()).get(row.id);
+  return mapAdGroup(row, ((parent as Row | null)?.name as string) ?? row.campaign_id, facts);
 }
 
 export async function approveDecision(id: string) {
@@ -367,16 +454,19 @@ export async function approveDecision(id: string) {
   await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
   await bumpTakeovers(1);
 
-  if (decision.actionType === "BUDGET_SHIFT" && decision.id === "dec_1039") {
-    await supabase
-      .from("campaigns")
-      .update({ daily_budget: 1400, ai_suggestion: "预算已按风控建议下调" })
-      .eq("id", decision.campaignId);
-  } else if (decision.actionType === "CREATIVE_PAUSE") {
-    await supabase
-      .from("campaigns")
-      .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" })
-      .eq("id", decision.campaignId);
+  const targetGroup = decision.adGroupId;
+  if (targetGroup) {
+    if (decision.actionType === "BUDGET_SHIFT" && decision.id === "dec_1039") {
+      await supabase
+        .from("ad_groups")
+        .update({ daily_budget: 1400, ai_suggestion: "预算已按风控建议下调" } as never)
+        .eq("id", targetGroup);
+    } else if (decision.actionType === "CREATIVE_PAUSE") {
+      await supabase
+        .from("ad_groups")
+        .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" } as never)
+        .eq("id", targetGroup);
+    }
   }
 
   return getSnapshot();
@@ -396,12 +486,12 @@ export async function rollbackDecision(id: string) {
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
 
-  const campaign = await getCampaign(decision.campaignId);
-  if (campaign) {
+  const group = decision.adGroupId ? await getAdGroup(decision.adGroupId) : null;
+  if (group) {
     const patch: Row = { ai_suggestion: `已回滚至：${decision.rollbackTo ?? "原配置"}` };
-    if (decision.id === "dec_1042" && campaign.id === "cmp_g_search_01") patch.daily_budget = 4200;
-    if (decision.id === "dec_1041" && campaign.status === "COMPLIANCE_HOLD") patch.status = "ACTIVE";
-    await supabase.from("campaigns").update(patch as never).eq("id", campaign.id);
+    if (decision.id === "dec_1042" && group.id === "cmp_g_search_01") patch.daily_budget = 4200;
+    if (decision.id === "dec_1041" && group.status === "COMPLIANCE_HOLD") patch.status = "ACTIVE";
+    await supabase.from("ad_groups").update(patch as never).eq("id", group.id);
   }
 
   return { snapshot: await getSnapshot(), rolledBackTo: decision.rollbackTo ?? "原配置" };
@@ -428,73 +518,75 @@ export async function setRiskFirst(riskFirst: boolean) {
   }
 
   const snapshot = await getSnapshot();
-  const paused = snapshot.campaigns.filter(
-    (c) => c.channel === "Meta" && c.last20ApprovalRate < 0.1 && c.status === "ACTIVE",
+  const paused = snapshot.adGroups.filter(
+    (g) => g.channel === "Meta" && g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
   );
   if (paused.length === 0) {
     return { snapshot, pausedCampaigns: [] as string[] };
   }
 
   const baseId = await nextDecisionId();
-  const notes = await Promise.all(paused.map((c) => feedbackNote(c.channel)));
-  const rows = paused.map((c, i) => ({
+  const notes = await Promise.all(paused.map((g) => feedbackNote(g.channel)));
+  const rows = paused.map((g, i) => ({
     id: `${baseId}_${i}`,
     timestamp: new Date().toISOString(),
     agent_type: "Execution",
     action_type: "CREATIVE_PAUSE",
-    target_channel: c.channel,
-    campaign_id: c.id,
-    campaign_name: c.name,
+    target_channel: g.channel,
+    campaign_id: g.campaignId,
+    campaign_name: g.campaignName,
+    ad_group_id: g.id,
+    ad_group_name: g.name,
     confidence_score: 0.93,
     reasoning_chain: [
-      `风控优先模式开启：检查 ${c.name} 近 20 条线索。`,
-      `后端授信通过率 ${(c.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
-      `实际放款成本 CPS $${c.cps.toFixed(2)}，高于账户目标 $19.00。`,
+      `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
+      `后端授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
+      `实际放款成本 CPS $${g.cps.toFixed(2)}，高于账户目标 $19.00。`,
       notes[i],
       "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。",
     ],
     trigger_metric: "ApprovalRate",
-    trigger_current_value: c.last20ApprovalRate,
+    trigger_current_value: g.last20ApprovalRate,
     trigger_threshold_value: 0.1,
     status: "EXECUTED",
-    effect: `${c.placement} 广告组自动暂停`,
-    rollback_to: `${c.placement} ACTIVE / $${c.dailyBudget}`,
+    effect: `广告组「${g.name}」自动暂停`,
+    rollback_to: `${g.name} ACTIVE / $${g.dailyBudget}`,
   }));
 
-  await supabase.from("agent_decisions").insert(rows);
-  for (const c of paused) {
+  await supabase.from("agent_decisions").insert(rows as never);
+  for (const g of paused) {
     await supabase
-      .from("campaigns")
-      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" })
-      .eq("id", c.id);
+      .from("ad_groups")
+      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
+      .eq("id", g.id);
   }
   await bumpTakeovers(rows.length);
 
-  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((c) => c.name) };
+  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
 
-export async function setCampaignStatus(id: string, status: Campaign["status"]) {
+export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
   await supabase
-    .from("campaigns")
-    .update({ status, updated_at: new Date().toISOString() })
+    .from("ad_groups")
+    .update({ status, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
   return getSnapshot();
 }
 
-export async function setCampaignBudget(id: string, dailyBudget: number) {
+export async function setAdGroupBudget(id: string, dailyBudget: number) {
   const supabase = await db();
   await supabase
-    .from("campaigns")
-    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() })
+    .from("ad_groups")
+    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
   return getSnapshot();
 }
 
 export async function applyAiSuggestion(id: string) {
   const supabase = await db();
-  const campaign = await getCampaign(id);
-  if (!campaign) return { snapshot: await getSnapshot(), decision: null };
+  const group = await getAdGroup(id);
+  if (!group) return { snapshot: await getSnapshot(), decision: null };
 
   const { data: settings } = await supabase
     .from("agent_settings")
@@ -503,8 +595,8 @@ export async function applyAiSuggestion(id: string) {
     .maybeSingle();
   const mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
 
-  const scaleUp = campaign.last20ApprovalRate >= 0.22;
-  const nextBudget = Math.round(campaign.dailyBudget * (scaleUp ? 1.15 : 0.6));
+  const scaleUp = group.last20ApprovalRate >= 0.22;
+  const nextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
   const decisionId = await nextDecisionId();
 
   const row = {
@@ -512,37 +604,42 @@ export async function applyAiSuggestion(id: string) {
     timestamp: new Date().toISOString(),
     agent_type: "Planner",
     action_type: "BUDGET_SHIFT",
-    target_channel: campaign.channel,
-    campaign_id: campaign.id,
-    campaign_name: campaign.name,
+    target_channel: group.channel,
+    campaign_id: group.campaignId,
+    campaign_name: group.campaignName,
+    ad_group_id: group.id,
+    ad_group_name: group.name,
     confidence_score: scaleUp ? 0.89 : 0.82,
     reasoning_chain: [
-      `${campaign.name} 近 20 条线索授信通过率 ${(campaign.last20ApprovalRate * 100).toFixed(1)}%。`,
-      `CPL $${campaign.cpl.toFixed(2)} / CPS $${campaign.cps.toFixed(2)}（目标 CPS $19.00）。`,
-      await feedbackNote(campaign.channel),
+      `广告组「${group.name}」（${group.campaignName}）近 20 条线索授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}%。`,
+      `CPL $${group.cpl.toFixed(2)} / CPS $${group.cps.toFixed(2)}（目标 CPS $19.00）。`,
+      await feedbackNote(group.channel),
       scaleUp
         ? "后端放款率高于阈值，触发正向扩量策略：预算 +15%。"
-        : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率渠道。",
+        : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率广告组。",
       mode === "FULL_AUTO"
         ? "托管模式 = Full-Auto：直接调用广告 API 执行。"
         : "托管模式 = Semi-Auto：推送审批卡片，等待人工确认。",
     ],
     trigger_metric: "CostPerDisbursement",
-    trigger_current_value: campaign.cps,
+    trigger_current_value: group.cps,
     trigger_threshold_value: 19,
     status: mode === "FULL_AUTO" ? "EXECUTED" : "PENDING_APPROVAL",
-    effect: `日预算 $${campaign.dailyBudget.toLocaleString()} → $${nextBudget.toLocaleString()}`,
-    rollback_to: `$${campaign.dailyBudget.toLocaleString()}`,
+    effect: `日预算 $${group.dailyBudget.toLocaleString()} → $${nextBudget.toLocaleString()}`,
+    rollback_to: `$${group.dailyBudget.toLocaleString()}`,
   };
 
   const { data: inserted } = await supabase
     .from("agent_decisions")
-    .insert(row)
+    .insert(row as never)
     .select("*")
     .maybeSingle();
 
   if (mode === "FULL_AUTO") {
-    await supabase.from("campaigns").update({ daily_budget: nextBudget }).eq("id", campaign.id);
+    await supabase
+      .from("ad_groups")
+      .update({ daily_budget: nextBudget } as never)
+      .eq("id", group.id);
     await bumpTakeovers(1);
   }
 

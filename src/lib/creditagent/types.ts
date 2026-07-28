@@ -29,6 +29,9 @@ export interface AgentDecision {
   targetChannel: Channel;
   campaignId: string;
   campaignName: string;
+  /** Ad group (执行单元) the decision acts on, when applicable. */
+  adGroupId?: string;
+  adGroupName?: string;
   confidenceScore: number; // 0.0 - 1.0
   reasoningChain: string[];
   dataMetricsTrigger: {
@@ -46,18 +49,47 @@ export interface AgentDecision {
   creativeName?: string;
 }
 
-/** Which campaigns a creative asset is currently delivered in. */
+/** Ad group — the real execution unit under a campaign (Google/Meta hierarchy). */
+export interface AdGroup {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  name: string;
+  channel: Channel;
+  placement: string;
+  audience: string;
+  bidStrategy: string;
+  status: "ACTIVE" | "PAUSED" | "LEARNING" | "COMPLIANCE_HOLD";
+  dailyBudget: number;
+  spentToday: number;
+  impressions: number;
+  clicks: number;
+  leads: number;
+  approvedLoans: number;
+  disbursedCount: number;
+  disbursedAmount: number;
+  cpl: number;
+  cps: number;
+  compliancePassRate: number;
+  last20ApprovalRate: number;
+  aiSuggestion: string;
+}
+
+
+/** Which ad groups (and their parent campaigns) a creative is delivered in. */
 export interface CreativePlacement {
   creativeId: string;
+  adGroupId: string;
+  adGroupName: string;
   campaignId: string;
   campaignName: string;
   channel: Channel;
   placement: string;
   status: "ACTIVE" | "PAUSED" | "ENDED";
-  /** Share of the campaign's delivery carried by this creative (0-1). */
+  /** Share of the ad group's delivery carried by this creative (0-1). */
   share: number;
   startedAt: string;
-  /** Real facts for this creative×campaign pair, derived from lead events. */
+  /** Real facts for this creative×ad group pair, derived from lead events. */
   leads: number;
   approved: number;
   disbursedCount: number;
@@ -138,6 +170,9 @@ export interface FunnelStageRow extends FunnelStage {
 export interface ChannelBreakdownRow {
   channel: string;
   campaignId?: string;
+  /** Ad group the row drills down to, when the row is ad-group level. */
+  adGroupId?: string;
+  adGroupName?: string;
   spend: number;
   disbursed: number;
   cps: number;
@@ -161,6 +196,7 @@ export interface FeedbackHealth {
 export interface AgentSnapshot {
   decisions: AgentDecision[];
   campaigns: Campaign[];
+  adGroups: AdGroup[];
   creatives: CreativeAsset[];
   mode: ManagementMode;
   riskFirst: boolean;

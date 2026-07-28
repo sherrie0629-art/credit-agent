@@ -75,11 +75,13 @@ async function attribution(creativeId: string, creativeName: string) {
     target_channel: p?.channel ?? (creativeId.includes("_g_") ? "Google" : "Meta"),
     campaign_id: p?.campaignId ?? creativeId,
     campaign_name: p?.campaignName ?? creativeName,
+    ad_group_id: p?.adGroupId ?? null,
+    ad_group_name: p?.adGroupName ?? null,
     creative_id: creativeId,
     creative_name: creativeName,
     placementNote: p
-      ? `该素材当前投放于「${p.campaignName}」（${p.placement}），承担该系列 ${(p.share * 100).toFixed(0)}% 的流量。`
-      : "该素材当前未绑定任何广告系列，仅在素材库中待投。",
+      ? `该素材当前投放于「${p.campaignName} › ${p.adGroupName}」（${p.placement}），承担该广告组 ${(p.share * 100).toFixed(0)}% 的流量。`
+      : "该素材当前未绑定任何广告组，仅在素材库中待投。",
   };
 }
 
@@ -291,6 +293,8 @@ export async function generateVariants(creativeId: string) {
     target_channel: genAttr.target_channel,
     campaign_id: genAttr.campaign_id,
     campaign_name: genAttr.campaign_name,
+    ad_group_id: genAttr.ad_group_id,
+    ad_group_name: genAttr.ad_group_name,
     creative_id: genAttr.creative_id,
     creative_name: genAttr.creative_name,
     confidence_score: 0.9,
@@ -401,6 +405,8 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
     target_channel: expAttr.target_channel,
     campaign_id: expAttr.campaign_id,
     campaign_name: expAttr.campaign_name,
+    ad_group_id: expAttr.ad_group_id,
+    ad_group_name: expAttr.ad_group_name,
     creative_id: expAttr.creative_id,
     creative_name: expAttr.creative_name,
     confidence_score: 0.88,
@@ -556,6 +562,8 @@ export async function settleExperiment(experimentId: string) {
     target_channel: winAttr.target_channel,
     campaign_id: winAttr.campaign_id,
     campaign_name: winAttr.campaign_name,
+    ad_group_id: winAttr.ad_group_id,
+    ad_group_name: winAttr.ad_group_name,
     creative_id: winAttr.creative_id,
     creative_name: winAttr.creative_name,
     confidence_score: winner.confidence,

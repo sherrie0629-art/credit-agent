@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Pause, Play, Sparkles } from "lucide-react";
@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { agentApi, useAgentStore } from "@/lib/creditagent/store";
-import type { Campaign } from "@/lib/creditagent/types";
+import type { AdGroup } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/campaigns")({
@@ -42,14 +42,14 @@ export const Route = createFileRoute("/campaigns")({
   component: CampaignsPage,
 });
 
-const STATUS_STYLE: Record<Campaign["status"], string> = {
+const STATUS_STYLE: Record<AdGroup["status"], string> = {
   ACTIVE: "border-success/40 bg-success/12 text-success",
   PAUSED: "border-border bg-muted text-muted-foreground",
   LEARNING: "border-creative/40 bg-creative/12 text-creative",
   COMPLIANCE_HOLD: "border-compliance/40 bg-compliance/12 text-compliance",
 };
 
-const STATUS_LABEL: Record<Campaign["status"], string> = {
+const STATUS_LABEL: Record<AdGroup["status"], string> = {
   ACTIVE: "投放中",
   PAUSED: "已暂停",
   LEARNING: "学习期",
@@ -57,8 +57,8 @@ const STATUS_LABEL: Record<Campaign["status"], string> = {
 };
 
 
-function BudgetCell({ campaign }: { campaign: Campaign }) {
-  const [value, setValue] = useState(String(campaign.dailyBudget));
+function BudgetCell({ group }: { group: AdGroup }) {
+  const [value, setValue] = useState(String(group.dailyBudget));
   const [editing, setEditing] = useState(false);
 
   if (!editing) {
@@ -66,12 +66,12 @@ function BudgetCell({ campaign }: { campaign: Campaign }) {
       <button
         type="button"
         onClick={() => {
-          setValue(String(campaign.dailyBudget));
+          setValue(String(group.dailyBudget));
           setEditing(true);
         }}
         className="font-mono text-xs text-foreground underline decoration-dotted decoration-muted-foreground underline-offset-4"
       >
-        ${campaign.dailyBudget.toLocaleString()}
+        ${group.dailyBudget.toLocaleString()}
       </button>
     );
   }
@@ -84,9 +84,9 @@ function BudgetCell({ campaign }: { campaign: Campaign }) {
         const next = Number(value);
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
-        await agentApi.setCampaignBudget(campaign.id, Math.round(next));
+        await agentApi.setAdGroupBudget(group.id, Math.round(next));
         toast.success("每日预算已更新", {
-          description: `${campaign.name} → $${Math.round(next).toLocaleString()} / 日`,
+          description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
         });
 
       }}
@@ -104,15 +104,16 @@ function BudgetCell({ campaign }: { campaign: Campaign }) {
 
 function CampaignsPage() {
   const campaigns = useAgentStore((s) => s.campaigns);
+  const adGroups = useAgentStore((s) => s.adGroups);
   const mode = useAgentStore((s) => s.mode);
   const riskFirst = useAgentStore((s) => s.riskFirst);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const totalBudget = campaigns.reduce((s, c) => s + c.dailyBudget, 0);
-  const totalSpent = campaigns.reduce((s, c) => s + c.spentToday, 0);
-  const totalDisbursed = campaigns.reduce((s, c) => s + c.disbursedAmount, 0);
+  const totalBudget = adGroups.reduce((s, g) => s + g.dailyBudget, 0);
+  const totalSpent = adGroups.reduce((s, g) => s + g.spentToday, 0);
+  const totalDisbursed = adGroups.reduce((s, g) => s + g.disbursedAmount, 0);
   const blendedCps =
-    totalSpent / Math.max(1, campaigns.reduce((s, c) => s + c.approvedLoans, 0));
+    totalSpent / Math.max(1, adGroups.reduce((s, g) => s + g.approvedLoans, 0));
 
   return (
     <AppShell>
@@ -122,7 +123,7 @@ function CampaignsPage() {
           广告投放与预算调配
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          全托管预算调配引擎 · Planner Agent 按后端放款表现分配资金
+          层级：广告系列 Campaign → 广告组 Ad Group → 素材 Creative · Planner Agent 按后端放款表现在广告组层级分配资金
         </p>
 
 
@@ -195,10 +196,10 @@ function CampaignsPage() {
       <section className="panel mt-4 overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="text-sm font-semibold tracking-wide">
-            多渠道预算矩阵
+            广告系列 / 广告组预算矩阵
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            聚合 Google Search / Performance Max 与 Meta Feed / Reels · 点击预算可手动接管
+            广告系列为渠道级归集，广告组承载版位、受众与出价策略 · 点击预算可手动接管
           </p>
         </div>
 
@@ -206,8 +207,8 @@ function CampaignsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="label-mono">渠道</TableHead>
-                <TableHead className="label-mono">广告系列</TableHead>
+                <TableHead className="label-mono">渠道 / 版位</TableHead>
+                <TableHead className="label-mono">广告组</TableHead>
                 <TableHead className="label-mono">今日预算</TableHead>
                 <TableHead className="label-mono">CPL</TableHead>
                 <TableHead className="label-mono">后端授信通过率</TableHead>
@@ -217,121 +218,144 @@ function CampaignsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {campaigns.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <ChannelBadge channel={c.channel} />
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                      {c.placement}
-                    </p>
-                  </TableCell>
-                  <TableCell className="max-w-[260px]">
-                    <p className="truncate text-sm">{c.name}</p>
-                    <p className="font-mono text-[11px] text-muted-foreground">
-                      {c.leads} 条线索 · {c.approvedLoans} 笔通过
-                    </p>
-                    <CampaignCreatives campaignId={c.id} />
-                  </TableCell>
+              {campaigns.map((camp) => {
+                const groups = adGroups.filter((g) => g.campaignId === camp.id);
+                const campBudget = groups.reduce((s, g) => s + g.dailyBudget, 0);
+                return (
+                  <Fragment key={camp.id}>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableCell colSpan={8} className="py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="label-mono">广告系列</span>
+                          <ChannelBadge channel={camp.channel} />
+                          <span className="text-sm font-semibold">{camp.name}</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {groups.length} 个广告组 · 日预算合计 ${campBudget.toLocaleString()}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {groups.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <ChannelBadge channel={c.channel} />
+                          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                            {c.placement}
+                          </p>
+                        </TableCell>
+                        <TableCell className="max-w-[260px]">
+                          <p className="truncate text-sm">{c.name}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            {c.audience} · {c.bidStrategy}
+                          </p>
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            {c.leads} 条线索 · {c.approvedLoans} 笔通过
+                          </p>
+                          <AdGroupCreatives adGroupId={c.id} />
+                        </TableCell>
 
-                  <TableCell>
-                    <BudgetCell campaign={c} />
-                    <p className="font-mono text-[11px] text-muted-foreground">
-                      已花费 ${c.spentToday.toLocaleString()}
-                    </p>
+                        <TableCell>
+                          <BudgetCell group={c} />
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            已花费 ${c.spentToday.toLocaleString()}
+                          </p>
 
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">${c.cpl.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "font-mono text-xs",
-                        c.last20ApprovalRate < 0.1
-                          ? "text-destructive"
-                          : c.last20ApprovalRate < 0.22
-                            ? "text-warning"
-                            : "text-success",
-                      )}
-                    >
-                      {(c.last20ApprovalRate * 100).toFixed(1)}%
-                    </span>
-                    <p className="text-[11px] text-muted-foreground">最近 20 条线索</p>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "font-mono text-xs",
-                        c.cps > 19 ? "text-destructive" : "text-success",
-                      )}
-                    >
-                      ${c.cps.toFixed(2)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded border px-2 py-0.5 text-[11px]",
-                        STATUS_STYLE[c.status],
-                      )}
-                    >
-                      {STATUS_LABEL[c.status]}
-                    </span>
-                  </TableCell>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">${c.cpl.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "font-mono text-xs",
+                              c.last20ApprovalRate < 0.1
+                                ? "text-destructive"
+                                : c.last20ApprovalRate < 0.22
+                                  ? "text-warning"
+                                  : "text-success",
+                            )}
+                          >
+                            {(c.last20ApprovalRate * 100).toFixed(1)}%
+                          </span>
+                          <p className="text-[11px] text-muted-foreground">最近 20 条线索</p>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "font-mono text-xs",
+                              c.cps > 19 ? "text-destructive" : "text-success",
+                            )}
+                          >
+                            ${c.cps.toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "inline-flex rounded border px-2 py-0.5 text-[11px]",
+                              STATUS_STYLE[c.status],
+                            )}
+                          >
+                            {STATUS_LABEL[c.status]}
+                          </span>
+                        </TableCell>
 
-                  <TableCell className="max-w-[280px]">
-                    <p className="text-xs text-muted-foreground">{c.aiSuggestion}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={busyId === c.id}
-                        className="text-[11px]"
-                        onClick={async () => {
-                          setBusyId(c.id);
-                          try {
-                            const d = await agentApi.applyAiSuggestion(c.id);
-                            if (d?.status === "EXECUTED") {
-                              toast.success("全自动模式已执行", { description: d.effect });
-                            } else if (d) {
-                              toast.warning("已推送至人工审批队列", { description: d.effect });
-                            }
-                          } finally {
-                            setBusyId(null);
-                          }
-                        }}
-                      >
-                        <Sparkles className="size-3.5" /> 应用建议
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={busyId === c.id}
-                        className="text-[11px]"
-                        onClick={async () => {
-                          setBusyId(c.id);
-                          try {
-                            const next = c.status === "PAUSED" ? "ACTIVE" : "PAUSED";
-                            await agentApi.setCampaignStatus(c.id, next);
-                            toast(`${c.name} → ${STATUS_LABEL[next]}`);
+                        <TableCell className="max-w-[280px]">
+                          <p className="text-xs text-muted-foreground">{c.aiSuggestion}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={busyId === c.id}
+                              className="text-[11px]"
+                              onClick={async () => {
+                                setBusyId(c.id);
+                                try {
+                                  const d = await agentApi.applyAiSuggestion(c.id);
+                                  if (d?.status === "EXECUTED") {
+                                    toast.success("全自动模式已执行", { description: d.effect });
+                                  } else if (d) {
+                                    toast.warning("已推送至人工审批队列", { description: d.effect });
+                                  }
+                                } finally {
+                                  setBusyId(null);
+                                }
+                              }}
+                            >
+                              <Sparkles className="size-3.5" /> 应用建议
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busyId === c.id}
+                              className="text-[11px]"
+                              onClick={async () => {
+                                setBusyId(c.id);
+                                try {
+                                  const next = c.status === "PAUSED" ? "ACTIVE" : "PAUSED";
+                                  await agentApi.setAdGroupStatus(c.id, next);
+                                  toast(`${c.name} → ${STATUS_LABEL[next]}`);
 
-                          } finally {
-                            setBusyId(null);
-                          }
-                        }}
-                      >
-                        {c.status === "PAUSED" ? (
-                          <>
-                            <Play className="size-3.5" /> 启用
-                          </>
-                        ) : (
-                          <>
-                            <Pause className="size-3.5" /> 暂停
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                                } finally {
+                                  setBusyId(null);
+                                }
+                              }}
+                            >
+                              {c.status === "PAUSED" ? (
+                                <>
+                                  <Play className="size-3.5" /> 启用
+                                </>
+                              ) : (
+                                <>
+                                  <Pause className="size-3.5" /> 暂停
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -340,11 +364,11 @@ function CampaignsPage() {
   );
 }
 
-/** In-flight creatives carried by a campaign, with fatigue warning. */
-function CampaignCreatives({ campaignId }: { campaignId: string }) {
+/** In-flight creatives carried by an ad group, with fatigue warning. */
+function AdGroupCreatives({ adGroupId }: { adGroupId: string }) {
   const placements = useAgentStore((s) => s.placements);
   const creatives = useAgentStore((s) => s.creatives);
-  const rows = placements.filter((p) => p.campaignId === campaignId && p.status === "ACTIVE");
+  const rows = placements.filter((p) => p.adGroupId === adGroupId && p.status === "ACTIVE");
   if (rows.length === 0) {
     return <p className="mt-1.5 text-[11px] text-muted-foreground">暂无在投素材</p>;
   }

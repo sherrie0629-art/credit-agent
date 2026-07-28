@@ -14,9 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_groups: {
+        Row: {
+          ai_suggestion: string
+          audience: string
+          bid_strategy: string
+          campaign_id: string
+          channel: string
+          clicks: number
+          compliance_pass_rate: number
+          created_at: string
+          daily_budget: number
+          id: string
+          impressions: number
+          name: string
+          placement: string
+          sort_order: number
+          spent_today: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_suggestion?: string
+          audience?: string
+          bid_strategy?: string
+          campaign_id: string
+          channel: string
+          clicks?: number
+          compliance_pass_rate?: number
+          created_at?: string
+          daily_budget?: number
+          id: string
+          impressions?: number
+          name: string
+          placement?: string
+          sort_order?: number
+          spent_today?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_suggestion?: string
+          audience?: string
+          bid_strategy?: string
+          campaign_id?: string
+          channel?: string
+          clicks?: number
+          compliance_pass_rate?: number
+          created_at?: string
+          daily_budget?: number
+          id?: string
+          impressions?: number
+          name?: string
+          placement?: string
+          sort_order?: number
+          spent_today?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_groups_campaign_fk"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_groups_campaign_fk"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "v_campaign_facts"
+            referencedColumns: ["campaign_id"]
+          },
+        ]
+      }
       agent_decisions: {
         Row: {
           action_type: string
+          ad_group_id: string | null
+          ad_group_name: string | null
           agent_type: string
           campaign_id: string
           campaign_name: string
@@ -37,6 +114,8 @@ export type Database = {
         }
         Insert: {
           action_type: string
+          ad_group_id?: string | null
+          ad_group_name?: string | null
           agent_type: string
           campaign_id: string
           campaign_name: string
@@ -57,6 +136,8 @@ export type Database = {
         }
         Update: {
           action_type?: string
+          ad_group_id?: string | null
+          ad_group_name?: string | null
           agent_type?: string
           campaign_id?: string
           campaign_name?: string
@@ -178,6 +259,7 @@ export type Database = {
       }
       channel_breakdown: {
         Row: {
+          ad_group_id: string | null
           approval: number
           campaign_id: string | null
           channel: string
@@ -188,6 +270,7 @@ export type Database = {
           spend: number
         }
         Insert: {
+          ad_group_id?: string | null
           approval: number
           campaign_id?: string | null
           channel: string
@@ -198,6 +281,7 @@ export type Database = {
           spend: number
         }
         Update: {
+          ad_group_id?: string | null
           approval?: number
           campaign_id?: string | null
           channel?: string
@@ -414,6 +498,7 @@ export type Database = {
       }
       creative_metrics: {
         Row: {
+          ad_group_id: string | null
           campaign_id: string | null
           clicks: number
           cpl: number
@@ -428,6 +513,7 @@ export type Database = {
           spend: number
         }
         Insert: {
+          ad_group_id?: string | null
           campaign_id?: string | null
           clicks?: number
           cpl?: number
@@ -442,6 +528,7 @@ export type Database = {
           spend?: number
         }
         Update: {
+          ad_group_id?: string | null
           campaign_id?: string | null
           clicks?: number
           cpl?: number
@@ -459,6 +546,7 @@ export type Database = {
       }
       creative_placements: {
         Row: {
+          ad_group_id: string
           campaign_id: string
           created_at: string
           creative_id: string
@@ -468,6 +556,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ad_group_id: string
           campaign_id: string
           created_at?: string
           creative_id: string
@@ -477,6 +566,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ad_group_id?: string
           campaign_id?: string
           created_at?: string
           creative_id?: string
@@ -610,6 +700,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ad_group_id: string | null
           campaign_id: string
           channel: string
           click_at: string
@@ -628,6 +719,7 @@ export type Database = {
           wbraid: string | null
         }
         Insert: {
+          ad_group_id?: string | null
           campaign_id: string
           channel: string
           click_at?: string
@@ -646,6 +738,7 @@ export type Database = {
           wbraid?: string | null
         }
         Update: {
+          ad_group_id?: string | null
           campaign_id?: string
           channel?: string
           click_at?: string
@@ -667,6 +760,35 @@ export type Database = {
       }
     }
     Views: {
+      v_adgroup_facts: {
+        Row: {
+          ad_group_id: string | null
+          approved_loans: number | null
+          campaign_id: string | null
+          cpl: number | null
+          cps: number | null
+          disbursed_amount: number | null
+          disbursed_count: number | null
+          last20_approval_rate: number | null
+          leads: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_groups_campaign_fk"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_groups_campaign_fk"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "v_campaign_facts"
+            referencedColumns: ["campaign_id"]
+          },
+        ]
+      }
       v_campaign_facts: {
         Row: {
           approved_loans: number | null
@@ -704,6 +826,7 @@ export type Database = {
       }
       v_placement_facts: {
         Row: {
+          ad_group_id: string | null
           approved: number | null
           campaign_id: string | null
           creative_id: string | null
