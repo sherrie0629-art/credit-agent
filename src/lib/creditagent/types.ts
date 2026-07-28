@@ -57,6 +57,11 @@ export interface CreativePlacement {
   /** Share of the campaign's delivery carried by this creative (0-1). */
   share: number;
   startedAt: string;
+  /** Real facts for this creative×campaign pair, derived from lead events. */
+  leads: number;
+  approved: number;
+  disbursedCount: number;
+  disbursedAmount: number;
 }
 
 
@@ -81,6 +86,18 @@ export interface Campaign {
   aiSuggestion: string;
 }
 
+/** Backend (post-loan) truth for one creative, derived from leads + lead_events. */
+export interface CreativeBackendFacts {
+  spend: number;
+  leads: number;
+  approvedLoans: number;
+  disbursedCount: number;
+  disbursedAmount: number;
+  cpl: number;
+  cps: number;
+  approvalRate: number;
+}
+
 export interface CreativeAsset {
   id: string;
   headline: string;
@@ -94,6 +111,8 @@ export interface CreativeAsset {
   fatigueLevel: FatigueLevel;
   launchedAt?: string;
   lastScannedAt?: string;
+  /** Real downstream performance; undefined when the creative has no leads yet. */
+  backend?: CreativeBackendFacts;
 }
 
 
@@ -118,10 +137,24 @@ export interface FunnelStageRow extends FunnelStage {
 
 export interface ChannelBreakdownRow {
   channel: string;
+  campaignId?: string;
   spend: number;
   disbursed: number;
   cps: number;
   approval: number;
+  /** Real lead / disbursement counts behind the money figures. */
+  leads?: number;
+  disbursedCount?: number;
+}
+
+/** Offline conversion feedback health, used to caveat platform-side CPS. */
+export interface FeedbackHealth {
+  channel: Channel;
+  sent: number;
+  attempted: number;
+  successRate: number;
+  /** Share of DB disbursements that never reached the ad platform. */
+  gapRate: number;
 }
 
 /** Full backend snapshot returned by the agent server API. */
@@ -141,6 +174,7 @@ export interface AgentSnapshot {
   variants: CreativeVariant[];
   experiments: CreativeExperiment[];
   placements: CreativePlacement[];
+  feedbackHealth: FeedbackHealth[];
 }
 
 

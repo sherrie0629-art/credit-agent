@@ -539,10 +539,36 @@ export async function captureLead(input: {
   const supabase = await db();
   const id = `lead_live_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
   const channel = input.channel ?? (input.gclid || input.gbraid ? "Google" : "Meta");
+  const campaignId =
+    input.campaignId ?? (channel === "Google" ? "cmp_g_search_01" : "cmp_m_feed_03");
+
+  // Attribute the lead to a creative by traffic share, so downstream loan
+  // outcomes roll up to the asset that actually earned the click.
+  const { data: placements } = await supabase
+    .from("creative_placements")
+    .select("creative_id, share")
+    .eq("campaign_id", campaignId)
+    .eq("status", "ACTIVE");
+  let creativeId: string | null = null;
+  const pool = (placements ?? []) as { creative_id: string; share: number }[];
+  if (pool.length > 0) {
+    const total = pool.reduce((a, p) => a + Number(p.share), 0) || 1;
+    let roll = Math.random() * total;
+    creativeId = pool[pool.length - 1].creative_id;
+    for (const p of pool) {
+      roll -= Number(p.share);
+      if (roll <= 0) {
+        creativeId = p.creative_id;
+        break;
+      }
+    }
+  }
+
   const row = {
     id,
     channel,
-    campaign_id: input.campaignId ?? (channel === "Google" ? "cmp_g_search_01" : "cmp_m_feed_03"),
+    campaign_id: campaignId,
+    creative_id: creativeId,
     gclid: input.gclid ?? null,
     gbraid: input.gbraid ?? null,
     wbraid: input.wbraid ?? null,
@@ -573,6 +599,28 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
   const leadRows: Row[] = [];
   const eventRows: Row[] = [];
 
+  const { data: allPlacements } = await supabase
+    .from("creative_placements")
+    .select("creative_id, campaign_id, share")
+    .eq("status", "ACTIVE");
+  const poolByCampaign = new Map<string, { creative_id: string; share: number }[]>();
+  for (const p of (allPlacements ?? []) as Row[]) {
+    const list = poolByCampaign.get(p.campaign_id) ?? [];
+    list.push({ creative_id: p.creative_id, share: Number(p.share) });
+    poolByCampaign.set(p.campaign_id, list);
+  }
+  const pickCreative = (campaignId: string) => {
+    const pool = poolByCampaign.get(campaignId);
+    if (!pool || pool.length === 0) return null;
+    const total = pool.reduce((a, p) => a + p.share, 0) || 1;
+    let roll = Math.random() * total;
+    for (const p of pool) {
+      roll -= p.share;
+      if (roll <= 0) return p.creative_id;
+    }
+    return pool[pool.length - 1].creative_id;
+  };
+
   for (let i = 0; i < count; i++) {
     const campaign = CAMPAIGNS[i % CAMPAIGNS.length];
     const id = `lead_sim_${stamp}_${i}`;
@@ -582,6 +630,7 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
       id,
       channel: campaign.channel,
       campaign_id: campaign.id,
+      creative_id: pickCreative(campaign.id),
       gclid: isGoogle ? `Cj0KCQ${stamp}${i}` : null,
       fbclid: isGoogle ? null : `IwAR${stamp}${i}`,
       fbp: isGoogle ? null : `fb.1.${Math.floor(clickAt.getTime() / 1000)}.${100000 + i}`,

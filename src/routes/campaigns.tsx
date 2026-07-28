@@ -373,6 +373,11 @@ function CampaignCreatives({ campaignId }: { campaignId: string }) {
             <span className="font-mono text-[10px] opacity-70">
               {(p.share * 100).toFixed(0)}%
             </span>
+            {p.leads > 0 && (
+              <span className="font-mono text-[10px] opacity-70">
+                {p.leads}线索/{p.disbursedCount}放款
+              </span>
+            )}
             {fatigued && <span className="font-mono text-[10px]">疲劳</span>}
           </Link>
         );

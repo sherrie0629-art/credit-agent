@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CartesianGrid,
   Legend,
@@ -175,14 +175,30 @@ function AnalyticsPage() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {channelBreakdown.map((c) => (
             <div key={c.channel} className="rounded-md border border-border bg-background/50 p-4">
-              <p className="text-xs">{c.channel}</p>
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs">{c.channel}</p>
+                {c.campaignId && (
+                  <Link
+                    to="/campaigns"
+                    className="font-mono text-[10px] text-muted-foreground transition-colors hover:text-neon"
+                  >
+                    {c.campaignId} →
+                  </Link>
+                )}
+              </div>
               <p className="mt-3 label-mono">放款金额</p>
               <p className="font-mono text-lg neon-text">
-                ${(c.disbursed / 1000).toFixed(0)}k
+                ${(c.disbursed / 1000).toFixed(1)}k
               </p>
               <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
                 <p>
                   广告花费 <span className="font-mono">${c.spend.toLocaleString()}</span>
+                </p>
+                <p>
+                  线索 / 放款{" "}
+                  <span className="font-mono text-foreground">
+                    {(c.leads ?? 0).toLocaleString()} / {(c.disbursedCount ?? 0).toLocaleString()} 笔
+                  </span>
                 </p>
                 <p>
                   CPS{" "}
@@ -203,10 +219,46 @@ function AnalyticsPage() {
                 </p>
               </div>
 
+              <ChannelCreatives campaignId={c.campaignId} />
             </div>
           ))}
         </div>
       </section>
     </AppShell>
+  );
+}
+
+/** Creative-level drill-down for one channel row. */
+function ChannelCreatives({ campaignId }: { campaignId?: string }) {
+  const placements = useAgentStore((s) => s.placements);
+  const creatives = useAgentStore((s) => s.creatives);
+  if (!campaignId) return null;
+  const rows = placements.filter((p) => p.campaignId === campaignId && p.status === "ACTIVE");
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-1 border-t border-border pt-2">
+      <p className="label-mono">素材下钻</p>
+      {rows.map((p) => {
+        const c = creatives.find((x) => x.id === p.creativeId);
+        const b = c?.backend;
+        return (
+          <Link
+            key={p.creativeId}
+            to="/creative"
+            search={{ tab: "library" as const }}
+            className="flex items-baseline justify-between gap-2 text-[11px] transition-colors hover:text-neon"
+          >
+            <span className="truncate">{c?.headline ?? p.creativeId}</span>
+            <span className="shrink-0 font-mono text-muted-foreground">
+              {p.leads > 0
+                ? `${p.leads}线索 / ${p.disbursedCount}放款`
+                : b
+                  ? `全域 ${b.leads}线索`
+                  : "—"}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
   );
 }
