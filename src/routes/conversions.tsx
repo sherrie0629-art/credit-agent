@@ -29,6 +29,7 @@ import {
   simulateBatchFn,
   updateConversionSettingFn,
 } from "@/lib/creditagent/conversions.functions";
+import { useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/conversions")({
@@ -58,6 +59,50 @@ const STATUS_STYLE: Record<string, string> = {
   FAILED: "border-destructive/40 bg-destructive/10 text-destructive",
   SKIPPED: "border-warning/40 bg-warning/10 text-warning",
 };
+
+/**
+ * Explains how feedback completeness biases the numbers the Agent optimises on,
+ * mirroring the caveat written into every budget decision's reasoning chain.
+ */
+function FeedbackImpact() {
+  const health = useAgentStore((s) => s.feedbackHealth);
+  if (health.length === 0) return null;
+  return (
+    <section className="panel mt-4 p-4">
+      <h2 className="text-sm font-semibold tracking-wide">回传健康度对决策的影响</h2>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {health.map((h) => (
+          <div key={h.channel} className="rounded-md border border-border bg-background/50 p-3">
+            <p className="font-mono text-xs">
+              {h.channel}
+              <span className="ml-2 text-muted-foreground">
+                成功 {h.sent}/{h.attempted}
+              </span>
+            </p>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              回传成功率{" "}
+              <span
+                className={cn(
+                  "font-mono",
+                  h.successRate < 0.9 ? "text-warning" : "text-success",
+                )}
+              >
+                {(h.successRate * 100).toFixed(1)}%
+              </span>
+              ，仍有{" "}
+              <span
+                className={cn("font-mono", h.gapRate > 0.1 ? "text-destructive" : "text-success")}
+              >
+                {(h.gapRate * 100).toFixed(0)}%
+              </span>{" "}
+              的放款未到达平台 —— Planner 会在该渠道的预算决策推理链中标注「平台侧 CPS 存在低估风险」。
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
