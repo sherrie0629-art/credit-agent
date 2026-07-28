@@ -170,6 +170,9 @@ export interface FunnelStageRow extends FunnelStage {
 export interface ChannelBreakdownRow {
   channel: string;
   campaignId?: string;
+  /** Ad group the row drills down to, when the row is ad-group level. */
+  adGroupId?: string;
+  adGroupName?: string;
   spend: number;
   disbursed: number;
   cps: number;
@@ -193,6 +196,7 @@ export interface FeedbackHealth {
 export interface AgentSnapshot {
   decisions: AgentDecision[];
   campaigns: Campaign[];
+  adGroups: AdGroup[];
   creatives: CreativeAsset[];
   mode: ManagementMode;
   riskFirst: boolean;
