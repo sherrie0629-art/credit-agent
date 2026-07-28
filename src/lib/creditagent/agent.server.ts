@@ -486,12 +486,12 @@ export async function rollbackDecision(id: string) {
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
 
-  const campaign = await getCampaign(decision.campaignId);
-  if (campaign) {
+  const group = decision.adGroupId ? await getAdGroup(decision.adGroupId) : null;
+  if (group) {
     const patch: Row = { ai_suggestion: `已回滚至：${decision.rollbackTo ?? "原配置"}` };
-    if (decision.id === "dec_1042" && campaign.id === "cmp_g_search_01") patch.daily_budget = 4200;
-    if (decision.id === "dec_1041" && campaign.status === "COMPLIANCE_HOLD") patch.status = "ACTIVE";
-    await supabase.from("campaigns").update(patch as never).eq("id", campaign.id);
+    if (decision.id === "dec_1042" && group.id === "cmp_g_search_01") patch.daily_budget = 4200;
+    if (decision.id === "dec_1041" && group.status === "COMPLIANCE_HOLD") patch.status = "ACTIVE";
+    await supabase.from("ad_groups").update(patch as never).eq("id", group.id);
   }
 
   return { snapshot: await getSnapshot(), rolledBackTo: decision.rollbackTo ?? "原配置" };
@@ -518,65 +518,67 @@ export async function setRiskFirst(riskFirst: boolean) {
   }
 
   const snapshot = await getSnapshot();
-  const paused = snapshot.campaigns.filter(
-    (c) => c.channel === "Meta" && c.last20ApprovalRate < 0.1 && c.status === "ACTIVE",
+  const paused = snapshot.adGroups.filter(
+    (g) => g.channel === "Meta" && g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
   );
   if (paused.length === 0) {
     return { snapshot, pausedCampaigns: [] as string[] };
   }
 
   const baseId = await nextDecisionId();
-  const notes = await Promise.all(paused.map((c) => feedbackNote(c.channel)));
-  const rows = paused.map((c, i) => ({
+  const notes = await Promise.all(paused.map((g) => feedbackNote(g.channel)));
+  const rows = paused.map((g, i) => ({
     id: `${baseId}_${i}`,
     timestamp: new Date().toISOString(),
     agent_type: "Execution",
     action_type: "CREATIVE_PAUSE",
-    target_channel: c.channel,
-    campaign_id: c.id,
-    campaign_name: c.name,
+    target_channel: g.channel,
+    campaign_id: g.campaignId,
+    campaign_name: g.campaignName,
+    ad_group_id: g.id,
+    ad_group_name: g.name,
     confidence_score: 0.93,
     reasoning_chain: [
-      `风控优先模式开启：检查 ${c.name} 近 20 条线索。`,
-      `后端授信通过率 ${(c.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
-      `实际放款成本 CPS $${c.cps.toFixed(2)}，高于账户目标 $19.00。`,
+      `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
+      `后端授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
+      `实际放款成本 CPS $${g.cps.toFixed(2)}，高于账户目标 $19.00。`,
       notes[i],
       "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。",
     ],
     trigger_metric: "ApprovalRate",
-    trigger_current_value: c.last20ApprovalRate,
+    trigger_current_value: g.last20ApprovalRate,
     trigger_threshold_value: 0.1,
     status: "EXECUTED",
-    effect: `${c.placement} 广告组自动暂停`,
-    rollback_to: `${c.placement} ACTIVE / $${c.dailyBudget}`,
+    effect: `广告组「${g.name}」自动暂停`,
+    rollback_to: `${g.name} ACTIVE / $${g.dailyBudget}`,
   }));
 
-  await supabase.from("agent_decisions").insert(rows);
-  for (const c of paused) {
+  await supabase.from("agent_decisions").insert(rows as never);
+  for (const g of paused) {
     await supabase
-      .from("campaigns")
-      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" })
-      .eq("id", c.id);
+      .from("ad_groups")
+      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
+      .eq("id", g.id);
   }
   await bumpTakeovers(rows.length);
 
-  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((c) => c.name) };
+  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
 
-export async function setCampaignStatus(id: string, status: Campaign["status"]) {
+export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
   await supabase
-    .from("campaigns")
-    .update({ status, updated_at: new Date().toISOString() })
+    .from("ad_groups")
+    .update({ status, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
   return getSnapshot();
 }
 
-export async function setCampaignBudget(id: string, dailyBudget: number) {
+export async function setAdGroupBudget(id: string, dailyBudget: number) {
   const supabase = await db();
   await supabase
-    .from("campaigns")
-    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() })
+    .from("ad_groups")
+    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
   return getSnapshot();
 }
