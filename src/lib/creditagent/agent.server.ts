@@ -507,6 +507,7 @@ export async function applyAiSuggestion(id: string) {
     reasoning_chain: [
       `${campaign.name} 近 20 条线索授信通过率 ${(campaign.last20ApprovalRate * 100).toFixed(1)}%。`,
       `CPL $${campaign.cpl.toFixed(2)} / CPS $${campaign.cps.toFixed(2)}（目标 CPS $19.00）。`,
+      await feedbackNote(campaign.channel),
       scaleUp
         ? "后端放款率高于阈值，触发正向扩量策略：预算 +15%。"
         : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率渠道。",
