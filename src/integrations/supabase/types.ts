@@ -179,6 +179,7 @@ export type Database = {
       channel_breakdown: {
         Row: {
           approval: number
+          campaign_id: string | null
           channel: string
           cps: number
           disbursed: number
@@ -188,6 +189,7 @@ export type Database = {
         }
         Insert: {
           approval: number
+          campaign_id?: string | null
           channel: string
           cps: number
           disbursed: number
@@ -197,6 +199,7 @@ export type Database = {
         }
         Update: {
           approval?: number
+          campaign_id?: string | null
           channel?: string
           cps?: number
           disbursed?: number
@@ -411,6 +414,7 @@ export type Database = {
       }
       creative_metrics: {
         Row: {
+          campaign_id: string | null
           clicks: number
           cpl: number
           cps: number
@@ -424,6 +428,7 @@ export type Database = {
           spend: number
         }
         Insert: {
+          campaign_id?: string | null
           clicks?: number
           cpl?: number
           cps?: number
@@ -437,6 +442,7 @@ export type Database = {
           spend?: number
         }
         Update: {
+          campaign_id?: string | null
           clicks?: number
           cpl?: number
           cps?: number
@@ -608,6 +614,7 @@ export type Database = {
           channel: string
           click_at: string
           created_at: string
+          creative_id: string | null
           fbc: string | null
           fbclid: string | null
           fbp: string | null
@@ -625,6 +632,7 @@ export type Database = {
           channel: string
           click_at?: string
           created_at?: string
+          creative_id?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -642,6 +650,7 @@ export type Database = {
           channel?: string
           click_at?: string
           created_at?: string
+          creative_id?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -658,7 +667,41 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_campaign_facts: {
+        Row: {
+          approved_loans: number | null
+          campaign_id: string | null
+          cpl: number | null
+          cps: number | null
+          disbursed_amount: number | null
+          disbursed_count: number | null
+          last20_approval_rate: number | null
+          leads: number | null
+        }
+        Relationships: []
+      }
+      v_creative_facts: {
+        Row: {
+          approval_rate: number | null
+          approved_loans: number | null
+          cpl: number | null
+          cps: number | null
+          creative_id: string | null
+          disbursed_amount: number | null
+          disbursed_count: number | null
+          leads: number | null
+          spend: number | null
+        }
+        Relationships: []
+      }
+      v_funnel: {
+        Row: {
+          sort_order: number | null
+          stage: string | null
+          value: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
