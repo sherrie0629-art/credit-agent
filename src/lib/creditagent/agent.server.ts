@@ -6,6 +6,7 @@ import type {
   ChannelTrendPoint,
   CreativeAsset,
   CreativePlacement,
+  FeedbackHealth,
   ManagementMode,
 } from "./types";
 
