@@ -4,11 +4,13 @@ import {
   BarChart3,
   FlaskConical,
   Radio,
+  RefreshCw,
   SlidersHorizontal,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 
-import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
+import { refreshAgentState, useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
@@ -28,6 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useAgentBootstrap();
   const mode = useAgentStore((s) => s.mode);
   const online = useAgentStore((s) => s.agentOnline);
+  const error = useAgentStore((s) => s.error);
+  const loading = useAgentStore((s) => s.loading);
+
 
   return (
     <div className="flex min-h-screen">
@@ -104,7 +109,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </div>
+        {error && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
+            <TriangleAlert className="size-4 shrink-0" />
+            <span>后端数据加载失败：{error}。当前页面显示的是空数据，不代表数据库无记录。</span>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void refreshAgentState()}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-destructive/50 px-2.5 py-1 font-mono text-[11px] transition-colors hover:bg-destructive/20 disabled:opacity-50"
+            >
+              <RefreshCw className={cn("size-3", loading && "animate-spin")} />
+              {loading ? "重试中" : "重试"}
+            </button>
+          </div>
+        )}
         <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+
       </div>
     </div>
   );
