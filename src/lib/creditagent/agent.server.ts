@@ -169,6 +169,25 @@ export async function getCampaignFacts(): Promise<Map<string, CampaignFacts>> {
   );
 }
 
+export async function getAdGroupFacts(): Promise<Map<string, CampaignFacts>> {
+  const supabase = await db();
+  const { data } = await (supabase as any).from("v_adgroup_facts").select("*");
+  return new Map(
+    ((data ?? []) as Row[]).map((r) => [
+      r.ad_group_id as string,
+      {
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        last20ApprovalRate: Number(r.last20_approval_rate),
+      },
+    ]),
+  );
+}
+
 export async function getCreativeFacts() {
   const supabase = await db();
   const { data } = await (supabase as any).from("v_creative_facts").select("*");
