@@ -129,15 +129,31 @@ function CommandCenter() {
                 每 15 分钟采集 Google / Meta API 与借贷 CRM 数据
               </p>
             </div>
-            <span className="label-mono">{decisions.length} 条决策</span>
+            <span className="label-mono">{loaded ? `${decisions.length} 条决策` : "加载中"}</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
-            <div className="space-y-3">
-              {decisions.map((d) => (
-                <DecisionCard key={d.id} decision={d} />
-              ))}
-            </div>
+            {!loaded ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-40 animate-pulse rounded-md border border-border bg-muted/20"
+                  />
+                ))}
+              </div>
+            ) : decisions.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border p-6 text-center">
+                <p className="text-xs text-muted-foreground">暂无决策记录</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {decisions.map((d) => (
+                  <DecisionCard key={d.id} decision={d} />
+                ))}
+              </div>
+            )}
           </ScrollArea>
+
         </section>
 
         <section className="panel flex min-h-0 flex-col p-4">
