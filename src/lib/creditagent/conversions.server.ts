@@ -510,11 +510,12 @@ async function maybeRaiseAgentAlert() {
  * Simulation helpers (stand-in for the real loan origination system)
  * ------------------------------------------------------------------ */
 
-const CAMPAIGNS: { id: string; channel: string }[] = [
-  { id: "cmp_g_search_01", channel: "Google" },
-  { id: "cmp_g_pmax_02", channel: "Google" },
-  { id: "cmp_m_feed_03", channel: "Meta" },
-  { id: "cmp_m_reels_04", channel: "Meta" },
+/** Fallback delivery units (ad group id → parent campaign) if the table is empty. */
+const AD_GROUPS: { id: string; campaignId: string; channel: string }[] = [
+  { id: "cmp_g_search_01", campaignId: "camp_google_01", channel: "Google" },
+  { id: "cmp_g_pmax_02", campaignId: "camp_google_01", channel: "Google" },
+  { id: "cmp_m_feed_03", campaignId: "camp_meta_01", channel: "Meta" },
+  { id: "cmp_m_reels_04", campaignId: "camp_meta_01", channel: "Meta" },
 ];
 
 async function sha256(value: string) {
