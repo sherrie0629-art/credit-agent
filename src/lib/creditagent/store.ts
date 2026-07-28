@@ -45,6 +45,7 @@ const EMPTY: State = {
   variants: [],
   experiments: [],
   placements: [],
+  feedbackHealth: [],
 
   loaded: false,
   loading: false,
