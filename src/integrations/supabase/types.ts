@@ -702,6 +702,17 @@ export type Database = {
         }
         Relationships: []
       }
+      v_placement_facts: {
+        Row: {
+          approved: number | null
+          campaign_id: string | null
+          creative_id: string | null
+          disbursed_amount: number | null
+          disbursed_count: number | null
+          leads: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
