@@ -132,10 +132,24 @@ export interface FunnelStageRow extends FunnelStage {
 
 export interface ChannelBreakdownRow {
   channel: string;
+  campaignId?: string;
   spend: number;
   disbursed: number;
   cps: number;
   approval: number;
+  /** Real lead / disbursement counts behind the money figures. */
+  leads?: number;
+  disbursedCount?: number;
+}
+
+/** Offline conversion feedback health, used to caveat platform-side CPS. */
+export interface FeedbackHealth {
+  channel: Channel;
+  sent: number;
+  attempted: number;
+  successRate: number;
+  /** Share of DB disbursements that never reached the ad platform. */
+  gapRate: number;
 }
 
 /** Full backend snapshot returned by the agent server API. */
