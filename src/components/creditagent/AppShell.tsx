@@ -4,11 +4,13 @@ import {
   BarChart3,
   FlaskConical,
   Radio,
+  RefreshCw,
   SlidersHorizontal,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 
-import { useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
+import { refreshAgentState, useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
