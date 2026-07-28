@@ -1,51 +1,25 @@
-## 结论：同意，现在就把「广告组」层级加上
+## 诊断结论（已核实）
 
-理由：当前 `campaigns` 表的每一行其实同时带着 `channel` + `placement` + 预算 + 出价，语义上就是广告组，但名字叫广告系列 —— 这正是歧义来源。未来接真实 Google/Meta API 时，平台回传的是 campaign_id 与 ad_group_id 两层，现在不加，届时要动 `leads` / 视图 / 决策日志全链路。趁 MVP 数据量小，一次性把三层理顺成本最低。
+数据不是缺失，是**前端没跑起来**。
 
-## 目标层级
+已核实的事实：
+- 数据库有真实数据：`leads` 262 条、`lead_events` 448 条、`agent_decisions` 14 条、`campaigns` 2、`ad_groups` 4、`creative_assets` 3、`funnel_stages` 5、`channel_breakdown` 4。
+- 统计视图全部正常：`v_adgroup_facts`、`v_campaign_facts`、`v_placement_facts`、`v_funnel` 均能查出正确的 CPL/CPS/放款数。
+- 在沙箱里用无痕浏览器打开首页，页面完整渲染：「今日 AI 接管次数 42」「CPS 降幅 −18.4%」「14 条决策」，推理流里有真实决策卡。
+- 你的预览标签页：会话回放显示两次 Vite 报错遮罩，网络日志里是 `TypeError: Importing a module script failed`；我尝试在你的预览页里执行探测脚本，没有任何响应 —— 说明该页面的 JS 根本没有加载成功。
 
-```text
-广告系列 campaigns        目标 + 渠道 + 总预算（如「Google 消费贷-获客」）
-  └ 广告组 ad_groups      版位 + 受众 + 日预算 + 出价（如「Search 品牌词」「PMax 泛人群」）
-      └ 素材 creative_assets  通过 creative_placements 挂到广告组
-```
+原因：开发服务器日志里出现过 `optimized dependencies changed. reloading`（Vite 依赖预打包在你会话中途重建）。你的标签页拿着旧的模块地址去请求，模块已被替换 → 模块加载失败 → React 从未 hydrate → `useAgentBootstrap` 从未调用后端快照 → 所有面板停留在 SSR 的空初始值（0、空列表）。
 
-## 数据库改动（一次迁移）
+## 修复方案
 
-1. 新建 `ad_groups`：`id`、`campaign_id`（外键）、`name`、`placement`、`audience`、`status`、`daily_budget`、`bid_strategy`、`sort_order`、时间戳。仅 `service_role` 可访问，与现有表策略一致。
-2. 把现有 `campaigns` 的每一行**下沉**为一条 `ad_groups` 记录（沿用原 id 便于兼容），再按 `channel` + 投放目标聚合出 4 条以内的新 `campaigns` 父记录；`campaigns` 保留 `channel`、`status`、`daily_budget`（父级总预算），`placement` 字段迁走。
-3. `creative_placements` 增加 `ad_group_id`，`leads` 增加 `ad_group_id`，按现有 `campaign_id` 回填。两个字段都保留 `campaign_id` 作冗余，避免归因链每次都要多跳一次连表。
-4. 视图升级：新增 `v_adgroup_facts`（线索/通过/放款/CPL/CPS，口径与现有一致），`v_campaign_facts` 改为对广告组事实做上卷汇总；`v_placement_facts` 的主键从 creative×campaign 改为 creative×ad_group。
-5. `agent_decisions` 增加 `ad_group_id` 与 `ad_group_name`，让决策卡能精确指到执行单元。
+1. 重启开发服务器并清掉 Vite 依赖预打包缓存，消除新旧模块地址不一致。
+2. 强制刷新预览页，验证首页、预算与投放、素材中心、全链路归因、离线转化回传五个页面都能拿到真实数据。
 
-## 服务端改动
+## 顺带加固（避免下次“看起来没数据”而无提示）
 
-- `agent.server.ts`：快照增加 `adGroups` 数组与广告组事实；预算转移、暂停、AI 建议应用等动作的目标从 campaign 改为 ad group，campaign 层只做汇总展示与总预算约束。
-- `conversions.server.ts`：线索生成与素材加权归因按 `ad_group_id` 取 `creative_placements` 池，写入 `leads` 时带上 ad_group_id。
-- `creative.server.ts`：疲劳扫描、变体实验、胜出上线产生的决策带上广告组归属。
-- `/api/public/leads`：接受可选 `ad_group_id`，缺省时按 campaign 下权重最高的在投广告组落位。
-- 类型层：`types.ts` 新增 `AdGroup`，`Campaign` 去掉 `placement` 并增加 `adGroupIds`，`CreativePlacement` 增加广告组字段。
-
-## 前端改动
-
-- **广告系列页**：改为两级表格 —— 广告系列汇总行（总预算、已花费、汇总 CPS）可展开出广告组子行（版位、受众、日预算、CPL、后端授信通过率、CPS、在投素材）。预算编辑、暂停/启用、应用 AI 建议都下沉到广告组行。
-- **素材中心**：「投放于」标签从「广告系列名」改为「广告系列 · 广告组」，后端表现按广告组拆分。
-- **决策卡**：展示「广告系列 → 广告组 → 素材」完整路径。
-- **全链路归因**：渠道下钻多一层广告组，再到素材。
-- **落地页 `/lp`**：链接参数带上广告组，方便演示归因。
-
-## 文档改动
-
-重新生成 `CreditAgent_AI_架构设计文档.pdf`：更新 ER 图与三条数据流向图为三层结构，新增 `ad_groups` 表的字段说明，并补一节「广告层级与平台对照」，说明本系统层级如何对应 Google/Meta 的 campaign / ad group / ad。
-
-## 实施顺序
-
-1. 数据库迁移（建表 + 数据下沉 + 回填 + 视图重建）
-2. 类型与服务端逻辑
-3. 前端三个页面的层级展示与操作下沉
-4. 端到端验证：落地页投线索 → 广告组事实 → 决策执行 → 回传
-5. 重生成架构 PDF 并逐页视觉 QA
+3. `src/lib/creditagent/store.ts` 目前快照请求失败只在 console 打印，界面无感知。改为把 `error` 状态暴露到 `AppShell`，顶部显示「后端数据加载失败 · 重试」条并提供重试按钮。
+4. 首屏空态区分「加载中」和「无数据」：现在决策流空列表和加载中长得一样，加一个骨架/加载态，避免误判为没数据。
 
 ## 技术备注
 
-迁移采用「保 id 下沉」策略：老 campaign id 直接成为 ad group id，所有历史 `leads` / `creative_placements` / `agent_decisions` 的引用无需改写，只需补 `ad_group_id` 冗余列，避免历史事实数据错位。视图口径公式（CPL = 花费/线索，CPS = 花费/放款笔数）保持不变，只改分组维度。
+数据链路本身无需改动：`getSnapshot()` 读表 + 四个视图，字段映射与广告组层级都验证过是正确的。这次是纯前端模块加载问题，不涉及数据库或服务端逻辑改动。
