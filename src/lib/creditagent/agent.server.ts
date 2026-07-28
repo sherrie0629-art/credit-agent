@@ -424,6 +424,7 @@ export async function setRiskFirst(riskFirst: boolean) {
   }
 
   const baseId = await nextDecisionId();
+  const notes = await Promise.all(paused.map((c) => feedbackNote(c.channel)));
   const rows = paused.map((c, i) => ({
     id: `${baseId}_${i}`,
     timestamp: new Date().toISOString(),
@@ -437,6 +438,7 @@ export async function setRiskFirst(riskFirst: boolean) {
       `风控优先模式开启：检查 ${c.name} 近 20 条线索。`,
       `后端授信通过率 ${(c.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
       `实际放款成本 CPS $${c.cps.toFixed(2)}，高于账户目标 $19.00。`,
+      notes[i],
       "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。",
     ],
     trigger_metric: "ApprovalRate",
