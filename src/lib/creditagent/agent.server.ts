@@ -41,6 +41,45 @@ function mapCampaign(r: Row): Campaign {
   };
 }
 
+function mapAdGroup(
+  r: Row,
+  campaignName: string,
+  f?: {
+    leads: number;
+    approvedLoans: number;
+    disbursedCount: number;
+    disbursedAmount: number;
+    cpl: number;
+    cps: number;
+    last20ApprovalRate: number;
+  },
+): AdGroup {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    campaignName,
+    name: r.name,
+    channel: r.channel,
+    placement: r.placement,
+    audience: r.audience,
+    bidStrategy: r.bid_strategy,
+    status: r.status,
+    dailyBudget: Number(r.daily_budget),
+    spentToday: Number(r.spent_today),
+    impressions: Number(r.impressions),
+    clicks: Number(r.clicks),
+    leads: f?.leads ?? 0,
+    approvedLoans: f?.approvedLoans ?? 0,
+    disbursedCount: f?.disbursedCount ?? 0,
+    disbursedAmount: f?.disbursedAmount ?? 0,
+    cpl: f?.cpl ?? 0,
+    cps: f?.cps ?? 0,
+    compliancePassRate: Number(r.compliance_pass_rate),
+    last20ApprovalRate: f?.last20ApprovalRate ?? 0,
+    aiSuggestion: r.ai_suggestion,
+  };
+}
+
 function mapDecision(r: Row): AgentDecision {
   return {
     id: r.id,
