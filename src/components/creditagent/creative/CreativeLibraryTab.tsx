@@ -225,6 +225,40 @@ export function CreativeLibraryTab({
                     <span className="text-[11px] text-muted-foreground">未绑定广告系列</span>
                   )}
                 </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded border border-border bg-background/40 px-2.5 py-1.5">
+                  <span className="label-mono">后端表现</span>
+                  {c.backend && c.backend.leads > 0 ? (
+                    <>
+                      <span className="font-mono text-[11px]">
+                        线索{" "}
+                        <span className="text-foreground">{c.backend.leads.toLocaleString()}</span>
+                      </span>
+                      <span className="font-mono text-[11px]">
+                        授信通过率{" "}
+                        <span
+                          className={cn(
+                            c.backend.approvalRate < 0.1 ? "text-destructive" : "text-success",
+                          )}
+                        >
+                          {(c.backend.approvalRate * 100).toFixed(1)}%
+                        </span>
+                      </span>
+                      <span className="font-mono text-[11px]">
+                        放款{" "}
+                        <span className="text-foreground">{c.backend.disbursedCount}</span> 笔
+                      </span>
+                      <span className="font-mono text-[11px]">
+                        CPS{" "}
+                        <span className={cn(c.backend.cps > 19 ? "text-destructive" : "text-success")}>
+                          ${c.backend.cps.toFixed(2)}
+                        </span>
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">暂无后端线索数据</span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
