@@ -60,9 +60,11 @@ function CommandCenter() {
   const cpsImprovement = useAgentStore((s) => s.cpsImprovementPct);
   const mode = useAgentStore((s) => s.mode);
   const campaigns = useAgentStore((s) => s.campaigns);
+  const loaded = useAgentStore((s) => s.loaded);
 
   const pending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
   const holds = campaigns.filter((c) => c.status === "COMPLIANCE_HOLD").length;
+
 
   return (
     <AppShell>
