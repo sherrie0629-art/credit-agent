@@ -84,7 +84,7 @@ let inFlight: Promise<void> | null = null;
 
 export function refreshAgentState() {
   if (inFlight) return inFlight;
-  set({ loading: true });
+  set({ loading: true, error: null });
   inFlight = fetchSnapshot()
     .then((snapshot) => applySnapshot(snapshot))
     .catch((err: unknown) => {
