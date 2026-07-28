@@ -431,13 +431,18 @@ async function nextDecisionId() {
   return `dec_${1043 + (count ?? 0)}`;
 }
 
-async function getCampaign(id: string) {
+async function getAdGroup(id: string) {
   const supabase = await db();
-  const { data } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("ad_groups").select("*").eq("id", id).maybeSingle();
   if (!data) return null;
-  const c = mapCampaign(data as Row);
-  const f = (await getCampaignFacts()).get(c.id);
-  return f ? { ...c, ...f } : c;
+  const row = data as Row;
+  const { data: parent } = await supabase
+    .from("campaigns")
+    .select("name")
+    .eq("id", row.campaign_id)
+    .maybeSingle();
+  const facts = (await getAdGroupFacts()).get(row.id);
+  return mapAdGroup(row, ((parent as Row | null)?.name as string) ?? row.campaign_id, facts);
 }
 
 export async function approveDecision(id: string) {
@@ -449,16 +454,19 @@ export async function approveDecision(id: string) {
   await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
   await bumpTakeovers(1);
 
-  if (decision.actionType === "BUDGET_SHIFT" && decision.id === "dec_1039") {
-    await supabase
-      .from("campaigns")
-      .update({ daily_budget: 1400, ai_suggestion: "预算已按风控建议下调" })
-      .eq("id", decision.campaignId);
-  } else if (decision.actionType === "CREATIVE_PAUSE") {
-    await supabase
-      .from("campaigns")
-      .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" })
-      .eq("id", decision.campaignId);
+  const targetGroup = decision.adGroupId;
+  if (targetGroup) {
+    if (decision.actionType === "BUDGET_SHIFT" && decision.id === "dec_1039") {
+      await supabase
+        .from("ad_groups")
+        .update({ daily_budget: 1400, ai_suggestion: "预算已按风控建议下调" } as never)
+        .eq("id", targetGroup);
+    } else if (decision.actionType === "CREATIVE_PAUSE") {
+      await supabase
+        .from("ad_groups")
+        .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" } as never)
+        .eq("id", targetGroup);
+    }
   }
 
   return getSnapshot();
