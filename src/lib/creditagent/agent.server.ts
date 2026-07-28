@@ -114,6 +114,111 @@ function mapCreative(r: Row): CreativeAsset {
 }
 
 
+/* -------------------------------------------------------------------------- *
+ * Derived facts — single source of truth is leads + lead_events.
+ * The `campaigns` / `creative_assets` / `channel_breakdown` / `funnel_stages`
+ * tables keep configuration + delivery-side numbers only; every downstream
+ * metric below is read from the database views.
+ * -------------------------------------------------------------------------- */
+
+type CampaignFacts = {
+  leads: number;
+  approvedLoans: number;
+  disbursedCount: number;
+  disbursedAmount: number;
+  cpl: number;
+  cps: number;
+  last20ApprovalRate: number;
+};
+
+export async function getCampaignFacts(): Promise<Map<string, CampaignFacts>> {
+  const supabase = await db();
+  const { data } = await (supabase as any).from("v_campaign_facts").select("*");
+  return new Map(
+    ((data ?? []) as Row[]).map((r) => [
+      r.campaign_id as string,
+      {
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        last20ApprovalRate: Number(r.last20_approval_rate),
+      },
+    ]),
+  );
+}
+
+export async function getCreativeFacts() {
+  const supabase = await db();
+  const { data } = await (supabase as any).from("v_creative_facts").select("*");
+  return new Map(
+    ((data ?? []) as Row[]).map((r) => [
+      r.creative_id as string,
+      {
+        spend: Number(r.spend),
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        approvalRate: Number(r.approval_rate),
+      },
+    ]),
+  );
+}
+
+/**
+ * Offline conversion feedback health per channel: how much of what the database
+ * knows actually reached the ad platform. Feeds the decision reasoning chain so
+ * budget calls acknowledge that platform-side CPS may be overstated.
+ */
+export async function getFeedbackHealth(): Promise<FeedbackHealth[]> {
+  const supabase = await db();
+  const [{ data: uploads }, { data: events }] = await Promise.all([
+    supabase.from("conversion_uploads").select("event_id, platform, status"),
+    supabase.from("lead_events").select("id, lead_id").eq("event_type", "LOAN_DISBURSED"),
+  ]);
+  const disbursedIds = ((events ?? []) as Row[]).map((e) => e.id as string);
+  const { data: leadRows } = await supabase
+    .from("leads")
+    .select("id, channel")
+    .in("id", [...new Set(((events ?? []) as Row[]).map((e) => e.lead_id as string))]);
+  const channelByLead = new Map(((leadRows ?? []) as Row[]).map((l) => [l.id, l.channel]));
+  const channelByEvent = new Map(
+    ((events ?? []) as Row[]).map((e) => [e.id, channelByLead.get(e.lead_id) ?? "Google"]),
+  );
+
+  const rows = (uploads ?? []) as Row[];
+  return (["Google", "Meta"] as const).map((channel) => {
+    const mine = rows.filter((u) => channelByEvent.get(u.event_id) === channel);
+    const attempted = mine.filter((u) => u.status === "SENT" || u.status === "FAILED").length;
+    const sent = mine.filter((u) => u.status === "SENT").length;
+    const sentEventIds = new Set(mine.filter((u) => u.status === "SENT").map((u) => u.event_id));
+    const mineDisbursed = disbursedIds.filter((id) => channelByEvent.get(id) === channel);
+    const reported = mineDisbursed.filter((id) => sentEventIds.has(id)).length;
+    return {
+      channel,
+      sent,
+      attempted,
+      successRate: attempted > 0 ? sent / attempted : 0,
+      gapRate: mineDisbursed.length > 0 ? 1 - reported / mineDisbursed.length : 0,
+    };
+  });
+}
+
+/** One-line caveat about feedback completeness for a channel's decisions. */
+export async function feedbackNote(channel: string) {
+  const health = await getFeedbackHealth();
+  const h = health.find((x) => x.channel === channel);
+  if (!h || h.attempted === 0) {
+    return `${channel} 离线转化回传暂无记录，平台侧仍按前端线索优化，CPS 可能被低估。`;
+  }
+  return `${channel} 离线转化回传成功率 ${(h.successRate * 100).toFixed(1)}%，仍有 ${(h.gapRate * 100).toFixed(0)}% 的放款未回传到平台，平台侧 CPS 存在低估风险。`;
+}
+
 export async function getSnapshot(): Promise<AgentSnapshot> {
   const supabase = await db();
   const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
@@ -129,6 +234,10 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     variants,
     experiments,
     placements,
+    campaignFacts,
+    creativeFacts,
+    feedbackHealth,
+    funnelFacts,
   ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
@@ -141,24 +250,39 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("creative_variants").select("*").order("created_at", { ascending: false }),
     supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
     getPlacements(),
+    getCampaignFacts(),
+    getCreativeFacts(),
+    getFeedbackHealth(),
+    (supabase as any).from("v_funnel").select("*").order("sort_order"),
   ]);
 
 
   const s = (settings.data ?? {}) as Row;
+  const noteByStage = new Map(
+    ((funnel.data ?? []) as Row[]).map((r) => [r.stage as string, r.note as string]),
+  );
 
   return {
     decisions: ((decisions.data ?? []) as Row[]).map(mapDecision),
-    campaigns: ((campaigns.data ?? []) as Row[]).map(mapCampaign),
-    creatives: ((creatives.data ?? []) as Row[]).map(mapCreative),
+    campaigns: ((campaigns.data ?? []) as Row[]).map((r) => {
+      const c = mapCampaign(r);
+      const f = campaignFacts.get(c.id);
+      return f ? { ...c, ...f } : c;
+    }),
+    creatives: ((creatives.data ?? []) as Row[]).map((r) => {
+      const c = mapCreative(r);
+      const f = creativeFacts.get(c.id);
+      return f ? { ...c, backend: f } : c;
+    }),
     mode: (s.mode ?? "SEMI_AUTO") as ManagementMode,
     riskFirst: s.risk_first ?? true,
     autoTakeovers: Number(s.auto_takeovers ?? 0),
     cpsImprovementPct: Number(s.cps_improvement_pct ?? 0),
     agentOnline: s.agent_online ?? true,
-    funnel: ((funnel.data ?? []) as Row[]).map((r) => ({
+    funnel: ((funnelFacts.data ?? []) as Row[]).map((r) => ({
       stage: r.stage,
       value: Number(r.value),
-      note: r.note,
+      note: noteByStage.get(r.stage) ?? "",
     })),
     channelTrend: ((trend.data ?? []) as Row[]).map(
       (r): ChannelTrendPoint => ({
@@ -169,17 +293,24 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
         metaTrueRoas: Number(r.meta_true_roas),
       }),
     ),
-    channelBreakdown: ((breakdown.data ?? []) as Row[]).map((r) => ({
-      channel: r.channel,
-      spend: Number(r.spend),
-      disbursed: Number(r.disbursed),
-      cps: Number(r.cps),
-      approval: Number(r.approval),
-    })),
+    channelBreakdown: ((breakdown.data ?? []) as Row[]).map((r) => {
+      const f = r.campaign_id ? campaignFacts.get(r.campaign_id) : undefined;
+      return {
+        channel: r.channel,
+        campaignId: r.campaign_id ?? undefined,
+        spend: Number(r.spend),
+        disbursed: f ? f.disbursedAmount : Number(r.disbursed),
+        cps: f ? f.cps : Number(r.cps),
+        approval: f && f.leads > 0 ? f.approvedLoans / f.leads : Number(r.approval),
+        leads: f?.leads,
+        disbursedCount: f?.disbursedCount,
+      };
+    }),
     creativeMetrics: ((metrics.data ?? []) as Row[]).map(mapMetric),
     variants: ((variants.data ?? []) as Row[]).map(mapVariant),
     experiments: ((experiments.data ?? []) as Row[]).map(mapExperiment),
     placements,
+    feedbackHealth,
   };
 
 }
