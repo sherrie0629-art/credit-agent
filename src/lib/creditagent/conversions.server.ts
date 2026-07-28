@@ -615,16 +615,16 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
 
   const { data: allPlacements } = await supabase
     .from("creative_placements")
-    .select("creative_id, campaign_id, share")
+    .select("creative_id, ad_group_id, share")
     .eq("status", "ACTIVE");
-  const poolByCampaign = new Map<string, { creative_id: string; share: number }[]>();
+  const poolByGroup = new Map<string, { creative_id: string; share: number }[]>();
   for (const p of (allPlacements ?? []) as Row[]) {
-    const list = poolByCampaign.get(p.campaign_id) ?? [];
+    const list = poolByGroup.get(p.ad_group_id) ?? [];
     list.push({ creative_id: p.creative_id, share: Number(p.share) });
-    poolByCampaign.set(p.campaign_id, list);
+    poolByGroup.set(p.ad_group_id, list);
   }
-  const pickCreative = (campaignId: string) => {
-    const pool = poolByCampaign.get(campaignId);
+  const pickCreative = (adGroupId: string) => {
+    const pool = poolByGroup.get(adGroupId);
     if (!pool || pool.length === 0) return null;
     const total = pool.reduce((a, p) => a + p.share, 0) || 1;
     let roll = Math.random() * total;
@@ -635,16 +635,28 @@ export async function simulateBatch(input: { leads: number; approvalRate: number
     return pool[pool.length - 1].creative_id;
   };
 
+  const { data: groupRows } = await supabase
+    .from("ad_groups")
+    .select("id, campaign_id, channel")
+    .order("sort_order");
+  const groups = ((groupRows ?? []) as Row[]).map((g) => ({
+    id: g.id as string,
+    campaignId: g.campaign_id as string,
+    channel: g.channel as string,
+  }));
+  const units = groups.length > 0 ? groups : AD_GROUPS;
+
   for (let i = 0; i < count; i++) {
-    const campaign = CAMPAIGNS[i % CAMPAIGNS.length];
+    const unit = units[i % units.length];
     const id = `lead_sim_${stamp}_${i}`;
     const clickAt = new Date(Date.now() - Math.floor(Math.random() * 3) * 86_400_000);
-    const isGoogle = campaign.channel === "Google";
+    const isGoogle = unit.channel === "Google";
     leadRows.push({
       id,
-      channel: campaign.channel,
-      campaign_id: campaign.id,
-      creative_id: pickCreative(campaign.id),
+      channel: unit.channel,
+      campaign_id: unit.campaignId,
+      ad_group_id: unit.id,
+      creative_id: pickCreative(unit.id),
       gclid: isGoogle ? `Cj0KCQ${stamp}${i}` : null,
       fbclid: isGoogle ? null : `IwAR${stamp}${i}`,
       fbp: isGoogle ? null : `fb.1.${Math.floor(clickAt.getTime() / 1000)}.${100000 + i}`,
