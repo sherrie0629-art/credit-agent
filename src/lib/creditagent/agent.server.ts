@@ -64,16 +64,21 @@ function mapDecision(r: Row): AgentDecision {
   };
 }
 
-/** All creative → campaign delivery links, enriched with campaign metadata. */
+/** All creative → campaign delivery links, enriched with campaign metadata and real lead facts. */
 export async function getPlacements(): Promise<CreativePlacement[]> {
   const supabase = await db();
-  const [{ data: links }, { data: campaigns }] = await Promise.all([
+  const [{ data: links }, { data: campaigns }, { data: facts }] = await Promise.all([
     supabase.from("creative_placements").select("*").order("share", { ascending: false }),
     supabase.from("campaigns").select("id,name,channel,placement"),
+    (supabase as any).from("v_placement_facts").select("*"),
   ]);
   const byId = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
+  const factByPair = new Map(
+    ((facts ?? []) as Row[]).map((f) => [`${f.creative_id}::${f.campaign_id}`, f]),
+  );
   return ((links ?? []) as Row[]).map((r) => {
     const c = byId.get(r.campaign_id);
+    const f = factByPair.get(`${r.creative_id}::${r.campaign_id}`);
     return {
       creativeId: r.creative_id,
       campaignId: r.campaign_id,
@@ -83,6 +88,10 @@ export async function getPlacements(): Promise<CreativePlacement[]> {
       status: r.status,
       share: Number(r.share),
       startedAt: r.started_at,
+      leads: Number(f?.leads ?? 0),
+      approved: Number(f?.approved ?? 0),
+      disbursedCount: Number(f?.disbursed_count ?? 0),
+      disbursedAmount: Number(f?.disbursed_amount ?? 0),
     };
   });
 }

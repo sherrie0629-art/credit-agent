@@ -57,6 +57,11 @@ export interface CreativePlacement {
   /** Share of the campaign's delivery carried by this creative (0-1). */
   share: number;
   startedAt: string;
+  /** Real facts for this creative×campaign pair, derived from lead events. */
+  leads: number;
+  approved: number;
+  disbursedCount: number;
+  disbursedAmount: number;
 }
 
 
