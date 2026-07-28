@@ -263,6 +263,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
   const [
     decisions,
     campaigns,
+    adGroups,
     creatives,
     settings,
     funnel,
@@ -273,12 +274,14 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     experiments,
     placements,
     campaignFacts,
+    adGroupFacts,
     creativeFacts,
     feedbackHealth,
     funnelFacts,
   ] = await Promise.all([
     supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
     supabase.from("campaigns").select("*").order("sort_order"),
+    supabase.from("ad_groups").select("*").order("sort_order"),
     supabase.from("creative_assets").select("*").order("sort_order"),
     supabase.from("agent_settings").select("*").eq("id", "default").maybeSingle(),
     supabase.from("funnel_stages").select("*").order("sort_order"),
@@ -289,6 +292,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
     getPlacements(),
     getCampaignFacts(),
+    getAdGroupFacts(),
     getCreativeFacts(),
     getFeedbackHealth(),
     (supabase as any).from("v_funnel").select("*").order("sort_order"),
@@ -299,6 +303,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
   const noteByStage = new Map(
     ((funnel.data ?? []) as Row[]).map((r) => [r.stage as string, r.note as string]),
   );
+  const campaignNameById = new Map(
+    ((campaigns.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
+  );
+  const adGroupNameById = new Map(
+    ((adGroups.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
+  );
 
   return {
     decisions: ((decisions.data ?? []) as Row[]).map(mapDecision),
@@ -307,6 +317,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       const f = campaignFacts.get(c.id);
       return f ? { ...c, ...f } : c;
     }),
+    adGroups: ((adGroups.data ?? []) as Row[]).map((r) =>
+      mapAdGroup(r, campaignNameById.get(r.campaign_id) ?? r.campaign_id, adGroupFacts.get(r.id)),
+    ),
     creatives: ((creatives.data ?? []) as Row[]).map((r) => {
       const c = mapCreative(r);
       const f = creativeFacts.get(c.id);
@@ -332,10 +345,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       }),
     ),
     channelBreakdown: ((breakdown.data ?? []) as Row[]).map((r) => {
-      const f = r.campaign_id ? campaignFacts.get(r.campaign_id) : undefined;
+      const f = r.ad_group_id ? adGroupFacts.get(r.ad_group_id) : undefined;
       return {
         channel: r.channel,
         campaignId: r.campaign_id ?? undefined,
+        adGroupId: r.ad_group_id ?? undefined,
+        adGroupName: r.ad_group_id ? adGroupNameById.get(r.ad_group_id) : undefined,
         spend: Number(r.spend),
         disbursed: f ? f.disbursedAmount : Number(r.disbursed),
         cps: f ? f.cps : Number(r.cps),
