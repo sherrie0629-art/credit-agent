@@ -32,6 +32,7 @@ interface State extends AgentSnapshot {
 const EMPTY: State = {
   decisions: [],
   campaigns: [],
+  adGroups: [],
   creatives: [],
   mode: "SEMI_AUTO",
   riskFirst: true,
