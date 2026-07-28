@@ -70,7 +70,7 @@ export function ExperimentsTab() {
             <span className="label-mono mx-1.5">投放于</span>
             {placements
               .filter((p) => p.creativeId === exp.parentCreativeId && p.status === "ACTIVE")
-              .map((p) => `${p.campaignName}（${p.channel}）`)
+              .map((p) => `${p.campaignName} › ${p.adGroupName}（${p.channel}）`)
               .join("、") || "未绑定广告系列"}
           </p>
           <div className="overflow-x-auto">
