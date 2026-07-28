@@ -488,8 +488,10 @@ async function maybeRaiseAgentAlert() {
     agent_type: "Execution",
     action_type: "CONVERSION_FEEDBACK_ALERT",
     target_channel: "Google",
-    campaign_id: "cmp_g_search_01",
-    campaign_name: "离线转化回传通道",
+    campaign_id: "cmp_google_acq",
+    campaign_name: "Google — 美国消费信贷获客",
+    ad_group_id: "cmp_g_search_01",
+    ad_group_name: "Search — 高意图关键词",
     confidence_score: 0.94,
     reasoning_chain: [
       `近 24 小时回传成功率 ${(successRate * 100).toFixed(1)}%，低于 85% 阈值。`,
