@@ -76,18 +76,20 @@ export interface AdGroup {
 }
 
 
-/** Which campaigns a creative asset is currently delivered in. */
+/** Which ad groups (and their parent campaigns) a creative is delivered in. */
 export interface CreativePlacement {
   creativeId: string;
+  adGroupId: string;
+  adGroupName: string;
   campaignId: string;
   campaignName: string;
   channel: Channel;
   placement: string;
   status: "ACTIVE" | "PAUSED" | "ENDED";
-  /** Share of the campaign's delivery carried by this creative (0-1). */
+  /** Share of the ad group's delivery carried by this creative (0-1). */
   share: number;
   startedAt: string;
-  /** Real facts for this creative×campaign pair, derived from lead events. */
+  /** Real facts for this creative×ad group pair, derived from lead events. */
   leads: number;
   approved: number;
   disbursedCount: number;
