@@ -81,6 +81,18 @@ export interface Campaign {
   aiSuggestion: string;
 }
 
+/** Backend (post-loan) truth for one creative, derived from leads + lead_events. */
+export interface CreativeBackendFacts {
+  spend: number;
+  leads: number;
+  approvedLoans: number;
+  disbursedCount: number;
+  disbursedAmount: number;
+  cpl: number;
+  cps: number;
+  approvalRate: number;
+}
+
 export interface CreativeAsset {
   id: string;
   headline: string;
@@ -94,6 +106,8 @@ export interface CreativeAsset {
   fatigueLevel: FatigueLevel;
   launchedAt?: string;
   lastScannedAt?: string;
+  /** Real downstream performance; undefined when the creative has no leads yet. */
+  backend?: CreativeBackendFacts;
 }
 
 
