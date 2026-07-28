@@ -29,6 +29,9 @@ export interface AgentDecision {
   targetChannel: Channel;
   campaignId: string;
   campaignName: string;
+  /** Ad group (执行单元) the decision acts on, when applicable. */
+  adGroupId?: string;
+  adGroupName?: string;
   confidenceScore: number; // 0.0 - 1.0
   reasoningChain: string[];
   dataMetricsTrigger: {
@@ -45,6 +48,33 @@ export interface AgentDecision {
   creativeId?: string;
   creativeName?: string;
 }
+
+/** Ad group — the real execution unit under a campaign (Google/Meta hierarchy). */
+export interface AdGroup {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  name: string;
+  channel: Channel;
+  placement: string;
+  audience: string;
+  bidStrategy: string;
+  status: "ACTIVE" | "PAUSED" | "LEARNING" | "COMPLIANCE_HOLD";
+  dailyBudget: number;
+  spentToday: number;
+  impressions: number;
+  clicks: number;
+  leads: number;
+  approvedLoans: number;
+  disbursedCount: number;
+  disbursedAmount: number;
+  cpl: number;
+  cps: number;
+  compliancePassRate: number;
+  last20ApprovalRate: number;
+  aiSuggestion: string;
+}
+
 
 /** Which campaigns a creative asset is currently delivered in. */
 export interface CreativePlacement {
