@@ -1,5 +1,6 @@
 // Server-only data access + agent business logic backed by the Lovable Cloud database.
 import type {
+  AdGroup,
   AgentDecision,
   AgentSnapshot,
   Campaign,
@@ -49,6 +50,8 @@ function mapDecision(r: Row): AgentDecision {
     targetChannel: r.target_channel,
     campaignId: r.campaign_id,
     campaignName: r.campaign_name,
+    adGroupId: r.ad_group_id ?? undefined,
+    adGroupName: r.ad_group_name ?? undefined,
     confidenceScore: Number(r.confidence_score),
     reasoningChain: (r.reasoning_chain ?? []) as string[],
     dataMetricsTrigger: {
@@ -64,27 +67,33 @@ function mapDecision(r: Row): AgentDecision {
   };
 }
 
-/** All creative → campaign delivery links, enriched with campaign metadata and real lead facts. */
+/** All creative → ad group delivery links, enriched with hierarchy metadata and real lead facts. */
 export async function getPlacements(): Promise<CreativePlacement[]> {
   const supabase = await db();
-  const [{ data: links }, { data: campaigns }, { data: facts }] = await Promise.all([
-    supabase.from("creative_placements").select("*").order("share", { ascending: false }),
-    supabase.from("campaigns").select("id,name,channel,placement"),
-    (supabase as any).from("v_placement_facts").select("*"),
-  ]);
-  const byId = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
+  const [{ data: links }, { data: groups }, { data: campaigns }, { data: facts }] =
+    await Promise.all([
+      supabase.from("creative_placements").select("*").order("share", { ascending: false }),
+      supabase.from("ad_groups").select("id,name,campaign_id,channel,placement"),
+      supabase.from("campaigns").select("id,name"),
+      (supabase as any).from("v_placement_facts").select("*"),
+    ]);
+  const groupById = new Map(((groups ?? []) as Row[]).map((g) => [g.id, g]));
+  const campaignById = new Map(((campaigns ?? []) as Row[]).map((c) => [c.id, c]));
   const factByPair = new Map(
-    ((facts ?? []) as Row[]).map((f) => [`${f.creative_id}::${f.campaign_id}`, f]),
+    ((facts ?? []) as Row[]).map((f) => [`${f.creative_id}::${f.ad_group_id}`, f]),
   );
   return ((links ?? []) as Row[]).map((r) => {
-    const c = byId.get(r.campaign_id);
-    const f = factByPair.get(`${r.creative_id}::${r.campaign_id}`);
+    const g = groupById.get(r.ad_group_id);
+    const c = campaignById.get(g?.campaign_id ?? r.campaign_id);
+    const f = factByPair.get(`${r.creative_id}::${r.ad_group_id}`);
     return {
       creativeId: r.creative_id,
-      campaignId: r.campaign_id,
-      campaignName: c?.name ?? r.campaign_id,
-      channel: (c?.channel ?? "Google") as CreativePlacement["channel"],
-      placement: c?.placement ?? "",
+      adGroupId: r.ad_group_id,
+      adGroupName: g?.name ?? r.ad_group_id,
+      campaignId: g?.campaign_id ?? r.campaign_id,
+      campaignName: c?.name ?? g?.campaign_id ?? r.campaign_id,
+      channel: (g?.channel ?? "Google") as CreativePlacement["channel"],
+      placement: g?.placement ?? "",
       status: r.status,
       share: Number(r.share),
       startedAt: r.started_at,
@@ -96,7 +105,7 @@ export async function getPlacements(): Promise<CreativePlacement[]> {
   });
 }
 
-/** Primary (highest-share ACTIVE) campaign a creative is delivered in. */
+/** Primary (highest-share ACTIVE) ad group a creative is delivered in. */
 export async function getPrimaryPlacement(creativeId: string): Promise<CreativePlacement | null> {
   const all = await getPlacements();
   const active = all
