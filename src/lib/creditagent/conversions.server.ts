@@ -539,15 +539,28 @@ export async function captureLead(input: {
   const supabase = await db();
   const id = `lead_live_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
   const channel = input.channel ?? (input.gclid || input.gbraid ? "Google" : "Meta");
-  const campaignId =
-    input.campaignId ?? (channel === "Google" ? "cmp_g_search_01" : "cmp_m_feed_03");
+
+  // Resolve the delivery unit: the tracking param may carry either an ad group
+  // id (real execution unit) or a campaign id (parent). Always land on an ad group.
+  const { data: groupRows } = await supabase
+    .from("ad_groups")
+    .select("id, campaign_id, channel")
+    .order("sort_order");
+  const groups = (groupRows ?? []) as Row[];
+  const hinted = input.campaignId
+    ? (groups.find((g) => g.id === input.campaignId) ??
+      groups.find((g) => g.campaign_id === input.campaignId))
+    : undefined;
+  const group = hinted ?? groups.find((g) => g.channel === channel) ?? groups[0];
+  const adGroupId = group?.id ?? null;
+  const campaignId = group?.campaign_id ?? input.campaignId ?? null;
 
   // Attribute the lead to a creative by traffic share, so downstream loan
   // outcomes roll up to the asset that actually earned the click.
   const { data: placements } = await supabase
     .from("creative_placements")
     .select("creative_id, share")
-    .eq("campaign_id", campaignId)
+    .eq("ad_group_id", adGroupId ?? "")
     .eq("status", "ACTIVE");
   let creativeId: string | null = null;
   const pool = (placements ?? []) as { creative_id: string; share: number }[];
@@ -568,6 +581,7 @@ export async function captureLead(input: {
     id,
     channel,
     campaign_id: campaignId,
+    ad_group_id: adGroupId,
     creative_id: creativeId,
     gclid: input.gclid ?? null,
     gbraid: input.gbraid ?? null,
