@@ -153,6 +153,9 @@ function ConversionsPage() {
         />
       </div>
 
+      <FeedbackImpact />
+
+
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <section className="panel p-5">
           <h2 className="text-sm font-semibold tracking-wide">数据库放款 vs 平台已接收</h2>
