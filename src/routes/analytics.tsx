@@ -229,7 +229,7 @@ function AnalyticsPage() {
                 </p>
               </div>
 
-              <ChannelCreatives campaignId={c.campaignId} />
+              <ChannelCreatives adGroupId={c.adGroupId} />
             </div>
           ))}
         </div>
@@ -239,11 +239,11 @@ function AnalyticsPage() {
 }
 
 /** Creative-level drill-down for one channel row. */
-function ChannelCreatives({ campaignId }: { campaignId?: string }) {
+function ChannelCreatives({ adGroupId }: { adGroupId?: string }) {
   const placements = useAgentStore((s) => s.placements);
   const creatives = useAgentStore((s) => s.creatives);
-  if (!campaignId) return null;
-  const rows = placements.filter((p) => p.campaignId === campaignId && p.status === "ACTIVE");
+  if (!adGroupId) return null;
+  const rows = placements.filter((p) => p.adGroupId === adGroupId && p.status === "ACTIVE");
   if (rows.length === 0) return null;
   return (
     <div className="mt-3 space-y-1 border-t border-border pt-2">
