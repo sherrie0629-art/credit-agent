@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_agent_snapshot() FROM anon, authenticated;
