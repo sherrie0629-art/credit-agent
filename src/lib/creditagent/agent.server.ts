@@ -296,70 +296,124 @@ export async function feedbackNote(channel: string) {
   return `${channel} 离线转化回传成功率 ${(h.successRate * 100).toFixed(1)}%，仍有 ${(h.gapRate * 100).toFixed(0)}% 的放款未回传到平台，平台侧 CPS 存在低估风险。`;
 }
 
+function factsFrom(rows: Row[], key: string): Map<string, CampaignFacts> {
+  return new Map(
+    rows.map((r) => [
+      r[key] as string,
+      {
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        last20ApprovalRate: Number(r.last20_approval_rate ?? 0),
+      },
+    ]),
+  );
+}
+
+function placementsFrom(payload: Row): CreativePlacement[] {
+  const groupById = new Map((payload.ad_groups as Row[]).map((g) => [g.id, g]));
+  const campaignById = new Map((payload.campaigns as Row[]).map((c) => [c.id, c]));
+  const factByPair = new Map(
+    (payload.v_placement_facts as Row[]).map((f) => [`${f.creative_id}::${f.ad_group_id}`, f]),
+  );
+  return (payload.creative_placements as Row[]).map((r) => {
+    const g = groupById.get(r.ad_group_id);
+    const c = campaignById.get(g?.campaign_id ?? r.campaign_id);
+    const f = factByPair.get(`${r.creative_id}::${r.ad_group_id}`);
+    return {
+      creativeId: r.creative_id,
+      adGroupId: r.ad_group_id,
+      adGroupName: g?.name ?? r.ad_group_id,
+      campaignId: g?.campaign_id ?? r.campaign_id,
+      campaignName: c?.name ?? g?.campaign_id ?? r.campaign_id,
+      channel: (g?.channel ?? "Google") as CreativePlacement["channel"],
+      placement: g?.placement ?? "",
+      status: r.status,
+      share: Number(r.share),
+      startedAt: r.started_at,
+      leads: Number(f?.leads ?? 0),
+      approved: Number(f?.approved ?? 0),
+      disbursedCount: Number(f?.disbursed_count ?? 0),
+      disbursedAmount: Number(f?.disbursed_amount ?? 0),
+    };
+  });
+}
+
+function feedbackHealthFrom(payload: Row): FeedbackHealth[] {
+  const uploads = payload.conversion_uploads as Row[];
+  const disbursed = payload.disbursed_events as Row[];
+  const channelByEvent = new Map(disbursed.map((e) => [e.id as string, e.channel as string]));
+  return (["Google", "Meta"] as const).map((channel) => {
+    const mine = uploads.filter((u) => channelByEvent.get(u.event_id) === channel);
+    const attempted = mine.filter((u) => u.status === "SENT" || u.status === "FAILED").length;
+    const sent = mine.filter((u) => u.status === "SENT").length;
+    const sentEventIds = new Set(mine.filter((u) => u.status === "SENT").map((u) => u.event_id));
+    const mineDisbursed = disbursed.filter((e) => e.channel === channel);
+    const reported = mineDisbursed.filter((e) => sentEventIds.has(e.id)).length;
+    return {
+      channel,
+      sent,
+      attempted,
+      successRate: attempted > 0 ? sent / attempted : 0,
+      gapRate: mineDisbursed.length > 0 ? 1 - reported / mineDisbursed.length : 0,
+    };
+  });
+}
+
+/**
+ * Single round-trip snapshot: the whole dashboard state is aggregated inside
+ * Postgres by `get_agent_snapshot()` and mapped here. Previously this issued
+ * ~25 separate Data API requests, which dominated page load time.
+ */
 export async function getSnapshot(): Promise<AgentSnapshot> {
   const supabase = await db();
   const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
-  const [
-    decisions,
-    campaigns,
-    adGroups,
-    creatives,
-    settings,
-    funnel,
-    trend,
-    breakdown,
-    metrics,
-    variants,
-    experiments,
-    placements,
-    campaignFacts,
-    adGroupFacts,
-    creativeFacts,
-    feedbackHealth,
-    funnelFacts,
-  ] = await Promise.all([
-    supabase.from("agent_decisions").select("*").order("timestamp", { ascending: false }),
-    supabase.from("campaigns").select("*").order("sort_order"),
-    supabase.from("ad_groups").select("*").order("sort_order"),
-    supabase.from("creative_assets").select("*").order("sort_order"),
-    supabase.from("agent_settings").select("*").eq("id", "default").maybeSingle(),
-    supabase.from("funnel_stages").select("*").order("sort_order"),
-    supabase.from("channel_trend").select("*").order("sort_order"),
-    supabase.from("channel_breakdown").select("*").order("sort_order"),
-    supabase.from("creative_metrics").select("*").order("day"),
-    supabase.from("creative_variants").select("*").order("created_at", { ascending: false }),
-    supabase.from("creative_experiments").select("*").order("started_at", { ascending: false }),
-    getPlacements(),
-    getCampaignFacts(),
-    getAdGroupFacts(),
-    getCreativeFacts(),
-    getFeedbackHealth(),
-    (supabase as any).from("v_funnel").select("*").order("sort_order"),
-  ]);
 
+  const { data, error } = await (supabase as any).rpc("get_agent_snapshot");
+  if (error) throw new Error(error.message);
+  const payload = (data ?? {}) as Row;
 
-  const s = (settings.data ?? {}) as Row;
+  const campaignRows = (payload.campaigns ?? []) as Row[];
+  const adGroupRows = (payload.ad_groups ?? []) as Row[];
+  const campaignFacts = factsFrom((payload.v_campaign_facts ?? []) as Row[], "campaign_id");
+  const adGroupFacts = factsFrom((payload.v_adgroup_facts ?? []) as Row[], "ad_group_id");
+  const creativeFacts = new Map(
+    ((payload.v_creative_facts ?? []) as Row[]).map((r) => [
+      r.creative_id as string,
+      {
+        spend: Number(r.spend),
+        leads: Number(r.leads),
+        approvedLoans: Number(r.approved_loans),
+        disbursedCount: Number(r.disbursed_count),
+        disbursedAmount: Number(r.disbursed_amount),
+        cpl: Number(r.cpl),
+        cps: Number(r.cps),
+        approvalRate: Number(r.approval_rate),
+      },
+    ]),
+  );
+
+  const s = (payload.settings ?? {}) as Row;
   const noteByStage = new Map(
-    ((funnel.data ?? []) as Row[]).map((r) => [r.stage as string, r.note as string]),
+    ((payload.funnel_stages ?? []) as Row[]).map((r) => [r.stage as string, r.note as string]),
   );
-  const campaignNameById = new Map(
-    ((campaigns.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
-  );
-  const adGroupNameById = new Map(
-    ((adGroups.data ?? []) as Row[]).map((r) => [r.id as string, r.name as string]),
-  );
+  const campaignNameById = new Map(campaignRows.map((r) => [r.id as string, r.name as string]));
+  const adGroupNameById = new Map(adGroupRows.map((r) => [r.id as string, r.name as string]));
 
   return {
-    decisions: ((decisions.data ?? []) as Row[]).map(mapDecision),
-    campaigns: ((campaigns.data ?? []) as Row[]).map((r) => {
+    decisions: ((payload.decisions ?? []) as Row[]).map(mapDecision),
+    campaigns: campaignRows.map((r) => {
       const c = mapCampaign(r);
       const f = campaignFacts.get(c.id);
       return f ? { ...c, ...f } : c;
     }),
-    adGroups: ((adGroups.data ?? []) as Row[]).map((r) =>
+    adGroups: adGroupRows.map((r) =>
       mapAdGroup(r, campaignNameById.get(r.campaign_id) ?? r.campaign_id, adGroupFacts.get(r.id)),
     ),
-    creatives: ((creatives.data ?? []) as Row[]).map((r) => {
+    creatives: ((payload.creative_assets ?? []) as Row[]).map((r) => {
       const c = mapCreative(r);
       const f = creativeFacts.get(c.id);
       return f ? { ...c, backend: f } : c;
@@ -369,12 +423,12 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     autoTakeovers: Number(s.auto_takeovers ?? 0),
     cpsImprovementPct: Number(s.cps_improvement_pct ?? 0),
     agentOnline: s.agent_online ?? true,
-    funnel: ((funnelFacts.data ?? []) as Row[]).map((r) => ({
+    funnel: ((payload.v_funnel ?? []) as Row[]).map((r) => ({
       stage: r.stage,
       value: Number(r.value),
       note: noteByStage.get(r.stage) ?? "",
     })),
-    channelTrend: ((trend.data ?? []) as Row[]).map(
+    channelTrend: ((payload.channel_trend ?? []) as Row[]).map(
       (r): ChannelTrendPoint => ({
         day: r.day,
         googleFrontEndRoi: Number(r.google_front_end_roi),
@@ -383,7 +437,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
         metaTrueRoas: Number(r.meta_true_roas),
       }),
     ),
-    channelBreakdown: ((breakdown.data ?? []) as Row[]).map((r) => {
+    channelBreakdown: ((payload.channel_breakdown ?? []) as Row[]).map((r) => {
       const f = r.ad_group_id ? adGroupFacts.get(r.ad_group_id) : undefined;
       return {
         channel: r.channel,
@@ -398,14 +452,22 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
         disbursedCount: f?.disbursedCount,
       };
     }),
-    creativeMetrics: ((metrics.data ?? []) as Row[]).map(mapMetric),
-    variants: ((variants.data ?? []) as Row[]).map(mapVariant),
-    experiments: ((experiments.data ?? []) as Row[]).map(mapExperiment),
-    placements,
-    feedbackHealth,
+    creativeMetrics: ((payload.creative_metrics ?? []) as Row[]).map(mapMetric),
+    variants: ((payload.creative_variants ?? []) as Row[]).map(mapVariant),
+    experiments: ((payload.creative_experiments ?? []) as Row[]).map(mapExperiment),
+    placements: placementsFrom({
+      ad_groups: adGroupRows,
+      campaigns: campaignRows,
+      v_placement_facts: payload.v_placement_facts ?? [],
+      creative_placements: payload.creative_placements ?? [],
+    }),
+    feedbackHealth: feedbackHealthFrom({
+      conversion_uploads: payload.conversion_uploads ?? [],
+      disbursed_events: payload.disbursed_events ?? [],
+    }),
   };
-
 }
+
 
 
 async function bumpTakeovers(by: number) {
