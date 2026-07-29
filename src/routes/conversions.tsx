@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -29,7 +30,7 @@ import {
   simulateBatchFn,
   updateConversionSettingFn,
 } from "@/lib/creditagent/conversions.functions";
-import { useAgentStore } from "@/lib/creditagent/store";
+import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/conversions")({
@@ -50,8 +51,20 @@ export const Route = createFileRoute("/conversions")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
+      context.queryClient.ensureQueryData(conversionSnapshotQuery).catch(() => undefined),
+    ]).then(() => undefined),
   component: ConversionsPage,
 });
+
+const conversionSnapshotQuery = queryOptions({
+  queryKey: ["conversion-snapshot"],
+  queryFn: () => fetchConversionSnapshot(),
+  staleTime: 30_000,
+});
+
 
 const STATUS_STYLE: Record<string, string> = {
   SENT: "border-success/40 bg-success/10 text-success",
@@ -122,11 +135,15 @@ function ConversionsPage() {
   const [simLeads, setSimLeads] = useState(20);
   const [simRate, setSimRate] = useState(40);
 
+  const { data: prefetched, error: loadError } = useQuery(conversionSnapshotQuery);
+
   useEffect(() => {
-    fetchConversionSnapshot()
-      .then(setSnap)
-      .catch(() => toast.error("无法加载回传数据"));
-  }, []);
+    if (prefetched) setSnap(prefetched);
+  }, [prefetched]);
+
+  useEffect(() => {
+    if (loadError) toast.error("无法加载回传数据");
+  }, [loadError]);
 
   const uploads = useMemo(
     () => (snap?.uploads ?? []).filter((u) => filter === "ALL" || u.status === filter),

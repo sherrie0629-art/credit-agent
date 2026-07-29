@@ -838,7 +838,7 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      get_agent_snapshot: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

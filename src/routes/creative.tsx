@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { agentSnapshotQuery } from "@/lib/creditagent/store";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreativeLibraryTab } from "@/components/creditagent/creative/CreativeLibraryTab";
@@ -31,6 +32,8 @@ export const Route = createFileRoute("/creative")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
   component: CreativeHub,
 });
 

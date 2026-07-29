@@ -1,4 +1,7 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
+import { useSyncExternalStore } from "react";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+
 import {
   applyAiSuggestionFn,
   approveDecisionFn,
@@ -97,11 +100,36 @@ export function refreshAgentState() {
   return inFlight;
 }
 
-/** Loads the backend snapshot once per session (called from the app shell). */
+/** Route loaders prefetch this so the snapshot ships with the SSR payload. */
+export const agentSnapshotQuery = queryOptions({
+  queryKey: ["agent-snapshot"],
+  queryFn: () => fetchSnapshot(),
+  staleTime: 30_000,
+});
+
+/** Feeds the SSR-prefetched snapshot into the store (called from the app shell). */
 export function useAgentBootstrap() {
+  const { data, error, isFetching } = useQuery(agentSnapshotQuery);
+
   useEffect(() => {
-    if (!state.loaded) void refreshAgentState();
-  }, []);
+    if (data) applySnapshot(data);
+  }, [data]);
+
+  useEffect(() => {
+    if (error) {
+      console.error("[agent] snapshot fetch failed", error);
+      set({ loading: false, error: "无法连接后端 API" });
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (isFetching && !state.loaded) set({ loading: true });
+  }, [isFetching]);
+}
+
+/** Local-first update so the UI reacts instantly; the server reply reconciles. */
+function optimistic(patch: Partial<State>) {
+  set(patch);
 }
 
 export const agentApi = {
@@ -120,22 +148,27 @@ export const agentApi = {
   },
 
   async setMode(mode: ManagementMode) {
+    optimistic({ mode });
     applySnapshot(await setModeFn({ data: { mode } }));
   },
 
   async setRiskFirst(riskFirst: boolean) {
+    optimistic({ riskFirst });
     const res = await setRiskFirstFn({ data: { riskFirst } });
     applySnapshot(res.snapshot);
     return { pausedCampaigns: res.pausedCampaigns };
   },
 
   async setAdGroupStatus(id: string, status: Campaign["status"]) {
+    optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, status } : g)) });
     applySnapshot(await setAdGroupStatusFn({ data: { id, status } }));
   },
 
   async setAdGroupBudget(id: string, dailyBudget: number) {
+    optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, dailyBudget } : g)) });
     applySnapshot(await setAdGroupBudgetFn({ data: { id, dailyBudget } }));
   },
+
 
   async applyAiSuggestion(id: string) {
     const res = await applyAiSuggestionFn({ data: { id } });
