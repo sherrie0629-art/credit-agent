@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -134,11 +135,15 @@ function ConversionsPage() {
   const [simLeads, setSimLeads] = useState(20);
   const [simRate, setSimRate] = useState(40);
 
+  const { data: prefetched, error: loadError } = useQuery(conversionSnapshotQuery);
+
   useEffect(() => {
-    fetchConversionSnapshot()
-      .then(setSnap)
-      .catch(() => toast.error("无法加载回传数据"));
-  }, []);
+    if (prefetched) setSnap(prefetched);
+  }, [prefetched]);
+
+  useEffect(() => {
+    if (loadError) toast.error("无法加载回传数据");
+  }, [loadError]);
 
   const uploads = useMemo(
     () => (snap?.uploads ?? []).filter((u) => filter === "ALL" || u.status === filter),
