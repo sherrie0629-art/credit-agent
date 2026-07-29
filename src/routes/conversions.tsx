@@ -29,7 +29,7 @@ import {
   simulateBatchFn,
   updateConversionSettingFn,
 } from "@/lib/creditagent/conversions.functions";
-import { useAgentStore } from "@/lib/creditagent/store";
+import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/conversions")({
@@ -50,6 +50,8 @@ export const Route = createFileRoute("/conversions")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
   component: ConversionsPage,
 });
 

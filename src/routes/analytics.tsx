@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { AppShell } from "@/components/creditagent/AppShell";
-import { useAgentStore } from "@/lib/creditagent/store";
+import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/analytics")({
@@ -31,6 +31,8 @@ export const Route = createFileRoute("/analytics")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
   component: AnalyticsPage,
 });
 

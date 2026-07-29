@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Bot, Gauge, Zap, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
-import { useAgentStore } from "@/lib/creditagent/store";
+import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -24,6 +24,8 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
   component: CommandCenter,
 });
 
