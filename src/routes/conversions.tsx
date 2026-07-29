@@ -51,9 +51,19 @@ export const Route = createFileRoute("/conversions")({
     ],
   }),
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
+    Promise.all([
+      context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
+      context.queryClient.ensureQueryData(conversionSnapshotQuery).catch(() => undefined),
+    ]).then(() => undefined),
   component: ConversionsPage,
 });
+
+const conversionSnapshotQuery = queryOptions({
+  queryKey: ["conversion-snapshot"],
+  queryFn: () => fetchConversionSnapshot(),
+  staleTime: 30_000,
+});
+
 
 const STATUS_STYLE: Record<string, string> = {
   SENT: "border-success/40 bg-success/10 text-success",
