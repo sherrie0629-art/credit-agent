@@ -170,6 +170,13 @@ export const agentApi = {
     return { pausedCampaigns: res.pausedCampaigns };
   },
 
+  async setKillSwitch(on: boolean) {
+    optimistic({ killSwitch: on });
+    applySnapshot(await setKillSwitchFn({ data: { on } }));
+  },
+
+
+
   async setAdGroupStatus(id: string, status: Campaign["status"]) {
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, status } : g)) });
     applySnapshot(await setAdGroupStatusFn({ data: { id, status } }));
