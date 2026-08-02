@@ -636,30 +636,80 @@ export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   return getSnapshot();
 }
 
+/** 人工改预算：仍需过绝对上限与单次幅度校验，超限直接拒绝并留痕。 */
 export async function setAdGroupBudget(id: string, dailyBudget: number) {
   const supabase = await db();
+  const group = await getAdGroup(id);
+  if (!group) return { snapshot: await getSnapshot(), guardrail: null };
+
+  const limits = await loadLimits();
+  const verdict = checkBudgetChange(limits, { current: group.dailyBudget, next: dailyBudget });
+  await recordGuardrail({
+    action: "SET_AD_GROUP_BUDGET",
+    targetId: id,
+    decision: verdict,
+    requested: { from: group.dailyBudget, to: dailyBudget },
+  });
+
+  if (verdict.verdict === "DENY") {
+    return { snapshot: await getSnapshot(), guardrail: verdict };
+  }
+
+  const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? dailyBudget) : dailyBudget;
   await supabase
     .from("ad_groups")
-    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() } as never)
+    .update({ daily_budget: applied, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
-  return getSnapshot();
+  return { snapshot: await getSnapshot(), guardrail: verdict.verdict === "CLAMP" ? verdict : null };
 }
 
-export async function applyAiSuggestion(id: string) {
+export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SWEEP" = "EVENT") {
   const supabase = await db();
   const group = await getAdGroup(id);
-  if (!group) return { snapshot: await getSnapshot(), decision: null };
+  if (!group) return { snapshot: await getSnapshot(), decision: null, guardrail: null };
 
   const { data: settings } = await supabase
     .from("agent_settings")
     .select("mode")
     .eq("id", "default")
     .maybeSingle();
-  const mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
+  let mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
 
   const scaleUp = group.last20ApprovalRate >= 0.22;
-  const nextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
+  const rawNextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
   const decisionId = await nextDecisionId();
+
+  // —— 风控规则层：API 执行前的最后一关 ——
+  const gate = await preflight({
+    action: "APPLY_AI_SUGGESTION",
+    targetId: id,
+    automated: mode === "FULL_AUTO",
+  });
+  let guardrailNote: string | null = null;
+  let nextBudget = rawNextBudget;
+
+  if (!gate.ok) {
+    mode = "SEMI_AUTO"; // 降级为人工审批，不静默丢弃
+    guardrailNote = `风控层拦截自动执行（${gate.decision.rule}）：${gate.decision.detail}`;
+  } else {
+    const budgetVerdict = checkBudgetChange(gate.limits, {
+      current: group.dailyBudget,
+      next: rawNextBudget,
+    });
+    await recordGuardrail({
+      action: "APPLY_AI_SUGGESTION",
+      targetId: id,
+      decision: budgetVerdict,
+      requested: { from: group.dailyBudget, to: rawNextBudget },
+    });
+    if (budgetVerdict.verdict === "DENY") {
+      mode = "SEMI_AUTO";
+      guardrailNote = `风控层拦截自动执行（${budgetVerdict.rule}）：${budgetVerdict.detail}`;
+    } else if (budgetVerdict.verdict === "CLAMP") {
+      nextBudget = budgetVerdict.value ?? rawNextBudget;
+      guardrailNote = `风控层已截断（${budgetVerdict.rule}）：${budgetVerdict.detail}`;
+    }
+  }
 
   const row = {
     id: decisionId,
@@ -672,6 +722,8 @@ export async function applyAiSuggestion(id: string) {
     ad_group_id: group.id,
     ad_group_name: group.name,
     confidence_score: scaleUp ? 0.89 : 0.82,
+    trigger_source: triggerSource,
+    guardrail_note: guardrailNote,
     reasoning_chain: [
       `广告组「${group.name}」（${group.campaignName}）近 20 条线索授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}%。`,
       `CPL $${group.cpl.toFixed(2)} / CPS $${group.cps.toFixed(2)}（目标 CPS $19.00）。`,
@@ -679,6 +731,7 @@ export async function applyAiSuggestion(id: string) {
       scaleUp
         ? "后端放款率高于阈值，触发正向扩量策略：预算 +15%。"
         : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率广告组。",
+      guardrailNote ?? "风控规则层校验通过：预算变动在硬编码限额内。",
       mode === "FULL_AUTO"
         ? "托管模式 = Full-Auto：直接调用广告 API 执行。"
         : "托管模式 = Semi-Auto：推送审批卡片，等待人工确认。",
@@ -704,6 +757,7 @@ export async function applyAiSuggestion(id: string) {
       .eq("id", group.id);
     await bumpTakeovers(1);
   }
+
 
   return {
     snapshot: await getSnapshot(),
