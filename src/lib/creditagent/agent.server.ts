@@ -582,24 +582,38 @@ export async function setMode(mode: ManagementMode) {
   return getSnapshot();
 }
 
-export async function setRiskFirst(riskFirst: boolean) {
+/** 全局熔断开关：开启后风控层拒绝一切自动写入。 */
+export async function setKillSwitch(on: boolean) {
   const supabase = await db();
   await supabase
     .from("agent_settings")
-    .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
+    .update({ kill_switch: on, updated_at: new Date().toISOString() } as never)
     .eq("id", "default");
+  await recordGuardrail({
+    action: "SET_KILL_SWITCH",
+    decision: {
+      verdict: on ? "DENY" : "ALLOW",
+      rule: "KILL_SWITCH",
+      detail: on ? "人工开启全局熔断，自动执行已冻结。" : "人工解除全局熔断，自动执行恢复。",
+    },
+  });
+  return getSnapshot();
+}
 
-  if (!riskFirst) {
-    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
-  }
-
+/**
+ * 风控兜底：授信通过率跌破阈值的广告组自动暂停。
+ * 事件驱动（打开风控优先开关）与定时轮询共用同一段硬编码规则。
+ */
+export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "EVENT") {
+  const supabase = await db();
   const snapshot = await getSnapshot();
   const paused = snapshot.adGroups.filter(
-    (g) => g.channel === "Meta" && g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
+    (g) => g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
   );
-  if (paused.length === 0) {
-    return { snapshot, pausedCampaigns: [] as string[] };
-  }
+  if (paused.length === 0) return { snapshot, pausedCampaigns: [] as string[] };
+
+  const gate = await preflight({ action: "RISK_AUTO_PAUSE", automated: true });
+  const executed = gate.ok;
 
   const baseId = await nextDecisionId();
   const notes = await Promise.all(paused.map((g) => feedbackNote(g.channel)));
@@ -614,29 +628,55 @@ export async function setRiskFirst(riskFirst: boolean) {
     ad_group_id: g.id,
     ad_group_name: g.name,
     confidence_score: 0.93,
+    trigger_source: triggerSource,
+    guardrail_note: executed ? null : `${gate.decision.rule}：${gate.decision.detail}`,
     reasoning_chain: [
-      `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
+      triggerSource === "SWEEP"
+        ? `定时巡检（15 分钟一次）扫描广告组「${g.name}」（${g.campaignName}）近 20 条线索。`
+        : `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
       `后端授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
       `实际放款成本 CPS $${g.cps.toFixed(2)}，高于账户目标 $19.00。`,
       notes[i],
-      "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。",
+      executed
+        ? "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。"
+        : `风控层拦截自动执行（${gate.decision.rule}）：${gate.decision.detail}，转人工审批。`,
     ],
     trigger_metric: "ApprovalRate",
     trigger_current_value: g.last20ApprovalRate,
     trigger_threshold_value: 0.1,
-    status: "EXECUTED",
+    status: executed ? "EXECUTED" : "PENDING_APPROVAL",
     effect: `广告组「${g.name}」自动暂停`,
     rollback_to: `${g.name} ACTIVE / $${g.dailyBudget}`,
   }));
 
   await supabase.from("agent_decisions").insert(rows as never);
-  for (const g of paused) {
-    await supabase
-      .from("ad_groups")
-      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
-      .eq("id", g.id);
+  if (executed) {
+    for (const g of paused) {
+      await supabase
+        .from("ad_groups")
+        .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
+        .eq("id", g.id);
+    }
+    await bumpTakeovers(rows.length);
   }
-  await bumpTakeovers(rows.length);
+
+  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
+}
+
+export async function setRiskFirst(riskFirst: boolean) {
+  const supabase = await db();
+  await supabase
+    .from("agent_settings")
+    .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
+    .eq("id", "default");
+
+  if (!riskFirst) {
+    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
+  }
+
+  return autoPauseRiskyGroups("EVENT");
+}
+
 
   return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
