@@ -12,6 +12,8 @@ import {
   setAdGroupBudgetFn,
   setAdGroupStatusFn,
   setKillSwitchFn,
+  setModeFn,
+
 
   setRiskFirstFn,
 } from "./agent.functions";
