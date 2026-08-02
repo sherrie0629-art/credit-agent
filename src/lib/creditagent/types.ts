@@ -208,6 +208,15 @@ export interface AgentSnapshot {
   autoTakeovers: number;
   cpsImprovementPct: number;
   agentOnline: boolean;
+  /** 全局熔断开关：开启后所有自动写入被风控层拒绝。 */
+  killSwitch: boolean;
+  guardrailLimits: {
+    maxBudgetDeltaPct: number;
+    maxDailyBudgetDeltaPct: number;
+    maxAdGroupDailyBudget: number;
+    maxActionsPerHour: number;
+  };
+
   funnel: FunnelStageRow[];
   channelTrend: ChannelTrendPoint[];
   channelBreakdown: ChannelBreakdownRow[];
