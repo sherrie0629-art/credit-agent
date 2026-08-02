@@ -1,56 +1,49 @@
-## 诊断结果（已实测，不是猜测）
+## 现在的做法（已在代码里的部分）
 
-我在你正在预览的页面里直接测了真实耗时：
+**1. LLM 只用于"生成"，不用于"决策"**
+系统里唯一调用大模型的地方是素材变体的文案/图像生成（`creative.server.ts` 的 `generateCopy` / 图片接口）。所有会花钱、动预算的动作——疲劳判定、风控暂停、预算迁移、实验胜出——都是硬编码数值规则：
 
-- 数据库本身**不慢**：核心统计视图 `v_placement_facts` 实际执行 **4.5 毫秒**。
-- 慢的是接口：一次 `fetchSnapshot` 请求耗时 **7.8 秒**（另一个请求 0.46 秒）。
+- 疲劳：CTR 衰减 / 频次 / CPL 抬升合成 0-100 分，阈值 70 触发（`fatigue.ts`）
+- 风控优先：末 20 条线索通过率低于阈值 → 暂停（`agent.server.ts`，threshold 0.1 / 19）
+- 实验裁决：先过最小样本门槛，再取 CPS 最低臂，附带置信度（`decideExperiment`）
 
-原因很明确，在 `src/lib/creditagent/agent.server.ts` 的 `getSnapshot()` 里：一次快照要发起 **约 25 次独立的数据库网络请求**（11 张表 + 4 个统计视图 + `getPlacements` 内部 4 个 + `getFeedbackHealth` 内部 3 个串行请求）。每次都是服务端到数据库的一次 HTTP 往返，单次几百毫秒，累加就是秒级。数据库查询只占其中不到 1%。
+模型没有任何调用工具、改预算、改出价的权限，幻觉最多污染一段文案，动不了钱。
 
-另外三个放大问题：
+**2. 模型输出的三道确定性净化**
+`response_format: json_object` → 解析失败时正则兜底 → 字段全部 `String()` 强制转型、变体数截断为 3 → 送进硬编码的 `scanCompliance`（禁词表、≥61 天期限、APR ≤36%、Meta 特殊广告类别、Disclaimer）→ 命中 CRITICAL 时先 `autoFixCompliance` 重写再复扫 → 仍不过则落库为 `BLOCKED`。
 
-1. **没有 SSR 预取**：数据在浏览器 hydrate 之后才由 `useAgentBootstrap()` 发起请求，所以页面先白/骨架屏，再等 7 秒才出数。
-2. **任何一次操作都重取全量**：批准决策、改预算、开关模式……每个 mutation 都返回整个 snapshot，等于每次点击都付一遍 7 秒。
-3. **导航没有预加载**：`src/router.tsx` 没设置 `defaultPreload`，鼠标悬停在菜单上时不会提前加载目标页面的代码块（analytics / conversions 还各自打包了 recharts，chunk 较大）。
+**3. Human-in-the-Loop**
+`SEMI_AUTO` 模式下所有决策写入 `PENDING_APPROVAL`，需人工批准；每条决策都带 reasoning_chain + 触发指标/阈值 + rollback 快照。
 
-## 优化方案
+**4. 触发机制现状：只有一轨半**
+事件驱动（用户操作 / 线索与放款事件 webhook）是有的；定时轮询目前只覆盖离线转化回传（`/api/public/cron/upload-conversions`，15 分钟）。**疲劳扫描和风控扫描没有定时轨**，必须有人点才跑——这是你说的"异常穿透"的真实缺口。
 
-### 一、把 25 次往返压成 1 次（主要收益，预计 7.8s → 0.2s 内）
+---
 
-新增一个数据库函数 `public.get_agent_snapshot()`（SECURITY DEFINER，只读，返回单个 JSON）：在库内用 `json_build_object` 一次性聚合 decisions / campaigns / ad_groups / creative_assets / agent_settings / funnel / channel_trend / channel_breakdown / creative_metrics / variants / experiments / placements 以及四个统计视图和回传健康度。`getSnapshot()` 改为 `supabase.rpc('get_agent_snapshot')` + 现有的 map 函数做字段映射，业务逻辑与返回结构完全不变。
+## 建议补齐的三件事
 
-同时修掉 `getFeedbackHealth()` 里的串行三段查询和 `feedbackNote()` 每次调用都重算全量健康度的问题（改为本次请求内复用）。
+### A. 独立的风控规则层（API 执行前最后一关）
+新增 `src/lib/creditagent/guardrails.server.ts`，纯函数、零 LLM、零网络。所有会改变投放状态的写操作（预算调整、状态切换、变体上线、批准决策）统一先过 `assertAllowed(action)`：
 
-### 二、SSR 预取，首屏直接带数据
+| 规则 | 默认值 | 违反后 |
+|---|---|---|
+| 单次预算变动幅度 | ≤ ±30% | 拒绝并降级为待审批 |
+| 单日累计预算变动 | ≤ ±50% | 拒绝 |
+| 单广告组日预算绝对上限 | 可配置 | 截断到上限 |
+| 变体上线前实时复扫合规 | 必须 PASSED/WARNING | 拒绝（防止 BLOCKED 变体被误上线） |
+| 全局熔断开关 | agent_online=false | 拒绝一切自动写入 |
+| 每小时自动动作条数 | ≤ N | 超出转人工 |
 
-在每个页面路由的 `loader` 里预取快照（通过 TanStack Query `ensureQueryData`），store 初始化时接收服务端已有数据，浏览器不再从零发起首个请求。骨架屏保留作为兜底。
+被拒绝的动作同样写一条 `status=PENDING_APPROVAL` 的决策记录，附拒绝原因，保证可解释、不静默丢弃。
 
-### 三、mutation 不再全量重取
+### B. 定时轮询轨（兜底止损）
+新增 `/api/public/cron/agent-sweep`（建议 15 分钟一次），顺序执行：疲劳扫描 → 风控通过率扫描 → 实验裁决 → 预算异常检查（消耗速度超日预算 X% 提前熔断）。与现有事件驱动构成双轨，事件漏了由轮询补。用 `sweep_runs` 表记录每次执行结果，同时用它做幂等，避免重复决策。
 
-- 轻量操作（切换模式、风控优先、改预算、暂停/启用广告组）改为**乐观更新本地状态**，服务端仍返回快照但只在后台对账。
-- 服务端 mutation 函数不再无条件 `return getSnapshot()`，只返回受影响的实体，前端局部合并。
+### C. 熔断与可观测
+- `agent_settings` 增加 `kill_switch`、`max_daily_budget_delta_pct`、`max_actions_per_hour` 三个字段，前端在"决策模式"旁给一个显眼的全局熔断按钮。
+- 决策卡片上标注该决策"由事件触发 / 由定时轮询触发"，以及是否被风控层拦截过。
 
-### 四、导航提速
-
-- `src/router.tsx` 增加 `defaultPreload: "intent"` + `defaultPreloadDelay: 50`，悬停菜单即预载目标页代码。
-- `AppShell` 的菜单项本来就是 `<Link>`，会自动生效。
-- analytics / conversions 两个页面的 recharts 图表改为懒加载（`React.lazy` + 骨架占位），避免进入页面时先等大 chunk。
-
-### 五、转化页额外一次请求
-
-`src/routes/conversions.tsx` 在 `useEffect` 里单独调 `fetchConversionSnapshot()`，同样合入 loader 预取。
-
-## 技术要点
-
-- 新增迁移：`get_agent_snapshot()` 函数 + 必要的 `GRANT EXECUTE`；不改任何表结构和 RLS。
-- 只重写 `agent.server.ts` 的取数层，`AgentSnapshot` 类型与 UI 消费方式不变。
-- 交付后会用同样的方法复测接口耗时，给出优化前后的对比数字。
-
-## 预期效果
-
-| 指标 | 现在 | 目标 |
-| --- | --- | --- |
-| 快照接口 | 7.8 s | < 0.3 s |
-| 首屏出数 | hydrate 后再等 7 s | 随 HTML 一起返回 |
-| 点击审批/改预算 | 每次 7 s | 立即响应（乐观更新） |
-| 菜单切页 | 现取 chunk | 悬停即预载 |
+### 技术细节
+- guardrails 为纯 TS，不依赖 DB 之外的任何外部服务，便于单测；对应加一组 vitest 用例覆盖每条规则的边界。
+- cron 路由放在 `/api/public/*`，用共享密钥 header 校验调用方后再执行。
+- 变体上线前的复扫复用现有 `scanCompliance`，不引入第二套规则，避免两套判定漂移。

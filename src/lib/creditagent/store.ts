@@ -11,7 +11,10 @@ import {
   rollbackDecisionFn,
   setAdGroupBudgetFn,
   setAdGroupStatusFn,
+  setKillSwitchFn,
   setModeFn,
+
+
   setRiskFirstFn,
 } from "./agent.functions";
 import {
@@ -42,6 +45,14 @@ const EMPTY: State = {
   autoTakeovers: 0,
   cpsImprovementPct: 0,
   agentOnline: true,
+  killSwitch: false,
+  guardrailLimits: {
+    maxBudgetDeltaPct: 30,
+    maxDailyBudgetDeltaPct: 50,
+    maxAdGroupDailyBudget: 20000,
+    maxActionsPerHour: 20,
+  },
+
   funnel: [],
   channelTrend: [],
   channelBreakdown: [],
@@ -159,6 +170,13 @@ export const agentApi = {
     return { pausedCampaigns: res.pausedCampaigns };
   },
 
+  async setKillSwitch(on: boolean) {
+    optimistic({ killSwitch: on });
+    applySnapshot(await setKillSwitchFn({ data: { on } }));
+  },
+
+
+
   async setAdGroupStatus(id: string, status: Campaign["status"]) {
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, status } : g)) });
     applySnapshot(await setAdGroupStatusFn({ data: { id, status } }));
@@ -166,8 +184,11 @@ export const agentApi = {
 
   async setAdGroupBudget(id: string, dailyBudget: number) {
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, dailyBudget } : g)) });
-    applySnapshot(await setAdGroupBudgetFn({ data: { id, dailyBudget } }));
+    const res = await setAdGroupBudgetFn({ data: { id, dailyBudget } });
+    applySnapshot(res.snapshot);
+    return res.guardrail;
   },
+
 
 
   async applyAiSuggestion(id: string) {

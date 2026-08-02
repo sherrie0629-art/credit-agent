@@ -10,6 +10,9 @@ import type {
   FeedbackHealth,
   ManagementMode,
 } from "./types";
+import { checkBudgetChange } from "./guardrails";
+import { loadLimits, preflight, recordGuardrail } from "./guardrails.server";
+
 
 type Row = Record<string, any>;
 
@@ -103,7 +106,10 @@ function mapDecision(r: Row): AgentDecision {
     rollbackTo: r.rollback_to ?? undefined,
     creativeId: r.creative_id ?? undefined,
     creativeName: r.creative_name ?? undefined,
+    triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP",
+    guardrailNote: r.guardrail_note ?? undefined,
   };
+
 }
 
 /** All creative → ad group delivery links, enriched with hierarchy metadata and real lead facts. */
@@ -423,6 +429,14 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     autoTakeovers: Number(s.auto_takeovers ?? 0),
     cpsImprovementPct: Number(s.cps_improvement_pct ?? 0),
     agentOnline: s.agent_online ?? true,
+    killSwitch: s.kill_switch ?? false,
+    guardrailLimits: {
+      maxBudgetDeltaPct: Number(s.max_budget_delta_pct ?? 30),
+      maxDailyBudgetDeltaPct: Number(s.max_daily_budget_delta_pct ?? 50),
+      maxAdGroupDailyBudget: Number(s.max_ad_group_daily_budget ?? 20000),
+      maxActionsPerHour: Number(s.max_actions_per_hour ?? 20),
+    },
+
     funnel: ((payload.v_funnel ?? []) as Row[]).map((r) => ({
       stage: r.stage,
       value: Number(r.value),
@@ -568,24 +582,38 @@ export async function setMode(mode: ManagementMode) {
   return getSnapshot();
 }
 
-export async function setRiskFirst(riskFirst: boolean) {
+/** 全局熔断开关：开启后风控层拒绝一切自动写入。 */
+export async function setKillSwitch(on: boolean) {
   const supabase = await db();
   await supabase
     .from("agent_settings")
-    .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
+    .update({ kill_switch: on, updated_at: new Date().toISOString() } as never)
     .eq("id", "default");
+  await recordGuardrail({
+    action: "SET_KILL_SWITCH",
+    decision: {
+      verdict: on ? "DENY" : "ALLOW",
+      rule: "KILL_SWITCH",
+      detail: on ? "人工开启全局熔断，自动执行已冻结。" : "人工解除全局熔断，自动执行恢复。",
+    },
+  });
+  return getSnapshot();
+}
 
-  if (!riskFirst) {
-    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
-  }
-
+/**
+ * 风控兜底：授信通过率跌破阈值的广告组自动暂停。
+ * 事件驱动（打开风控优先开关）与定时轮询共用同一段硬编码规则。
+ */
+export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "EVENT") {
+  const supabase = await db();
   const snapshot = await getSnapshot();
   const paused = snapshot.adGroups.filter(
-    (g) => g.channel === "Meta" && g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
+    (g) => g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
   );
-  if (paused.length === 0) {
-    return { snapshot, pausedCampaigns: [] as string[] };
-  }
+  if (paused.length === 0) return { snapshot, pausedCampaigns: [] as string[] };
+
+  const gate = await preflight({ action: "RISK_AUTO_PAUSE", automated: true });
+  const executed = gate.ok;
 
   const baseId = await nextDecisionId();
   const notes = await Promise.all(paused.map((g) => feedbackNote(g.channel)));
@@ -600,32 +628,56 @@ export async function setRiskFirst(riskFirst: boolean) {
     ad_group_id: g.id,
     ad_group_name: g.name,
     confidence_score: 0.93,
+    trigger_source: triggerSource,
+    guardrail_note: executed ? null : `${gate.decision.rule}：${gate.decision.detail}`,
     reasoning_chain: [
-      `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
+      triggerSource === "SWEEP"
+        ? `定时巡检（15 分钟一次）扫描广告组「${g.name}」（${g.campaignName}）近 20 条线索。`
+        : `风控优先模式开启：检查广告组「${g.name}」（${g.campaignName}）近 20 条线索。`,
       `后端授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% < 阈值 10%。`,
       `实际放款成本 CPS $${g.cps.toFixed(2)}，高于账户目标 $19.00。`,
       notes[i],
-      "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。",
+      executed
+        ? "决策：自动暂停该广告组，预算暂存至 Planner 待分配池。"
+        : `风控层拦截自动执行（${gate.decision.rule}）：${gate.decision.detail}，转人工审批。`,
     ],
     trigger_metric: "ApprovalRate",
     trigger_current_value: g.last20ApprovalRate,
     trigger_threshold_value: 0.1,
-    status: "EXECUTED",
+    status: executed ? "EXECUTED" : "PENDING_APPROVAL",
     effect: `广告组「${g.name}」自动暂停`,
     rollback_to: `${g.name} ACTIVE / $${g.dailyBudget}`,
   }));
 
   await supabase.from("agent_decisions").insert(rows as never);
-  for (const g of paused) {
-    await supabase
-      .from("ad_groups")
-      .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
-      .eq("id", g.id);
+  if (executed) {
+    for (const g of paused) {
+      await supabase
+        .from("ad_groups")
+        .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
+        .eq("id", g.id);
+    }
+    await bumpTakeovers(rows.length);
   }
-  await bumpTakeovers(rows.length);
 
   return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
+
+export async function setRiskFirst(riskFirst: boolean) {
+  const supabase = await db();
+  await supabase
+    .from("agent_settings")
+    .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
+    .eq("id", "default");
+
+  if (!riskFirst) {
+    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
+  }
+
+  return autoPauseRiskyGroups("EVENT");
+}
+
+
 
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
@@ -636,30 +688,80 @@ export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   return getSnapshot();
 }
 
+/** 人工改预算：仍需过绝对上限与单次幅度校验，超限直接拒绝并留痕。 */
 export async function setAdGroupBudget(id: string, dailyBudget: number) {
   const supabase = await db();
+  const group = await getAdGroup(id);
+  if (!group) return { snapshot: await getSnapshot(), guardrail: null };
+
+  const limits = await loadLimits();
+  const verdict = checkBudgetChange(limits, { current: group.dailyBudget, next: dailyBudget });
+  await recordGuardrail({
+    action: "SET_AD_GROUP_BUDGET",
+    targetId: id,
+    decision: verdict,
+    requested: { from: group.dailyBudget, to: dailyBudget },
+  });
+
+  if (verdict.verdict === "DENY") {
+    return { snapshot: await getSnapshot(), guardrail: verdict };
+  }
+
+  const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? dailyBudget) : dailyBudget;
   await supabase
     .from("ad_groups")
-    .update({ daily_budget: dailyBudget, updated_at: new Date().toISOString() } as never)
+    .update({ daily_budget: applied, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
-  return getSnapshot();
+  return { snapshot: await getSnapshot(), guardrail: verdict.verdict === "CLAMP" ? verdict : null };
 }
 
-export async function applyAiSuggestion(id: string) {
+export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SWEEP" = "EVENT") {
   const supabase = await db();
   const group = await getAdGroup(id);
-  if (!group) return { snapshot: await getSnapshot(), decision: null };
+  if (!group) return { snapshot: await getSnapshot(), decision: null, guardrail: null };
 
   const { data: settings } = await supabase
     .from("agent_settings")
     .select("mode")
     .eq("id", "default")
     .maybeSingle();
-  const mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
+  let mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as ManagementMode;
 
   const scaleUp = group.last20ApprovalRate >= 0.22;
-  const nextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
+  const rawNextBudget = Math.round(group.dailyBudget * (scaleUp ? 1.15 : 0.6));
   const decisionId = await nextDecisionId();
+
+  // —— 风控规则层：API 执行前的最后一关 ——
+  const gate = await preflight({
+    action: "APPLY_AI_SUGGESTION",
+    targetId: id,
+    automated: mode === "FULL_AUTO",
+  });
+  let guardrailNote: string | null = null;
+  let nextBudget = rawNextBudget;
+
+  if (!gate.ok) {
+    mode = "SEMI_AUTO"; // 降级为人工审批，不静默丢弃
+    guardrailNote = `风控层拦截自动执行（${gate.decision.rule}）：${gate.decision.detail}`;
+  } else {
+    const budgetVerdict = checkBudgetChange(gate.limits, {
+      current: group.dailyBudget,
+      next: rawNextBudget,
+    });
+    await recordGuardrail({
+      action: "APPLY_AI_SUGGESTION",
+      targetId: id,
+      decision: budgetVerdict,
+      requested: { from: group.dailyBudget, to: rawNextBudget },
+    });
+    if (budgetVerdict.verdict === "DENY") {
+      mode = "SEMI_AUTO";
+      guardrailNote = `风控层拦截自动执行（${budgetVerdict.rule}）：${budgetVerdict.detail}`;
+    } else if (budgetVerdict.verdict === "CLAMP") {
+      nextBudget = budgetVerdict.value ?? rawNextBudget;
+      guardrailNote = `风控层已截断（${budgetVerdict.rule}）：${budgetVerdict.detail}`;
+    }
+  }
 
   const row = {
     id: decisionId,
@@ -672,6 +774,8 @@ export async function applyAiSuggestion(id: string) {
     ad_group_id: group.id,
     ad_group_name: group.name,
     confidence_score: scaleUp ? 0.89 : 0.82,
+    trigger_source: triggerSource,
+    guardrail_note: guardrailNote,
     reasoning_chain: [
       `广告组「${group.name}」（${group.campaignName}）近 20 条线索授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}%。`,
       `CPL $${group.cpl.toFixed(2)} / CPS $${group.cps.toFixed(2)}（目标 CPS $19.00）。`,
@@ -679,6 +783,7 @@ export async function applyAiSuggestion(id: string) {
       scaleUp
         ? "后端放款率高于阈值，触发正向扩量策略：预算 +15%。"
         : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率广告组。",
+      guardrailNote ?? "风控规则层校验通过：预算变动在硬编码限额内。",
       mode === "FULL_AUTO"
         ? "托管模式 = Full-Auto：直接调用广告 API 执行。"
         : "托管模式 = Semi-Auto：推送审批卡片，等待人工确认。",
@@ -704,6 +809,7 @@ export async function applyAiSuggestion(id: string) {
       .eq("id", group.id);
     await bumpTakeovers(1);
   }
+
 
   return {
     snapshot: await getSnapshot(),

@@ -64,6 +64,17 @@ export function DecisionCard({
         <span className="font-mono text-[11px] text-muted-foreground">
           {decision.actionType}
         </span>
+        <span
+          className={cn(
+            "rounded border px-1.5 py-0.5 font-mono text-[10px]",
+            decision.triggerSource === "SWEEP"
+              ? "border-warning/40 text-warning"
+              : "border-border text-muted-foreground",
+          )}
+        >
+          {decision.triggerSource === "SWEEP" ? "定时巡检兜底" : "事件驱动"}
+        </span>
+
         <span className="ml-auto font-mono text-[11px] text-muted-foreground">
           {new Date(decision.timestamp).toLocaleTimeString("en-GB", {
             hour: "2-digit",
@@ -94,6 +105,13 @@ export function DecisionCard({
         )}
       </p>
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
+
+      {decision.guardrailNote && (
+        <p className="mt-2 rounded-md border border-warning/40 bg-warning/8 p-2 text-[11px] text-warning">
+          风控规则层：{decision.guardrailNote}
+        </p>
+      )}
+
 
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

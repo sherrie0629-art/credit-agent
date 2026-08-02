@@ -47,7 +47,12 @@ export interface AgentDecision {
   /** Creative asset this decision was about, when the decision is creative-driven. */
   creativeId?: string;
   creativeName?: string;
+  /** 触发来源：事件驱动 or 定时轮询兜底。 */
+  triggerSource?: "EVENT" | "SWEEP";
+  /** 风控规则层对该决策的拦截 / 截断说明。 */
+  guardrailNote?: string;
 }
+
 
 /** Ad group — the real execution unit under a campaign (Google/Meta hierarchy). */
 export interface AdGroup {
@@ -203,6 +208,15 @@ export interface AgentSnapshot {
   autoTakeovers: number;
   cpsImprovementPct: number;
   agentOnline: boolean;
+  /** 全局熔断开关：开启后所有自动写入被风控层拒绝。 */
+  killSwitch: boolean;
+  guardrailLimits: {
+    maxBudgetDeltaPct: number;
+    maxDailyBudgetDeltaPct: number;
+    maxAdGroupDailyBudget: number;
+    maxActionsPerHour: number;
+  };
+
   funnel: FunnelStageRow[];
   channelTrend: ChannelTrendPoint[];
   channelBreakdown: ChannelBreakdownRow[];

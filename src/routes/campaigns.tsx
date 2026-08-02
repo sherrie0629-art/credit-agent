@@ -86,10 +86,17 @@ function BudgetCell({ group }: { group: AdGroup }) {
         const next = Number(value);
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
-        await agentApi.setAdGroupBudget(group.id, Math.round(next));
-        toast.success("每日预算已更新", {
-          description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
-        });
+        const guardrail = await agentApi.setAdGroupBudget(group.id, Math.round(next));
+        if (guardrail?.verdict === "DENY") {
+          toast.error("风控规则层已拦截该预算变动", { description: guardrail.detail });
+        } else if (guardrail?.verdict === "CLAMP") {
+          toast.warning("风控规则层已截断该预算", { description: guardrail.detail });
+        } else {
+          toast.success("每日预算已更新", {
+            description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
+          });
+        }
+
 
       }}
     >
@@ -109,6 +116,9 @@ function CampaignsPage() {
   const adGroups = useAgentStore((s) => s.adGroups);
   const mode = useAgentStore((s) => s.mode);
   const riskFirst = useAgentStore((s) => s.riskFirst);
+  const killSwitch = useAgentStore((s) => s.killSwitch);
+  const limits = useAgentStore((s) => s.guardrailLimits);
+
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const totalBudget = adGroups.reduce((s, g) => s + g.dailyBudget, 0);
@@ -194,7 +204,53 @@ function CampaignsPage() {
             </div>
           </div>
         </div>
+
+        <div
+          className={cn(
+            "mt-4 rounded-md border p-4 transition-colors",
+            killSwitch ? "border-destructive/60 bg-destructive/10" : "border-border bg-background/50",
+          )}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label className="text-xs">
+                风控规则层 · 全局熔断
+                {killSwitch && <span className="ml-2 text-destructive">已冻结自动执行</span>}
+              </Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                API 执行前的最后一关，规则全部硬编码，不经过大模型：单次预算变动 ≤{" "}
+                {limits.maxBudgetDeltaPct}% · 单日累计 ≤ {limits.maxDailyBudgetDeltaPct}% ·
+                广告组日预算 ≤ ${limits.maxAdGroupDailyBudget.toLocaleString()} · 每小时自动动作 ≤{" "}
+                {limits.maxActionsPerHour} 条。触发即拒绝或截断，并降级为人工审批。
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-[11px] transition-colors",
+                  killSwitch ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                熔断
+              </span>
+              <Switch
+                checked={killSwitch}
+                onCheckedChange={async (v) => {
+                  await agentApi.setKillSwitch(v);
+                  if (v) {
+                    toast.error("全局熔断已开启", {
+                      description: "所有 Agent 自动写入被拒绝，仅保留人工操作。",
+                    });
+                  } else {
+                    toast.success("全局熔断已解除", { description: "自动执行恢复。" });
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </header>
+
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[

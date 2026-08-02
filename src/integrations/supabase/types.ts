@@ -102,6 +102,7 @@ export type Database = {
           creative_id: string | null
           creative_name: string | null
           effect: string
+          guardrail_note: string | null
           id: string
           reasoning_chain: Json
           rollback_to: string | null
@@ -110,6 +111,7 @@ export type Database = {
           timestamp: string
           trigger_current_value: number
           trigger_metric: string
+          trigger_source: string
           trigger_threshold_value: number
         }
         Insert: {
@@ -124,6 +126,7 @@ export type Database = {
           creative_id?: string | null
           creative_name?: string | null
           effect?: string
+          guardrail_note?: string | null
           id: string
           reasoning_chain?: Json
           rollback_to?: string | null
@@ -132,6 +135,7 @@ export type Database = {
           timestamp?: string
           trigger_current_value?: number
           trigger_metric: string
+          trigger_source?: string
           trigger_threshold_value?: number
         }
         Update: {
@@ -146,6 +150,7 @@ export type Database = {
           creative_id?: string | null
           creative_name?: string | null
           effect?: string
+          guardrail_note?: string | null
           id?: string
           reasoning_chain?: Json
           rollback_to?: string | null
@@ -154,6 +159,7 @@ export type Database = {
           timestamp?: string
           trigger_current_value?: number
           trigger_metric?: string
+          trigger_source?: string
           trigger_threshold_value?: number
         }
         Relationships: []
@@ -164,6 +170,11 @@ export type Database = {
           auto_takeovers: number
           cps_improvement_pct: number
           id: string
+          kill_switch: boolean
+          max_actions_per_hour: number
+          max_ad_group_daily_budget: number
+          max_budget_delta_pct: number
+          max_daily_budget_delta_pct: number
           mode: string
           risk_first: boolean
           updated_at: string
@@ -173,6 +184,11 @@ export type Database = {
           auto_takeovers?: number
           cps_improvement_pct?: number
           id?: string
+          kill_switch?: boolean
+          max_actions_per_hour?: number
+          max_ad_group_daily_budget?: number
+          max_budget_delta_pct?: number
+          max_daily_budget_delta_pct?: number
           mode?: string
           risk_first?: boolean
           updated_at?: string
@@ -182,6 +198,11 @@ export type Database = {
           auto_takeovers?: number
           cps_improvement_pct?: number
           id?: string
+          kill_switch?: boolean
+          max_actions_per_hour?: number
+          max_ad_group_daily_budget?: number
+          max_budget_delta_pct?: number
+          max_daily_budget_delta_pct?: number
           mode?: string
           risk_first?: boolean
           updated_at?: string
@@ -657,6 +678,39 @@ export type Database = {
         }
         Relationships: []
       }
+      guardrail_events: {
+        Row: {
+          action: string
+          created_at: string
+          detail: string
+          id: number
+          requested: Json
+          rule: string
+          target_id: string
+          verdict: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          detail?: string
+          id?: number
+          requested?: Json
+          rule: string
+          target_id?: string
+          verdict: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          detail?: string
+          id?: number
+          requested?: Json
+          rule?: string
+          target_id?: string
+          verdict?: string
+        }
+        Relationships: []
+      }
       lead_events: {
         Row: {
           created_at: string
@@ -755,6 +809,42 @@ export type Database = {
           landing_url?: string
           updated_at?: string
           wbraid?: string | null
+        }
+        Relationships: []
+      }
+      sweep_runs: {
+        Row: {
+          detail: Json
+          experiments_settled: number
+          fatigue_alerts: number
+          finished_at: string | null
+          id: number
+          ok: boolean
+          pace_breaches: number
+          risk_pauses: number
+          started_at: string
+        }
+        Insert: {
+          detail?: Json
+          experiments_settled?: number
+          fatigue_alerts?: number
+          finished_at?: string | null
+          id?: number
+          ok?: boolean
+          pace_breaches?: number
+          risk_pauses?: number
+          started_at?: string
+        }
+        Update: {
+          detail?: Json
+          experiments_settled?: number
+          fatigue_alerts?: number
+          finished_at?: string | null
+          id?: number
+          ok?: boolean
+          pace_breaches?: number
+          risk_pauses?: number
+          started_at?: string
         }
         Relationships: []
       }
