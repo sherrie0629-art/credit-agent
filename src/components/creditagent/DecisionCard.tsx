@@ -106,6 +106,13 @@ export function DecisionCard({
       </p>
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
 
+      {decision.guardrailNote && (
+        <p className="mt-2 rounded-md border border-warning/40 bg-warning/8 p-2 text-[11px] text-warning">
+          风控规则层：{decision.guardrailNote}
+        </p>
+      )}
+
+
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-border bg-background/50 p-2.5">
