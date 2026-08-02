@@ -166,8 +166,11 @@ export const agentApi = {
 
   async setAdGroupBudget(id: string, dailyBudget: number) {
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, dailyBudget } : g)) });
-    applySnapshot(await setAdGroupBudgetFn({ data: { id, dailyBudget } }));
+    const res = await setAdGroupBudgetFn({ data: { id, dailyBudget } });
+    applySnapshot(res.snapshot);
+    return res.guardrail;
   },
+
 
 
   async applyAiSuggestion(id: string) {
