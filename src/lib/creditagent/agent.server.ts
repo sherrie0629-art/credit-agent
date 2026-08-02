@@ -429,6 +429,14 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     autoTakeovers: Number(s.auto_takeovers ?? 0),
     cpsImprovementPct: Number(s.cps_improvement_pct ?? 0),
     agentOnline: s.agent_online ?? true,
+    killSwitch: s.kill_switch ?? false,
+    guardrailLimits: {
+      maxBudgetDeltaPct: Number(s.max_budget_delta_pct ?? 30),
+      maxDailyBudgetDeltaPct: Number(s.max_daily_budget_delta_pct ?? 50),
+      maxAdGroupDailyBudget: Number(s.max_ad_group_daily_budget ?? 20000),
+      maxActionsPerHour: Number(s.max_actions_per_hour ?? 20),
+    },
+
     funnel: ((payload.v_funnel ?? []) as Row[]).map((r) => ({
       stage: r.stage,
       value: Number(r.value),
