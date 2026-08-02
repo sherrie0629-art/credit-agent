@@ -678,8 +678,6 @@ export async function setRiskFirst(riskFirst: boolean) {
 }
 
 
-  return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
-}
 
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
