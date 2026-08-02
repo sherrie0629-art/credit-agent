@@ -116,6 +116,9 @@ function CampaignsPage() {
   const adGroups = useAgentStore((s) => s.adGroups);
   const mode = useAgentStore((s) => s.mode);
   const riskFirst = useAgentStore((s) => s.riskFirst);
+  const killSwitch = useAgentStore((s) => s.killSwitch);
+  const limits = useAgentStore((s) => s.guardrailLimits);
+
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const totalBudget = adGroups.reduce((s, g) => s + g.dailyBudget, 0);
