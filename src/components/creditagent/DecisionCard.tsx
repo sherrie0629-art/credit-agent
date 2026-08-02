@@ -64,6 +64,17 @@ export function DecisionCard({
         <span className="font-mono text-[11px] text-muted-foreground">
           {decision.actionType}
         </span>
+        <span
+          className={cn(
+            "rounded border px-1.5 py-0.5 font-mono text-[10px]",
+            decision.triggerSource === "SWEEP"
+              ? "border-warning/40 text-warning"
+              : "border-border text-muted-foreground",
+          )}
+        >
+          {decision.triggerSource === "SWEEP" ? "定时巡检兜底" : "事件驱动"}
+        </span>
+
         <span className="ml-auto font-mono text-[11px] text-muted-foreground">
           {new Date(decision.timestamp).toLocaleTimeString("en-GB", {
             hour: "2-digit",
