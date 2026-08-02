@@ -337,7 +337,7 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
     .select("mode")
     .eq("id", "default")
     .maybeSingle();
-  const mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as "FULL_AUTO" | "SEMI_AUTO";
+  let mode = ((settings as Row | null)?.mode ?? "SEMI_AUTO") as "FULL_AUTO" | "SEMI_AUTO";
 
   const { data: creative } = await supabase
     .from("creative_assets")
