@@ -20,6 +20,7 @@ import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/gener
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
+import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -78,6 +79,11 @@ const ApiPublicCronUploadConversionsRoute =
     path: '/api/public/cron/upload-conversions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
+  id: '/api/public/cron/agent-sweep',
+  path: '/api/public/cron/agent-sweep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRoutesByTo {
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRoutesById {
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
 export interface FileRouteTypes {
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   id:
     | '__root__'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesById: FileRoutesById
 }
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
+  ApiPublicCronAgentSweepRoute: typeof ApiPublicCronAgentSweepRoute
   ApiPublicCronUploadConversionsRoute: typeof ApiPublicCronUploadConversionsRoute
 }
 
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron/agent-sweep': {
+      id: '/api/public/cron/agent-sweep'
+      path: '/api/public/cron/agent-sweep'
+      fullPath: '/api/public/cron/agent-sweep'
+      preLoaderRoute: typeof ApiPublicCronAgentSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -268,6 +288,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
+  ApiPublicCronAgentSweepRoute: ApiPublicCronAgentSweepRoute,
   ApiPublicCronUploadConversionsRoute: ApiPublicCronUploadConversionsRoute,
 }
 export const routeTree = rootRouteImport

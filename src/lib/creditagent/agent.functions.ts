@@ -27,6 +27,11 @@ export const setRiskFirstFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ riskFirst: z.boolean() }).parse(d))
   .handler(async ({ data }) => agent.setRiskFirst(data.riskFirst));
 
+export const setKillSwitchFn = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ on: z.boolean() }).parse(d))
+  .handler(async ({ data }) => agent.setKillSwitch(data.on));
+
+
 export const setAdGroupStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
