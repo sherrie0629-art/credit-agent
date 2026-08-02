@@ -11,7 +11,8 @@ import {
   rollbackDecisionFn,
   setAdGroupBudgetFn,
   setAdGroupStatusFn,
-  setModeFn,
+  setKillSwitchFn,
+
   setRiskFirstFn,
 } from "./agent.functions";
 import {
