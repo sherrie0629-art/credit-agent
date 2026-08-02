@@ -349,10 +349,53 @@ export async function launchExperiment(creativeId: string, variantIds: string[])
     .select("*")
     .in("id", variantIds);
 
-  const variants = ((variantRows ?? []) as Row[]).map(mapVariant).filter((v) => v.status !== "BLOCKED");
+  // —— 风控规则层：上线前的最后一关 ——
+  const gate = await preflight({
+    action: "LAUNCH_EXPERIMENT",
+    targetId: creativeId,
+    automated: mode === "FULL_AUTO",
+  });
+  if (mode === "FULL_AUTO" && !gate.ok) mode = "SEMI_AUTO";
+
+  const candidates = ((variantRows ?? []) as Row[])
+    .map(mapVariant)
+    .filter((v) => v.status !== "BLOCKED");
+
+  // 上线前用同一套硬编码规则实时复扫，防止 BLOCKED / 后续被改写的文案穿透上线。
+  const variants: typeof candidates = [];
+  for (const v of candidates) {
+    const rescan = scanCompliance({
+      headline: v.headline,
+      bodyText: v.bodyText,
+      loanTermRange: "61 days - 36 months",
+      maxApr: 35.9,
+      specialAdCategory: true,
+    });
+    const verdict = checkComplianceGate(rescan.status, rescan.score);
+    await recordGuardrail({
+      action: "LAUNCH_EXPERIMENT",
+      targetId: v.id,
+      decision: verdict,
+      requested: { headline: v.headline },
+    });
+    if (verdict.verdict === "DENY") {
+      await supabase
+        .from("creative_variants")
+        .update({
+          status: "BLOCKED",
+          compliance_status: rescan.status,
+          compliance_score: rescan.score,
+        } as never)
+        .eq("id", v.id);
+      continue;
+    }
+    variants.push(v);
+  }
+
   if (variants.length === 0) {
     return { snapshot: await getSnapshot(), experimentId: null, mode };
   }
+
 
   const expId = await newId("exp");
   const now = new Date().toISOString();
