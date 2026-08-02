@@ -86,10 +86,17 @@ function BudgetCell({ group }: { group: AdGroup }) {
         const next = Number(value);
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
-        await agentApi.setAdGroupBudget(group.id, Math.round(next));
-        toast.success("每日预算已更新", {
-          description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
-        });
+        const guardrail = await agentApi.setAdGroupBudget(group.id, Math.round(next));
+        if (guardrail?.verdict === "DENY") {
+          toast.error("风控规则层已拦截该预算变动", { description: guardrail.detail });
+        } else if (guardrail?.verdict === "CLAMP") {
+          toast.warning("风控规则层已截断该预算", { description: guardrail.detail });
+        } else {
+          toast.success("每日预算已更新", {
+            description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
+          });
+        }
+
 
       }}
     >
