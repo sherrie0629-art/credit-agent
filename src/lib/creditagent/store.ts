@@ -42,6 +42,14 @@ const EMPTY: State = {
   autoTakeovers: 0,
   cpsImprovementPct: 0,
   agentOnline: true,
+  killSwitch: false,
+  guardrailLimits: {
+    maxBudgetDeltaPct: 30,
+    maxDailyBudgetDeltaPct: 50,
+    maxAdGroupDailyBudget: 20000,
+    maxActionsPerHour: 20,
+  },
+
   funnel: [],
   channelTrend: [],
   channelBreakdown: [],
