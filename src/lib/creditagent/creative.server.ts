@@ -3,6 +3,9 @@ import { computeFatigue, FATIGUE_LEVEL_LABEL, type CreativeMetricPoint } from ".
 import { autoFixCompliance, scanCompliance, BANNED_PHRASES } from "./compliance";
 import type { CreativeExperiment, CreativeVariant, ExperimentArm } from "./creative-types";
 import { getCreativeFacts, getPrimaryPlacement, getSnapshot } from "./agent.server";
+import { checkComplianceGate } from "./guardrails";
+import { preflight, recordGuardrail } from "./guardrails.server";
+
 
 type Row = Record<string, any>;
 
