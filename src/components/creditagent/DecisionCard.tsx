@@ -67,12 +67,18 @@ export function DecisionCard({
         <span
           className={cn(
             "rounded border px-1.5 py-0.5 font-mono text-[10px]",
-            decision.triggerSource === "SWEEP"
-              ? "border-warning/40 text-warning"
-              : "border-border text-muted-foreground",
+            decision.triggerSource === "LLM"
+              ? "border-neon/50 bg-neon/10 text-neon"
+              : decision.triggerSource === "SWEEP"
+                ? "border-warning/40 text-warning"
+                : "border-border text-muted-foreground",
           )}
         >
-          {decision.triggerSource === "SWEEP" ? "定时巡检兜底" : "事件驱动"}
+          {decision.triggerSource === "LLM"
+            ? "LLM 分析师建议"
+            : decision.triggerSource === "SWEEP"
+              ? "定时巡检兜底"
+              : "事件驱动"}
         </span>
 
         <span className="ml-auto font-mono text-[11px] text-muted-foreground">
@@ -105,6 +111,12 @@ export function DecisionCard({
         )}
       </p>
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
+
+      {decision.triggerSource === "LLM" && (
+        <p className="mt-2 rounded-md border border-neon/40 bg-neon/8 p-2 text-[11px] text-neon">
+          本条为 LLM 分析师提出的<strong>未经验证假设</strong>，不会自动执行；即使人工批准，仍需通过硬编码风控规则层。
+        </p>
+      )}
 
       {decision.guardrailNote && (
         <p className="mt-2 rounded-md border border-warning/40 bg-warning/8 p-2 text-[11px] text-warning">
