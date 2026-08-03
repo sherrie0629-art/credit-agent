@@ -106,7 +106,7 @@ function mapDecision(r: Row): AgentDecision {
     rollbackTo: r.rollback_to ?? undefined,
     creativeId: r.creative_id ?? undefined,
     creativeName: r.creative_name ?? undefined,
-    triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP",
+    triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP" | "LLM",
     guardrailNote: r.guardrail_note ?? undefined,
   };
 
