@@ -506,7 +506,7 @@ async function bumpTakeovers(by: number) {
     .eq("id", "default");
 }
 
-async function nextDecisionId() {
+export async function nextDecisionId() {
   const supabase = await db();
   const { count } = await supabase
     .from("agent_decisions")
