@@ -49,7 +49,7 @@ function BudgetPoolPanel() {
           <h2 className="mt-2 text-sm font-semibold tracking-wide">跨广告组预算再分配</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             暂停或低胜率广告组释放的预算先入池，再按硬编码评分（授信通过率 0.6 / CPS 0.4）转移到
-            高胜率广告组 · 承接门槛：投放中 · 通过率 ≥ 22% · CPS ≤ $19 · 今日消耗率 ≥ 60%
+            高胜率广告组 · 承接门槛：投放中 / 学习期 · 通过率 ≥ 22% · CPS ≤ 账户基准的 1.1× · 今日消耗率 ≥ 60%
           </p>
         </div>
         <Button

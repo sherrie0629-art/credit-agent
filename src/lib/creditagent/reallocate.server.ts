@@ -7,6 +7,7 @@ import {
   PACE_FLOOR,
   TARGET_CPS,
   WIN_RATE_FLOOR,
+  benchmarkCps,
   planReallocation,
   type PoolReason,
   type ReallocationCandidate,
@@ -195,7 +196,7 @@ export async function runReallocation(triggerSource: "EVENT" | "SWEEP" | "MANUAL
       decision: {
         verdict: "DENY",
         rule: "NO_ELIGIBLE_RECIPIENT",
-        detail: `待分配池 $${pool.balance.toLocaleString()} 无合格承接广告组（门槛：通过率 ≥ ${(WIN_RATE_FLOOR * 100).toFixed(0)}% · CPS ≤ $${TARGET_CPS} · 消耗率 ≥ ${PACE_FLOOR * 100}%），资金留池。`,
+        detail: `待分配池 $${pool.balance.toLocaleString()} 无合格承接广告组（门槛：通过率 ≥ ${(WIN_RATE_FLOOR * 100).toFixed(0)}% · CPS ≤ 基准 $${benchmarkCps(candidates).toFixed(2)} 的 1.1× · 消耗率 ≥ ${PACE_FLOOR * 100}%），资金留池。`,
       },
       requested: { pool: pool.balance, rejected: plan.rejected },
     });
@@ -238,7 +239,7 @@ export async function runReallocation(triggerSource: "EVENT" | "SWEEP" | "MANUAL
         (s) =>
           `释放：${s.adGroupName ?? "—"} −$${s.amount.toLocaleString()}（${REASON_LABEL[s.reason] ?? s.reason}）。`,
       ),
-    `承接筛选（硬编码）：投放中 · 授信通过率 ≥ ${(WIN_RATE_FLOOR * 100).toFixed(0)}% · CPS ≤ $${TARGET_CPS} · 今日消耗率 ≥ ${PACE_FLOOR * 100}%。`,
+    `承接筛选（硬编码）：投放中 · 授信通过率 ≥ ${(WIN_RATE_FLOOR * 100).toFixed(0)}% · CPS ≤ 基准 $${benchmarkCps(candidates).toFixed(2)} 的 1.1× · 今日消耗率 ≥ ${PACE_FLOOR * 100}%。`,
     ...plan.allocations.map(
       (a) =>
         `分配：${a.adGroupName} +$${a.amount.toLocaleString()}（$${a.fromBudget.toLocaleString()} → $${a.toBudget.toLocaleString()}）· ${a.rationale}`,
