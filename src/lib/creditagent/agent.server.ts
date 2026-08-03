@@ -652,7 +652,15 @@ export async function rollbackDecision(id: string) {
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
 
+  // 再分配卡的回滚：逐笔把加出去的预算收回，资金退回待分配池。
+  const { revertReallocationDecision } = await import("./reallocate.server");
+  const reverted = await revertReallocationDecision(id);
+  if (reverted > 0) {
+    return { snapshot: await getSnapshot(), rolledBackTo: decision.rollbackTo ?? "原配置" };
+  }
+
   const group = decision.adGroupId ? await getAdGroup(decision.adGroupId) : null;
+
   if (group) {
     const patch: Row = { ai_suggestion: `已回滚至：${decision.rollbackTo ?? "原配置"}` };
     if (decision.id === "dec_1042" && group.id === "cmp_g_search_01") patch.daily_budget = 4200;
