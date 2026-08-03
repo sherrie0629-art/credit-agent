@@ -1,9 +1,11 @@
 // 定时轮询兜底轨：与事件驱动构成双轨，事件漏了由 15 分钟一次的巡检补上。
-// 全流程零 LLM 参与，全部走硬编码规则。
+// 止损与执行全部走硬编码规则；LLM 分析师每 6 小时才跑一次，且只产出待审批建议。
 import { autoPauseRiskyGroups, getSnapshot } from "./agent.server";
+import { ADVISOR_MIN_INTERVAL_MS, lastAdvisorRunAt, runPlannerAdvisor } from "./advisor.server";
 import { scanFatigue, settleExperiment } from "./creative.server";
 import { checkPacing } from "./guardrails";
 import { loadLimits, recordGuardrail } from "./guardrails.server";
+
 
 type Row = Record<string, any>;
 
