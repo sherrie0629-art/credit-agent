@@ -484,7 +484,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       conversion_uploads: payload.conversion_uploads ?? [],
       disbursed_events: payload.disbursed_events ?? [],
     }),
+    budgetPool,
   };
+
 }
 
 
