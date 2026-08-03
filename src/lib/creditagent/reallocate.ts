@@ -13,8 +13,10 @@ export type PoolReason =
 export const TARGET_CPS = 19;
 /** 进入承接候选池的最低后端授信通过率。 */
 export const WIN_RATE_FLOOR = 0.22;
-/** 候选广告组允许的 CPS 上限系数（相对目标 CPS）。 */
+/** 候选广告组允许的 CPS 上限系数（相对基准 CPS）。 */
 export const CPS_TOLERANCE = 1.1;
+/** 允许承接预算的广告组状态：暂停 / 合规冻结的组不接钱。 */
+export const RECEIVABLE_STATUS = ["ACTIVE", "LEARNING"];
 /** 今日消耗率下限——花不动钱的组不给加预算。 */
 export const PACE_FLOOR = 0.6;
 /** 打分权重（写进推理链，保证可审计）。 */
@@ -71,10 +73,26 @@ function round(n: number) {
   return Math.max(0, Math.round(n));
 }
 
-function scoreOf(c: ReallocationCandidate) {
+/**
+ * 基准 CPS：账户目标与在投广告组 CPS 中位数取较大者。
+ * 只用绝对目标值会导致市场整体成本上行时无人合格、资金全部滞留。
+ */
+export function benchmarkCps(candidates: ReallocationCandidate[]) {
+  const vals = candidates
+    .filter((c) => RECEIVABLE_STATUS.includes(c.status) && c.cps > 0)
+    .map((c) => c.cps)
+    .sort((a, b) => a - b);
+  if (vals.length === 0) return TARGET_CPS;
+  const mid = Math.floor(vals.length / 2);
+  const median =
+    vals.length % 2 === 0 ? ((vals[mid - 1]! + vals[mid]!) / 2) : vals[mid]!;
+  return Math.max(TARGET_CPS, Number(median.toFixed(2)));
+}
+
+function scoreOf(c: ReallocationCandidate, benchmark: number) {
   const winPart = WEIGHT_WIN_RATE * (c.last20ApprovalRate / WIN_RATE_FLOOR);
-  const effectiveCps = c.cps > 0 ? c.cps : TARGET_CPS;
-  const costPart = WEIGHT_COST * (TARGET_CPS / effectiveCps);
+  const effectiveCps = c.cps > 0 ? c.cps : benchmark;
+  const costPart = WEIGHT_COST * (benchmark / effectiveCps);
   return Number((winPart + costPart).toFixed(4));
 }
 
@@ -87,13 +105,14 @@ function headroomOf(c: ReallocationCandidate, limits: ReallocationLimits) {
 /** 候选筛选：只有"能承接、且承接得起"的广告组才有资格拿钱。 */
 export function filterCandidates(
   candidates: ReallocationCandidate[],
+  benchmark = benchmarkCps(candidates),
 ): { eligible: ReallocationCandidate[]; rejected: RejectedCandidate[] } {
   const eligible: ReallocationCandidate[] = [];
   const rejected: RejectedCandidate[] = [];
 
   for (const c of candidates) {
     const base = { adGroupId: c.id, adGroupName: c.name };
-    if (c.status !== "ACTIVE") {
+    if (!RECEIVABLE_STATUS.includes(c.status)) {
       rejected.push({ ...base, reason: `状态为 ${c.status}，非投放中` });
       continue;
     }
@@ -104,10 +123,10 @@ export function filterCandidates(
       });
       continue;
     }
-    if (c.cps > TARGET_CPS * CPS_TOLERANCE) {
+    if (c.cps > benchmark * CPS_TOLERANCE) {
       rejected.push({
         ...base,
-        reason: `CPS $${c.cps.toFixed(2)} 高于目标 $${TARGET_CPS} 的 ${CPS_TOLERANCE}× 容忍线`,
+        reason: `CPS $${c.cps.toFixed(2)} 高于基准 $${benchmark.toFixed(2)} 的 ${CPS_TOLERANCE}× 容忍线`,
       });
       continue;
     }
@@ -135,7 +154,8 @@ export function planReallocation(input: {
   limits: ReallocationLimits;
 }): ReallocationPlan {
   const pool = Math.floor(Math.max(0, input.pool));
-  const { eligible, rejected } = filterCandidates(input.candidates);
+  const benchmark = benchmarkCps(input.candidates);
+  const { eligible, rejected } = filterCandidates(input.candidates, benchmark);
 
   if (pool <= 0 || eligible.length === 0) {
     return { allocations: [], allocated: 0, remaining: pool, rejected };
@@ -143,7 +163,7 @@ export function planReallocation(input: {
 
   const rows = eligible.map((c) => ({
     c,
-    score: scoreOf(c),
+    score: scoreOf(c, benchmark),
     headroom: headroomOf(c, input.limits),
     amount: 0,
   }));
@@ -189,7 +209,7 @@ export function planReallocation(input: {
       amount: r.amount,
       score: r.score,
       headroom: r.headroom,
-      rationale: `通过率 ${(r.c.last20ApprovalRate * 100).toFixed(1)}% / CPS $${(r.c.cps > 0 ? r.c.cps : TARGET_CPS).toFixed(2)} → 得分 ${r.score.toFixed(2)}（权重 通过率 ${WEIGHT_WIN_RATE} · 成本 ${WEIGHT_COST}）`,
+      rationale: `通过率 ${(r.c.last20ApprovalRate * 100).toFixed(1)}% / CPS $${(r.c.cps > 0 ? r.c.cps : benchmark).toFixed(2)} → 得分 ${r.score.toFixed(2)}（权重 通过率 ${WEIGHT_WIN_RATE} · 成本 ${WEIGHT_COST}）`,
     }))
     .sort((a, b) => b.amount - a.amount);
 
