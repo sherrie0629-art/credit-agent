@@ -259,6 +259,9 @@ export interface AgentSnapshot {
   experiments: CreativeExperiment[];
   placements: CreativePlacement[];
   feedbackHealth: FeedbackHealth[];
+  /** 跨广告组预算再分配的当日资金池。 */
+  budgetPool: BudgetPoolState;
+
 }
 
 
