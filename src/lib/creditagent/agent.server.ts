@@ -749,14 +749,27 @@ export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "E
 
   await supabase.from("agent_decisions").insert(rows as never);
   if (executed) {
-    for (const g of paused) {
+    const { releaseToPool } = await import("./reallocate.server");
+    for (const [i, g] of paused.entries()) {
       await supabase
         .from("ad_groups")
         .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
         .eq("id", g.id);
+      // 暂停释放的剩余日预算入池，等待再分配（带归因）。
+      await releaseToPool({
+        adGroupId: g.id,
+        adGroupName: g.name,
+        campaignId: g.campaignId,
+        campaignName: g.campaignName,
+        amount: Math.max(0, g.dailyBudget - g.spentToday),
+        reason: "RISK_PAUSE",
+        decisionId: rows[i]?.id,
+        note: `授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% 低于 10%，暂停并释放剩余预算。`,
+      });
     }
     await bumpTakeovers(rows.length);
   }
+
 
   return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
