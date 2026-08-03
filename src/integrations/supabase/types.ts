@@ -254,6 +254,57 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_pool_entries: {
+        Row: {
+          ad_group_id: string
+          ad_group_name: string
+          amount: number
+          campaign_id: string
+          campaign_name: string
+          created_at: string
+          decision_id: string | null
+          direction: string
+          id: number
+          note: string
+          pool_day: string
+          reason: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ad_group_id?: string
+          ad_group_name?: string
+          amount?: number
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string
+          decision_id?: string | null
+          direction: string
+          id?: number
+          note?: string
+          pool_day?: string
+          reason?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_group_id?: string
+          ad_group_name?: string
+          amount?: number
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string
+          decision_id?: string | null
+          direction?: string
+          id?: number
+          note?: string
+          pool_day?: string
+          reason?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           ai_suggestion: string

@@ -21,6 +21,137 @@ import { agentApi, useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/s
 import type { AdGroup } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
 
+const POOL_REASON_LABEL: Record<string, string> = {
+  RISK_PAUSE: "风控暂停释放",
+  LOW_WIN_RATE: "低胜率削减",
+  PACING: "节奏超速止损",
+  SCALE_UP: "高胜率扩量",
+  MANUAL: "人工调整",
+  EXPIRED: "过期回收",
+};
+
+/**
+ * 跨广告组预算再分配：被暂停 / 低胜率广告组释放的预算进入当日待分配池，
+ * 由硬编码打分（授信通过率 + CPS + 消耗节奏）转移到高胜率广告组，每笔均留归因。
+ */
+function BudgetPoolPanel() {
+  const pool = useAgentStore((s) => s.budgetPool);
+  const [running, setRunning] = useState(false);
+
+  const releases = pool.entries.filter((e) => e.direction === "RELEASE" && e.status === "APPLIED");
+  const allocations = pool.entries.filter((e) => e.direction === "ALLOCATE");
+
+  return (
+    <section className="panel mt-4 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="label-mono">budget pool · {pool.day || "—"}</p>
+          <h2 className="mt-2 text-sm font-semibold tracking-wide">跨广告组预算再分配</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            暂停或低胜率广告组释放的预算先入池，再按硬编码评分（授信通过率 0.6 / CPS 0.4）转移到
+            高胜率广告组 · 承接门槛：投放中 / 学习期 · 通过率 ≥ 22% · CPS ≤ 账户基准的 1.1× · 今日消耗率 ≥ 60%
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={running || pool.balance <= 0}
+          onClick={async () => {
+            setRunning(true);
+            try {
+              const res = await agentApi.runReallocation();
+              if (res.skipped === "EMPTY_POOL") {
+                toast("待分配池为空，无需再分配");
+              } else if (res.skipped === "NO_ELIGIBLE_RECIPIENT") {
+                toast.warning("无合格承接广告组", {
+                  description: "资金留在池中，当日未使用将过期回收。",
+                });
+              } else {
+                toast.success(
+                  res.autoExecuted
+                    ? `已转移 $${res.allocated.toLocaleString()} 至 ${res.allocations.length} 个广告组`
+                    : `已生成再分配审批卡：$${res.allocated.toLocaleString()} 待人工确认`,
+                );
+              }
+            } catch (e) {
+              toast.error("再分配失败", { description: String(e) });
+            } finally {
+              setRunning(false);
+            }
+          }}
+        >
+          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+          {running ? "分配中…" : "执行预算再分配"}
+        </Button>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "可分配余额", value: pool.balance, accent: true },
+          { label: "今日释放入池", value: pool.released },
+          { label: "已生效分配", value: pool.allocated },
+          { label: "待审批冻结", value: pool.reserved },
+        ].map((s) => (
+          <div key={s.label} className="rounded-md border border-border bg-background/50 p-3">
+            <p className="label-mono">{s.label}</p>
+            <p className={cn("mt-1 font-mono text-lg", s.accent && "neon-text")}>
+              ${s.value.toLocaleString()}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {pool.entries.length > 0 && (
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="label-mono">资金来源（释放）</p>
+            <ul className="mt-2 space-y-1.5">
+              {releases.slice(0, 6).map((e) => (
+                <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {e.adGroupName ?? "—"} · {POOL_REASON_LABEL[e.reason] ?? e.reason}
+                  </span>
+                  <span className="shrink-0 font-mono text-destructive">
+                    −${e.amount.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+              {releases.length === 0 && (
+                <li className="text-xs text-muted-foreground">今日暂无释放记录。</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <p className="label-mono">资金去向（分配）</p>
+            <ul className="mt-2 space-y-1.5">
+              {allocations.slice(0, 6).map((e) => (
+                <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {e.adGroupName ?? "过期回收"}
+                    {e.status === "PENDING" && (
+                      <span className="ml-1.5 text-neon">待审批</span>
+                    )}
+                    {e.status === "REVERTED" && (
+                      <span className="ml-1.5 text-destructive">已撤销</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 font-mono text-neon">
+                    +${e.amount.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+              {allocations.length === 0 && (
+                <li className="text-xs text-muted-foreground">今日暂无分配记录。</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
 export const Route = createFileRoute("/campaigns")({
   head: () => ({
     meta: [
@@ -250,6 +381,9 @@ function CampaignsPage() {
           </div>
         </div>
       </header>
+
+      <BudgetPoolPanel />
+
 
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

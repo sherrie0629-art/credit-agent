@@ -18,6 +18,8 @@ import {
   setRiskFirstFn,
 } from "./agent.functions";
 import { runAdvisorFn } from "./advisor.functions";
+import { runReallocationFn } from "./reallocate.functions";
+
 import {
   generateVariantsFn,
   launchExperimentFn,
@@ -62,6 +64,16 @@ const EMPTY: State = {
   experiments: [],
   placements: [],
   feedbackHealth: [],
+  budgetPool: {
+    day: "",
+    released: 0,
+    allocated: 0,
+    reserved: 0,
+    balance: 0,
+    lastAllocatedAt: null,
+    entries: [],
+  },
+
 
   loaded: false,
   loading: false,
@@ -214,6 +226,14 @@ export const agentApi = {
     applySnapshot(res.snapshot);
     return res;
   },
+
+  /** 跨广告组预算再分配：把待分配池的资金转移到高胜率广告组。 */
+  async runReallocation() {
+    const res = await runReallocationFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
 
   async scanFatigue() {
     const res = await scanFatigueFn();

@@ -5,6 +5,8 @@ import { ADVISOR_MIN_INTERVAL_MS, lastAdvisorRunAt, runPlannerAdvisor } from "./
 import { scanFatigue, settleExperiment } from "./creative.server";
 import { checkPacing } from "./guardrails";
 import { loadLimits, recordGuardrail } from "./guardrails.server";
+import { releaseToPool, runReallocation } from "./reallocate.server";
+
 
 
 type Row = Record<string, any>;
@@ -87,10 +89,33 @@ export async function runAgentSweep() {
           ai_suggestion: `定时巡检：${verdict.detail}`,
         } as never)
         .eq("id", g.id);
+      await releaseToPool({
+        adGroupId: g.id,
+        adGroupName: g.name,
+        campaignId: g.campaignId,
+        campaignName: g.campaignName,
+        amount: Math.max(0, g.dailyBudget - g.spentToday),
+        reason: "PACING",
+        note: verdict.detail,
+      });
     }
   }
 
-  // 5) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
+  // 5) 跨广告组预算再分配：把池里的钱转到高胜率广告组（判定硬编码）
+  let reallocated = 0;
+  try {
+    const res = await runReallocation("SWEEP");
+    reallocated = res.allocated;
+    detail.reallocation = {
+      allocated: res.allocated,
+      skipped: "skipped" in res ? res.skipped : null,
+      decisionId: res.decisionId,
+    };
+  } catch (e) {
+    detail.reallocationError = String(e);
+  }
+
+  // 6) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
   let advisorCreated = 0;
   try {
     const last = await lastAdvisorRunAt();
@@ -104,6 +129,7 @@ export async function runAgentSweep() {
   } catch (e) {
     detail.advisorError = String(e);
   }
+
 
   const finishedAt = new Date().toISOString();
   await supabase.from("sweep_runs").insert({
@@ -122,6 +148,8 @@ export async function runAgentSweep() {
     fatigueAlerts,
     riskPauses,
     experimentsSettled: settled,
+    reallocatedAmount: reallocated,
+
     paceBreaches,
     advisorSuggestions: advisorCreated,
   };

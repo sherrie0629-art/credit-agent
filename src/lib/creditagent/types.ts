@@ -198,7 +198,40 @@ export interface FeedbackHealth {
   gapRate: number;
 }
 
+/** 跨广告组预算再分配的一条资金流水。 */
+export interface BudgetPoolEntry {
+  id: number;
+  direction: "RELEASE" | "ALLOCATE";
+  adGroupId?: string;
+  adGroupName?: string;
+  campaignId?: string;
+  campaignName?: string;
+  amount: number;
+  reason: string;
+  decisionId?: string;
+  status: "PENDING" | "APPLIED" | "REVERTED";
+  note: string;
+  poolDay: string;
+  createdAt: string;
+}
+
+/** 当日待分配资金池状态。 */
+export interface BudgetPoolState {
+  day: string;
+  /** 今日累计释放入池。 */
+  released: number;
+  /** 已生效分配。 */
+  allocated: number;
+  /** 待审批冻结中。 */
+  reserved: number;
+  /** 可分配余额。 */
+  balance: number;
+  lastAllocatedAt: string | null;
+  entries: BudgetPoolEntry[];
+}
+
 /** Full backend snapshot returned by the agent server API. */
+
 export interface AgentSnapshot {
   decisions: AgentDecision[];
   campaigns: Campaign[];
@@ -226,6 +259,9 @@ export interface AgentSnapshot {
   experiments: CreativeExperiment[];
   placements: CreativePlacement[];
   feedbackHealth: FeedbackHealth[];
+  /** 跨广告组预算再分配的当日资金池。 */
+  budgetPool: BudgetPoolState;
+
 }
 
 

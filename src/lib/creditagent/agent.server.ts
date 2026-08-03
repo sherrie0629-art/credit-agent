@@ -377,10 +377,15 @@ function feedbackHealthFrom(payload: Row): FeedbackHealth[] {
 export async function getSnapshot(): Promise<AgentSnapshot> {
   const supabase = await db();
   const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
+  const { getPoolState } = await import("./reallocate.server");
 
-  const { data, error } = await (supabase as any).rpc("get_agent_snapshot");
+  const [{ data, error }, budgetPool] = await Promise.all([
+    (supabase as any).rpc("get_agent_snapshot"),
+    getPoolState(),
+  ]);
   if (error) throw new Error(error.message);
   const payload = (data ?? {}) as Row;
+
 
   const campaignRows = (payload.campaigns ?? []) as Row[];
   const adGroupRows = (payload.ad_groups ?? []) as Row[];
@@ -479,7 +484,9 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
       conversion_uploads: payload.conversion_uploads ?? [],
       disbursed_events: payload.disbursed_events ?? [],
     }),
+    budgetPool,
   };
+
 }
 
 
@@ -499,7 +506,7 @@ async function bumpTakeovers(by: number) {
     .eq("id", "default");
 }
 
-async function nextDecisionId() {
+export async function nextDecisionId() {
   const supabase = await db();
   const { count } = await supabase
     .from("agent_decisions")
@@ -526,6 +533,23 @@ export async function approveDecision(id: string) {
   const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
   if (!data) return getSnapshot();
   const decision = mapDecision(data as Row);
+
+  // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
+  const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
+  const poolEntries = await pendingAllocationsFor(id);
+  if (poolEntries.length > 0) {
+    const res = await applyReallocationDecision(id);
+    await supabase
+      .from("agent_decisions")
+      .update({
+        status: res.applied > 0 ? "EXECUTED" : "REJECTED_BY_USER",
+        guardrail_note: res.notes.length ? res.notes.join(" / ") : null,
+      } as never)
+      .eq("id", id);
+    return getSnapshot();
+  }
+
+
 
   // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
   if (decision.triggerSource === "LLM") {
@@ -628,7 +652,15 @@ export async function rollbackDecision(id: string) {
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
 
+  // 再分配卡的回滚：逐笔把加出去的预算收回，资金退回待分配池。
+  const { revertReallocationDecision } = await import("./reallocate.server");
+  const reverted = await revertReallocationDecision(id);
+  if (reverted > 0) {
+    return { snapshot: await getSnapshot(), rolledBackTo: decision.rollbackTo ?? "原配置" };
+  }
+
   const group = decision.adGroupId ? await getAdGroup(decision.adGroupId) : null;
+
   if (group) {
     const patch: Row = { ai_suggestion: `已回滚至：${decision.rollbackTo ?? "原配置"}` };
     if (decision.id === "dec_1042" && group.id === "cmp_g_search_01") patch.daily_budget = 4200;
@@ -717,14 +749,27 @@ export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "E
 
   await supabase.from("agent_decisions").insert(rows as never);
   if (executed) {
-    for (const g of paused) {
+    const { releaseToPool } = await import("./reallocate.server");
+    for (const [i, g] of paused.entries()) {
       await supabase
         .from("ad_groups")
         .update({ status: "PAUSED", ai_suggestion: "风控优先：授信通过率过低已自动暂停" } as never)
         .eq("id", g.id);
+      // 暂停释放的剩余日预算入池，等待再分配（带归因）。
+      await releaseToPool({
+        adGroupId: g.id,
+        adGroupName: g.name,
+        campaignId: g.campaignId,
+        campaignName: g.campaignName,
+        amount: Math.max(0, g.dailyBudget - g.spentToday),
+        reason: "RISK_PAUSE",
+        decisionId: rows[i]?.id,
+        note: `授信通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}% 低于 10%，暂停并释放剩余预算。`,
+      });
     }
     await bumpTakeovers(rows.length);
   }
+
 
   return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
@@ -873,8 +918,23 @@ export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SW
       .from("ad_groups")
       .update({ daily_budget: nextBudget } as never)
       .eq("id", group.id);
+    // 削减出来的预算不凭空消失，进入待分配池等待转移到高胜率广告组。
+    if (nextBudget < group.dailyBudget) {
+      const { releaseToPool } = await import("./reallocate.server");
+      await releaseToPool({
+        adGroupId: group.id,
+        adGroupName: group.name,
+        campaignId: group.campaignId,
+        campaignName: group.campaignName,
+        amount: group.dailyBudget - nextBudget,
+        reason: "LOW_WIN_RATE",
+        decisionId,
+        note: `授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}% 低于扩量门槛，削减预算入池。`,
+      });
+    }
     await bumpTakeovers(1);
   }
+
 
 
   return {
