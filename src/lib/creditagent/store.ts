@@ -18,6 +18,8 @@ import {
   setRiskFirstFn,
 } from "./agent.functions";
 import { runAdvisorFn } from "./advisor.functions";
+import { runReallocationFn } from "./reallocate.functions";
+
 import {
   generateVariantsFn,
   launchExperimentFn,
