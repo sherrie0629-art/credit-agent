@@ -918,8 +918,23 @@ export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SW
       .from("ad_groups")
       .update({ daily_budget: nextBudget } as never)
       .eq("id", group.id);
+    // 削减出来的预算不凭空消失，进入待分配池等待转移到高胜率广告组。
+    if (nextBudget < group.dailyBudget) {
+      const { releaseToPool } = await import("./reallocate.server");
+      await releaseToPool({
+        adGroupId: group.id,
+        adGroupName: group.name,
+        campaignId: group.campaignId,
+        campaignName: group.campaignName,
+        amount: group.dailyBudget - nextBudget,
+        reason: "LOW_WIN_RATE",
+        decisionId,
+        note: `授信通过率 ${(group.last20ApprovalRate * 100).toFixed(1)}% 低于扩量门槛，削减预算入池。`,
+      });
+    }
     await bumpTakeovers(1);
   }
+
 
 
   return {
