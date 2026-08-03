@@ -225,6 +225,14 @@ export const agentApi = {
     return res;
   },
 
+  /** 跨广告组预算再分配：把待分配池的资金转移到高胜率广告组。 */
+  async runReallocation() {
+    const res = await runReallocationFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+
   async scanFatigue() {
     const res = await scanFatigueFn();
     applySnapshot(res.snapshot);
