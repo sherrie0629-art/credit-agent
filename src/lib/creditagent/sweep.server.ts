@@ -5,6 +5,8 @@ import { ADVISOR_MIN_INTERVAL_MS, lastAdvisorRunAt, runPlannerAdvisor } from "./
 import { scanFatigue, settleExperiment } from "./creative.server";
 import { checkPacing } from "./guardrails";
 import { loadLimits, recordGuardrail } from "./guardrails.server";
+import { releaseToPool, runReallocation } from "./reallocate.server";
+
 
 
 type Row = Record<string, any>;
