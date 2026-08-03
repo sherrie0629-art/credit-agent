@@ -148,6 +148,8 @@ export async function runAgentSweep() {
     fatigueAlerts,
     riskPauses,
     experimentsSettled: settled,
+    reallocatedAmount: reallocated,
+
     paceBreaches,
     advisorSuggestions: advisorCreated,
   };
