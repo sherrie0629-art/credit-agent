@@ -546,7 +546,9 @@ export async function approveDecision(id: string) {
 
     if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
       const group = await getAdGroup(decision.adGroupId);
-      const target = Number(/\$(\d+(?:\.\d+)?)\s*$/.exec(decision.effect.replace(/[（(].*$/, "").trim())?.[1] ?? NaN);
+      // effect 形如「日预算 $1000 → $1300（+30%）」，取箭头后的目标值。
+      const target = Number(/→\s*\$(\d+(?:\.\d+)?)/.exec(decision.effect)?.[1] ?? NaN);
+
       const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
       if (group) {
         const verdict = checkBudgetChange(gate.limits, {
