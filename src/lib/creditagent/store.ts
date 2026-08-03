@@ -17,6 +17,7 @@ import {
 
   setRiskFirstFn,
 } from "./agent.functions";
+import { runAdvisorFn } from "./advisor.functions";
 import {
   generateVariantsFn,
   launchExperimentFn,
@@ -206,6 +207,12 @@ export const agentApi = {
     const res = await logComplianceDecisionFn({ data: payload });
     applySnapshot(res.snapshot);
     return res.decision;
+  },
+
+  async runAdvisor() {
+    const res = await runAdvisorFn();
+    applySnapshot(res.snapshot);
+    return res;
   },
 
   async scanFatigue() {
