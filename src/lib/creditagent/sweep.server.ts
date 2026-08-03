@@ -90,6 +90,21 @@ export async function runAgentSweep() {
     }
   }
 
+  // 5) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
+  let advisorCreated = 0;
+  try {
+    const last = await lastAdvisorRunAt();
+    if (last === null || Date.now() - last >= ADVISOR_MIN_INTERVAL_MS) {
+      const res = await runPlannerAdvisor("SWEEP");
+      advisorCreated = res.created;
+      detail.advisor = { created: res.created, dropped: res.dropped, error: res.error };
+    } else {
+      detail.advisor = { skipped: "COOLDOWN" };
+    }
+  } catch (e) {
+    detail.advisorError = String(e);
+  }
+
   const finishedAt = new Date().toISOString();
   await supabase.from("sweep_runs").insert({
     started_at: startedAt,
@@ -108,8 +123,10 @@ export async function runAgentSweep() {
     riskPauses,
     experimentsSettled: settled,
     paceBreaches,
+    advisorSuggestions: advisorCreated,
   };
 }
+
 
 /** 最近一次巡检的执行摘要，供前端显示"兜底轨在跑"。 */
 export async function lastSweep() {
