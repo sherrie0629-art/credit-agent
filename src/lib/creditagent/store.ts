@@ -62,6 +62,16 @@ const EMPTY: State = {
   experiments: [],
   placements: [],
   feedbackHealth: [],
+  budgetPool: {
+    day: "",
+    released: 0,
+    allocated: 0,
+    reserved: 0,
+    balance: 0,
+    lastAllocatedAt: null,
+    entries: [],
+  },
+
 
   loaded: false,
   loading: false,
