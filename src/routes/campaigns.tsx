@@ -251,6 +251,9 @@ function CampaignsPage() {
         </div>
       </header>
 
+      <BudgetPoolPanel />
+
+
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
