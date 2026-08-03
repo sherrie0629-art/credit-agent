@@ -534,6 +534,23 @@ export async function approveDecision(id: string) {
   if (!data) return getSnapshot();
   const decision = mapDecision(data as Row);
 
+  // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
+  const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
+  const poolEntries = await pendingAllocationsFor(id);
+  if (poolEntries.length > 0) {
+    const res = await applyReallocationDecision(id);
+    await supabase
+      .from("agent_decisions")
+      .update({
+        status: res.applied > 0 ? "EXECUTED" : "REJECTED_BY_USER",
+        guardrail_note: res.notes.length ? res.notes.join(" / ") : null,
+      } as never)
+      .eq("id", id);
+    return getSnapshot();
+  }
+
+
+
   // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
   if (decision.triggerSource === "LLM") {
     const gate = await preflight({
