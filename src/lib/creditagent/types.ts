@@ -47,8 +47,9 @@ export interface AgentDecision {
   /** Creative asset this decision was about, when the decision is creative-driven. */
   creativeId?: string;
   creativeName?: string;
-  /** 触发来源：事件驱动 or 定时轮询兜底。 */
-  triggerSource?: "EVENT" | "SWEEP";
+  /** 触发来源：事件驱动 / 定时轮询兜底 / LLM 分析师建议。 */
+  triggerSource?: "EVENT" | "SWEEP" | "LLM";
+
   /** 风控规则层对该决策的拦截 / 截断说明。 */
   guardrailNote?: string;
 }

@@ -1,9 +1,11 @@
 // 定时轮询兜底轨：与事件驱动构成双轨，事件漏了由 15 分钟一次的巡检补上。
-// 全流程零 LLM 参与，全部走硬编码规则。
+// 止损与执行全部走硬编码规则；LLM 分析师每 6 小时才跑一次，且只产出待审批建议。
 import { autoPauseRiskyGroups, getSnapshot } from "./agent.server";
+import { ADVISOR_MIN_INTERVAL_MS, lastAdvisorRunAt, runPlannerAdvisor } from "./advisor.server";
 import { scanFatigue, settleExperiment } from "./creative.server";
 import { checkPacing } from "./guardrails";
 import { loadLimits, recordGuardrail } from "./guardrails.server";
+
 
 type Row = Record<string, any>;
 
@@ -88,6 +90,21 @@ export async function runAgentSweep() {
     }
   }
 
+  // 5) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
+  let advisorCreated = 0;
+  try {
+    const last = await lastAdvisorRunAt();
+    if (last === null || Date.now() - last >= ADVISOR_MIN_INTERVAL_MS) {
+      const res = await runPlannerAdvisor("SWEEP");
+      advisorCreated = res.created;
+      detail.advisor = { created: res.created, dropped: res.dropped, error: res.error };
+    } else {
+      detail.advisor = { skipped: "COOLDOWN" };
+    }
+  } catch (e) {
+    detail.advisorError = String(e);
+  }
+
   const finishedAt = new Date().toISOString();
   await supabase.from("sweep_runs").insert({
     started_at: startedAt,
@@ -106,8 +123,10 @@ export async function runAgentSweep() {
     riskPauses,
     experimentsSettled: settled,
     paceBreaches,
+    advisorSuggestions: advisorCreated,
   };
 }
+
 
 /** 最近一次巡检的执行摘要，供前端显示"兜底轨在跑"。 */
 export async function lastSweep() {

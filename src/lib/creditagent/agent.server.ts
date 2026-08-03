@@ -106,7 +106,7 @@ function mapDecision(r: Row): AgentDecision {
     rollbackTo: r.rollback_to ?? undefined,
     creativeId: r.creative_id ?? undefined,
     creativeName: r.creative_name ?? undefined,
-    triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP",
+    triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP" | "LLM",
     guardrailNote: r.guardrail_note ?? undefined,
   };
 
@@ -527,6 +527,71 @@ export async function approveDecision(id: string) {
   if (!data) return getSnapshot();
   const decision = mapDecision(data as Row);
 
+  // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
+  if (decision.triggerSource === "LLM") {
+    const gate = await preflight({
+      action: "APPROVE_LLM_ADVICE",
+      targetId: decision.adGroupId,
+      automated: false,
+    });
+    if (!gate.ok) {
+      await supabase
+        .from("agent_decisions")
+        .update({
+          guardrail_note: `批准被规则层拒绝（${gate.decision.rule}）：${gate.decision.detail}`,
+        } as never)
+        .eq("id", id);
+      return getSnapshot();
+    }
+
+    if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
+      const group = await getAdGroup(decision.adGroupId);
+      // effect 形如「日预算 $1000 → $1300（+30%）」，取箭头后的目标值。
+      const target = Number(/→\s*\$(\d+(?:\.\d+)?)/.exec(decision.effect)?.[1] ?? NaN);
+
+      const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+      if (group) {
+        const verdict = checkBudgetChange(gate.limits, {
+          current: group.dailyBudget,
+          next: nextBudget,
+        });
+        await recordGuardrail({
+          action: "APPROVE_LLM_ADVICE",
+          targetId: group.id,
+          decision: verdict,
+          requested: { from: group.dailyBudget, to: nextBudget },
+        });
+        if (verdict.verdict === "DENY") {
+          await supabase
+            .from("agent_decisions")
+            .update({
+              guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
+            } as never)
+            .eq("id", id);
+          return getSnapshot();
+        }
+        const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+        await supabase
+          .from("ad_groups")
+          .update({
+            daily_budget: applied,
+            ai_suggestion: "按 LLM 分析师建议调整，已过风控闸门",
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", group.id);
+      }
+    } else if (decision.actionType === "CREATIVE_PAUSE" && decision.adGroupId) {
+      await supabase
+        .from("ad_groups")
+        .update({ status: "PAUSED", ai_suggestion: "按 LLM 分析师建议暂停，已过风控闸门" } as never)
+        .eq("id", decision.adGroupId);
+    }
+
+    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+    await bumpTakeovers(1);
+    return getSnapshot();
+  }
+
   await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
   await bumpTakeovers(1);
 
@@ -547,6 +612,7 @@ export async function approveDecision(id: string) {
 
   return getSnapshot();
 }
+
 
 export async function rejectDecision(id: string) {
   const supabase = await db();

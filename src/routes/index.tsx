@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Gauge, Zap, ShieldAlert } from "lucide-react";
+import { Bot, Gauge, Zap, ShieldAlert, Brain, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
-import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
+import { useAgentStore, agentApi, agentSnapshotQuery } from "@/lib/creditagent/store";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -64,8 +67,34 @@ function CommandCenter() {
   const campaigns = useAgentStore((s) => s.campaigns);
   const loaded = useAgentStore((s) => s.loaded);
 
+  const [advising, setAdvising] = useState(false);
+
   const pending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
   const holds = campaigns.filter((c) => c.status === "COMPLIANCE_HOLD").length;
+
+  const runAdvisor = async () => {
+    setAdvising(true);
+    try {
+      const res = await agentApi.runAdvisor();
+      if (res.skipped === "KILL_SWITCH") {
+        toast.warning("全局熔断开启中", { description: "分析师已跳过本轮运行" });
+      } else if (!res.ok) {
+        toast.error("分析师运行失败", { description: res.error ?? "请稍后重试" });
+      } else if (res.created === 0) {
+        toast("分析师未提出新建议", {
+          description: res.summary || `净化层丢弃 ${res.dropped} 条不合规输出`,
+        });
+      } else {
+        toast.success(`分析师提出 ${res.created} 条建议`, {
+          description: "已进入人工审批队列，不会自动执行",
+        });
+      }
+    } catch {
+      toast.error("分析师运行失败", { description: "无法连接 AI 网关" });
+    } finally {
+      setAdvising(false);
+    }
+  };
 
 
   return (
@@ -86,6 +115,25 @@ function CommandCenter() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             白盒可观测决策中枢 · Google Ads &amp; Meta Ads 全托管投放
+          </p>
+        </div>
+
+        <div className="ml-auto flex flex-col items-end gap-1.5">
+          <Button
+            size="sm"
+            disabled={advising}
+            onClick={runAdvisor}
+            className="border border-neon/50 bg-neon/15 text-xs text-neon hover:bg-neon/25"
+          >
+            {advising ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Brain className="size-3.5" />
+            )}
+            运行 AI 分析师
+          </Button>
+          <p className="max-w-[220px] text-right text-[11px] leading-snug text-muted-foreground">
+            LLM 只提建议、不落地；产出全部进人工审批队列，执行权仍在硬编码风控层。
           </p>
         </div>
       </header>
