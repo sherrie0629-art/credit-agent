@@ -89,6 +89,51 @@ export type Database = {
           },
         ]
       }
+      advisor_runs: {
+        Row: {
+          dropped: Json
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          id: number
+          model: string | null
+          ok: boolean
+          raw_output: string | null
+          started_at: string
+          suggestions_kept: number
+          suggestions_raw: number
+          trigger_source: string
+        }
+        Insert: {
+          dropped?: Json
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          model?: string | null
+          ok?: boolean
+          raw_output?: string | null
+          started_at?: string
+          suggestions_kept?: number
+          suggestions_raw?: number
+          trigger_source?: string
+        }
+        Update: {
+          dropped?: Json
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          model?: string | null
+          ok?: boolean
+          raw_output?: string | null
+          started_at?: string
+          suggestions_kept?: number
+          suggestions_raw?: number
+          trigger_source?: string
+        }
+        Relationships: []
+      }
       agent_decisions: {
         Row: {
           action_type: string
