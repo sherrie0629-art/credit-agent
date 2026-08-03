@@ -377,10 +377,15 @@ function feedbackHealthFrom(payload: Row): FeedbackHealth[] {
 export async function getSnapshot(): Promise<AgentSnapshot> {
   const supabase = await db();
   const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
+  const { getPoolState } = await import("./reallocate.server");
 
-  const { data, error } = await (supabase as any).rpc("get_agent_snapshot");
+  const [{ data, error }, budgetPool] = await Promise.all([
+    (supabase as any).rpc("get_agent_snapshot"),
+    getPoolState(),
+  ]);
   if (error) throw new Error(error.message);
   const payload = (data ?? {}) as Row;
+
 
   const campaignRows = (payload.campaigns ?? []) as Row[];
   const adGroupRows = (payload.ad_groups ?? []) as Row[];
