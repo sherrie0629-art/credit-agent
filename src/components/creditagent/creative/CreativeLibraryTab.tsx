@@ -373,6 +373,8 @@ export function CreativeLibraryTab({
                           <img
                             src={img}
                             alt={`变体主视觉：${v.angle}`}
+                            loading="lazy"
+                            decoding="async"
                             className={cn(
                               "mt-2 aspect-video w-full rounded object-cover transition-[filter]",
                               p && !p.final ? "blur-xl" : "blur-0",
