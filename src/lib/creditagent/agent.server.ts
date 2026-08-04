@@ -534,6 +534,21 @@ export async function approveDecision(id: string) {
   if (!data) return getSnapshot();
   const decision = mapDecision(data as Row);
 
+  await recordManualAction({
+    action: "APPROVE_DECISION",
+    targetId: id,
+    rule: "MANUAL_APPROVAL",
+    detail: `人工批准决策 ${id}（${decision.actionType}）：${decision.effect}`,
+    requested: {
+      actionType: decision.actionType,
+      adGroupId: decision.adGroupId ?? null,
+      triggerSource: decision.triggerSource,
+      statusBefore: (data as Row).status,
+    },
+  });
+
+
+
   // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
   const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
   const poolEntries = await pendingAllocationsFor(id);
