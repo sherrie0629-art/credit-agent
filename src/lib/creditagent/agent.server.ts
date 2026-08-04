@@ -673,10 +673,25 @@ export async function rollbackDecision(id: string) {
 
 export async function setMode(mode: ManagementMode) {
   const supabase = await db();
+  const { data: prev } = await supabase
+    .from("agent_settings")
+    .select("mode")
+    .eq("id", "default")
+    .maybeSingle();
+  const from = ((prev as Row | null)?.mode as string) ?? "UNKNOWN";
   await supabase
     .from("agent_settings")
     .update({ mode, updated_at: new Date().toISOString() })
     .eq("id", "default");
+  await recordManualAction({
+    action: "SET_MODE",
+    rule: "MANUAL_MODE_CHANGE",
+    detail:
+      mode === "FULL_AUTO"
+        ? `人工将管理模式由 ${from} 切换为 FULL_AUTO：Agent 自治级别提升，符合条件的动作将不再经人工审批。`
+        : `人工将管理模式由 ${from} 切换为 ${mode}。`,
+    requested: { from, to: mode },
+  });
   return getSnapshot();
 }
 
