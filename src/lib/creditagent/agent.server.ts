@@ -795,6 +795,15 @@ export async function setRiskFirst(riskFirst: boolean) {
     .from("agent_settings")
     .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
     .eq("id", "default");
+  await recordManualAction({
+    action: "SET_RISK_FIRST",
+    rule: "MANUAL_RISK_FIRST",
+    detail: riskFirst
+      ? "人工开启风控优先：低通过率广告组将被自动暂停。"
+      : "人工关闭风控优先：不再按通过率阈值自动暂停广告组。",
+    requested: { to: riskFirst },
+  });
+
 
   if (!riskFirst) {
     return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
