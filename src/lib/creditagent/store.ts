@@ -109,13 +109,38 @@ export function useAgentStore<T>(selector: (s: State) => T): T {
 
 let inFlight: Promise<void> | null = null;
 
+const RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 快照拉取带指数退避重试：开发服务器重启 / 网络抖动会让请求直接 "Load failed"，
+ * 自动重试可以在服务恢复后把数据填回来，不需要用户手动刷新。
+ */
+async function fetchSnapshotWithRetry() {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await fetchSnapshot();
+    } catch (err) {
+      lastError = err;
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay === undefined) break;
+      console.warn(`[agent] snapshot fetch failed, retrying in ${delay}ms`, err);
+      await wait(delay);
+    }
+  }
+  throw lastError;
+}
+
 export function refreshAgentState() {
   if (inFlight) return inFlight;
   set({ loading: true, error: null });
-  inFlight = fetchSnapshot()
+  inFlight = fetchSnapshotWithRetry()
     .then((snapshot) => applySnapshot(snapshot))
     .catch((err: unknown) => {
       console.error("[agent] snapshot fetch failed", err);
+      // 保留上一次成功的数据，只挂错误标记，避免看板整片清空。
       set({ loading: false, error: "无法连接后端 API" });
     })
     .finally(() => {
@@ -129,6 +154,8 @@ export const agentSnapshotQuery = queryOptions({
   queryKey: ["agent-snapshot"],
   queryFn: () => fetchSnapshot(),
   staleTime: 30_000,
+  retry: 3,
+  retryDelay: (attemptIndex) => Math.min(1_000 * 2 ** attemptIndex, 4_000),
 });
 
 /** Feeds the SSR-prefetched snapshot into the store (called from the app shell). */

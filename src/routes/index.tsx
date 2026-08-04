@@ -5,7 +5,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
-import { useAgentStore, agentApi, agentSnapshotQuery } from "@/lib/creditagent/store";
+import {
+  useAgentStore,
+  agentApi,
+  agentSnapshotQuery,
+  refreshAgentState,
+} from "@/lib/creditagent/store";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -66,6 +71,7 @@ function CommandCenter() {
   const mode = useAgentStore((s) => s.mode);
   const campaigns = useAgentStore((s) => s.campaigns);
   const loaded = useAgentStore((s) => s.loaded);
+  const loadError = useAgentStore((s) => s.error);
 
   const [advising, setAdvising] = useState(false);
 
@@ -182,7 +188,18 @@ function CommandCenter() {
             <span className="label-mono">{loaded ? `${decisions.length} 条决策` : "加载中"}</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
-            {!loaded ? (
+            {!loaded && loadError ? (
+              <div className="rounded-md border border-dashed border-destructive/50 p-6 text-center">
+                <p className="text-xs text-destructive">后端连接失败，暂时取不到决策数据</p>
+                <button
+                  type="button"
+                  onClick={() => void refreshAgentState()}
+                  className="mt-3 rounded-md border border-destructive/50 px-3 py-1 font-mono text-[11px] text-destructive transition-colors hover:bg-destructive/15"
+                >
+                  重试
+                </button>
+              </div>
+            ) : !loaded ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
                   <div
