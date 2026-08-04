@@ -57,27 +57,34 @@ export async function readStoredImage(path: string) {
  * 兼容历史 base64：按变体 ID 取库里的 data URL 并解码，
  * 顺带把它迁移进对象存储，之后就走存储读取。
  */
-export async function readLegacyVariantImage(variantId: string) {
+export async function readLegacyVariantImage(id: string) {
   const supabase = await admin();
-  const { data } = await supabase
-    .from("creative_variants")
-    .select("image_url")
-    .eq("id", variantId)
-    .maybeSingle();
-  const url = (data as { image_url?: string | null } | null)?.image_url ?? null;
-  if (!url || !url.startsWith("data:")) return null;
-  const parsed = parseDataUrl(url);
-  if (!parsed) return null;
 
-  // 惰性迁移：写入存储并把库里的巨型字符串换成短路径。
-  const stored = await uploadVariantImage(variantId, url);
-  if (stored) {
-    await supabase
-      .from("creative_variants")
-      .update({ image_url: stored } as never)
-      .eq("id", variantId);
+  // 素材变体与原始素材两张表都可能存着历史 base64。
+  const tables = ["creative_variants", "creative_assets"] as const;
+  for (const table of tables) {
+    const { data } = await supabase
+      .from(table)
+      .select("image_url")
+      .eq("id", id)
+      .maybeSingle();
+    const url = (data as { image_url?: string | null } | null)?.image_url ?? null;
+    if (!url) continue;
+    if (!url.startsWith("data:")) return null;
+    const parsed = parseDataUrl(url);
+    if (!parsed) return null;
+
+    // 惰性迁移：写入存储并把库里的巨型字符串换成短路径。
+    const stored = await uploadVariantImage(id, url);
+    if (stored) {
+      await supabase
+        .from(table)
+        .update({ image_url: stored } as never)
+        .eq("id", id);
+    }
+    return parsed;
   }
-  return parsed;
+  return null;
 }
 
 /** 快照映射用：绝不把 base64 下发给前端。 */
