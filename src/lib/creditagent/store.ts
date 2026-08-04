@@ -153,7 +153,10 @@ export function refreshAgentState() {
 export const agentSnapshotQuery = queryOptions({
   queryKey: ["agent-snapshot"],
   queryFn: () => fetchSnapshot(),
-  staleTime: 30_000,
+  // 切页时先用缓存立即渲染，过期后在后台静默刷新，避免导航被网络请求卡住。
+  staleTime: 60_000,
+  gcTime: 10 * 60_000,
+  refetchOnWindowFocus: false,
   retry: 3,
   retryDelay: (attemptIndex) => Math.min(1_000 * 2 ** attemptIndex, 4_000),
 });

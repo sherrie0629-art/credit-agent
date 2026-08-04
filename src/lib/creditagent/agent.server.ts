@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { checkBudgetChange } from "./guardrails";
 import { loadLimits, preflight, recordGuardrail, recordManualAction } from "./guardrails.server";
+import { toClientImageUrl } from "./image-storage.server";
 
 
 type Row = Record<string, any>;
@@ -165,7 +166,7 @@ function mapCreative(r: Row): CreativeAsset {
     id: r.id,
     headline: r.headline,
     bodyText: r.body_text,
-    imageUrl: r.image_url ?? undefined,
+    imageUrl: toClientImageUrl(r.image_url, r.id),
     loanTermRange: r.loan_term_range,
     maxApr: Number(r.max_apr),
     complianceStatus: r.compliance_status,

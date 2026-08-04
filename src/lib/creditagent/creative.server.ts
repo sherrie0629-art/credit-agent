@@ -5,6 +5,7 @@ import type { CreativeExperiment, CreativeVariant, ExperimentArm } from "./creat
 import { getCreativeFacts, getPrimaryPlacement, getSnapshot } from "./agent.server";
 import { checkComplianceGate } from "./guardrails";
 import { preflight, recordGuardrail } from "./guardrails.server";
+import { toClientImageUrl, uploadVariantImage } from "./image-storage.server";
 
 
 type Row = Record<string, any>;
@@ -35,7 +36,7 @@ export function mapVariant(r: Row): CreativeVariant {
     experimentId: r.experiment_id ?? undefined,
     headline: r.headline,
     bodyText: r.body_text,
-    imageUrl: r.image_url ?? undefined,
+    imageUrl: toClientImageUrl(r.image_url, r.id),
     angle: r.angle,
     complianceStatus: r.compliance_status,
     complianceScore: Number(r.compliance_score),
@@ -321,9 +322,15 @@ export async function generateVariants(creativeId: string) {
 
 export async function setVariantImage(variantId: string, imageUrl: string) {
   const supabase = await db();
+  // AI 生成的图是 base64 data URL，直接落库会把快照接口撑到数 MB，
+  // 因此先转存对象存储，库里只留一条短路径。
+  const stored = imageUrl.startsWith("data:")
+    ? await uploadVariantImage(variantId, imageUrl)
+    : imageUrl;
+  if (!stored) return getSnapshot();
   await supabase
     .from("creative_variants")
-    .update({ image_url: imageUrl } as never)
+    .update({ image_url: stored } as never)
     .eq("id", variantId);
   return getSnapshot();
 }
