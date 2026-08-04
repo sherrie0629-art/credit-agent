@@ -11,7 +11,7 @@ import type {
   ManagementMode,
 } from "./types";
 import { checkBudgetChange } from "./guardrails";
-import { loadLimits, preflight, recordGuardrail } from "./guardrails.server";
+import { loadLimits, preflight, recordGuardrail, recordManualAction } from "./guardrails.server";
 
 
 type Row = Record<string, any>;
@@ -534,6 +534,21 @@ export async function approveDecision(id: string) {
   if (!data) return getSnapshot();
   const decision = mapDecision(data as Row);
 
+  await recordManualAction({
+    action: "APPROVE_DECISION",
+    targetId: id,
+    rule: "MANUAL_APPROVAL",
+    detail: `人工批准决策 ${id}（${decision.actionType}）：${decision.effect}`,
+    requested: {
+      actionType: decision.actionType,
+      adGroupId: decision.adGroupId ?? null,
+      triggerSource: decision.triggerSource,
+      statusBefore: (data as Row).status,
+    },
+  });
+
+
+
   // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
   const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
   const poolEntries = await pendingAllocationsFor(id);
@@ -640,7 +655,23 @@ export async function approveDecision(id: string) {
 
 export async function rejectDecision(id: string) {
   const supabase = await db();
+  const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
   await supabase.from("agent_decisions").update({ status: "REJECTED_BY_USER" }).eq("id", id);
+  if (data) {
+    const d = mapDecision(data as Row);
+    await recordManualAction({
+      action: "REJECT_DECISION",
+      targetId: id,
+      rule: "MANUAL_REJECTION",
+      detail: `人工驳回决策 ${id}（${d.actionType}）：${d.effect}`,
+      requested: {
+        actionType: d.actionType,
+        adGroupId: d.adGroupId ?? null,
+        triggerSource: d.triggerSource,
+        statusBefore: (data as Row).status,
+      },
+    });
+  }
   return getSnapshot();
 }
 
@@ -651,6 +682,19 @@ export async function rollbackDecision(id: string) {
   const decision = mapDecision(data as Row);
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
+  await recordManualAction({
+    action: "ROLLBACK_DECISION",
+    targetId: id,
+    rule: "MANUAL_ROLLBACK",
+    detail: `人工回滚决策 ${id}（${decision.actionType}）至：${decision.rollbackTo ?? "原配置"}`,
+    requested: {
+      actionType: decision.actionType,
+      adGroupId: decision.adGroupId ?? null,
+      statusBefore: (data as Row).status,
+      rollbackTo: decision.rollbackTo ?? null,
+    },
+  });
+
 
   // 再分配卡的回滚：逐笔把加出去的预算收回，资金退回待分配池。
   const { revertReallocationDecision } = await import("./reallocate.server");
@@ -673,10 +717,25 @@ export async function rollbackDecision(id: string) {
 
 export async function setMode(mode: ManagementMode) {
   const supabase = await db();
+  const { data: prev } = await supabase
+    .from("agent_settings")
+    .select("mode")
+    .eq("id", "default")
+    .maybeSingle();
+  const from = ((prev as Row | null)?.mode as string) ?? "UNKNOWN";
   await supabase
     .from("agent_settings")
     .update({ mode, updated_at: new Date().toISOString() })
     .eq("id", "default");
+  await recordManualAction({
+    action: "SET_MODE",
+    rule: "MANUAL_MODE_CHANGE",
+    detail:
+      mode === "FULL_AUTO"
+        ? `人工将管理模式由 ${from} 切换为 FULL_AUTO：Agent 自治级别提升，符合条件的动作将不再经人工审批。`
+        : `人工将管理模式由 ${from} 切换为 ${mode}。`,
+    requested: { from, to: mode },
+  });
   return getSnapshot();
 }
 
@@ -780,6 +839,15 @@ export async function setRiskFirst(riskFirst: boolean) {
     .from("agent_settings")
     .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
     .eq("id", "default");
+  await recordManualAction({
+    action: "SET_RISK_FIRST",
+    rule: "MANUAL_RISK_FIRST",
+    detail: riskFirst
+      ? "人工开启风控优先：低通过率广告组将被自动暂停。"
+      : "人工关闭风控优先：不再按通过率阈值自动暂停广告组。",
+    requested: { to: riskFirst },
+  });
+
 
   if (!riskFirst) {
     return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
@@ -792,10 +860,41 @@ export async function setRiskFirst(riskFirst: boolean) {
 
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
+  const before = await getAdGroup(id);
   await supabase
     .from("ad_groups")
     .update({ status, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
+
+  if (before) {
+    await recordManualAction({
+      action: "SET_AD_GROUP_STATUS",
+      targetId: id,
+      rule: "MANUAL_OVERRIDE",
+      detail: `人工将广告组「${before.name}」（${before.campaignName}）从 ${before.status} 改为 ${status}。`,
+      requested: {
+        from: before.status,
+        to: status,
+        adGroupName: before.name,
+        campaignName: before.campaignName,
+      },
+    });
+
+    // 人工暂停与自动暂停口径一致：释放的剩余日预算入池，带归因。
+    if (status === "PAUSED" && before.status !== "PAUSED") {
+      const { releaseToPool } = await import("./reallocate.server");
+      await releaseToPool({
+        adGroupId: before.id,
+        adGroupName: before.name,
+        campaignId: before.campaignId,
+        campaignName: before.campaignName,
+        amount: Math.max(0, before.dailyBudget - before.spentToday),
+        reason: "MANUAL",
+        note: `人工暂停广告组「${before.name}」，释放剩余日预算入待分配池。`,
+      });
+    }
+  }
+
   return getSnapshot();
 }
 
