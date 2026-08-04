@@ -5,7 +5,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
-import { useAgentStore, agentApi, agentSnapshotQuery } from "@/lib/creditagent/store";
+import {
+  useAgentStore,
+  agentApi,
+  agentSnapshotQuery,
+  refreshAgentState,
+} from "@/lib/creditagent/store";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
