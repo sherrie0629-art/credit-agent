@@ -71,6 +71,7 @@ function CommandCenter() {
   const mode = useAgentStore((s) => s.mode);
   const campaigns = useAgentStore((s) => s.campaigns);
   const loaded = useAgentStore((s) => s.loaded);
+  const loadError = useAgentStore((s) => s.error);
 
   const [advising, setAdvising] = useState(false);
 
