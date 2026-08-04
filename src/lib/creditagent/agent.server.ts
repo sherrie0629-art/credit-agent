@@ -655,7 +655,23 @@ export async function approveDecision(id: string) {
 
 export async function rejectDecision(id: string) {
   const supabase = await db();
+  const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
   await supabase.from("agent_decisions").update({ status: "REJECTED_BY_USER" }).eq("id", id);
+  if (data) {
+    const d = mapDecision(data as Row);
+    await recordManualAction({
+      action: "REJECT_DECISION",
+      targetId: id,
+      rule: "MANUAL_REJECTION",
+      detail: `人工驳回决策 ${id}（${d.actionType}）：${d.effect}`,
+      requested: {
+        actionType: d.actionType,
+        adGroupId: d.adGroupId ?? null,
+        triggerSource: d.triggerSource,
+        statusBefore: (data as Row).status,
+      },
+    });
+  }
   return getSnapshot();
 }
 
@@ -666,6 +682,19 @@ export async function rollbackDecision(id: string) {
   const decision = mapDecision(data as Row);
 
   await supabase.from("agent_decisions").update({ status: "ROLLED_BACK" }).eq("id", id);
+  await recordManualAction({
+    action: "ROLLBACK_DECISION",
+    targetId: id,
+    rule: "MANUAL_ROLLBACK",
+    detail: `人工回滚决策 ${id}（${decision.actionType}）至：${decision.rollbackTo ?? "原配置"}`,
+    requested: {
+      actionType: decision.actionType,
+      adGroupId: decision.adGroupId ?? null,
+      statusBefore: (data as Row).status,
+      rollbackTo: decision.rollbackTo ?? null,
+    },
+  });
+
 
   // 再分配卡的回滚：逐笔把加出去的预算收回，资金退回待分配池。
   const { revertReallocationDecision } = await import("./reallocate.server");
