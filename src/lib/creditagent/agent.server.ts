@@ -11,7 +11,7 @@ import type {
   ManagementMode,
 } from "./types";
 import { checkBudgetChange } from "./guardrails";
-import { loadLimits, preflight, recordGuardrail } from "./guardrails.server";
+import { loadLimits, preflight, recordGuardrail, recordManualAction } from "./guardrails.server";
 
 
 type Row = Record<string, any>;
