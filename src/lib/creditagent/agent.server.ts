@@ -792,10 +792,41 @@ export async function setRiskFirst(riskFirst: boolean) {
 
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
+  const before = await getAdGroup(id);
   await supabase
     .from("ad_groups")
     .update({ status, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
+
+  if (before) {
+    await recordManualAction({
+      action: "SET_AD_GROUP_STATUS",
+      targetId: id,
+      rule: "MANUAL_OVERRIDE",
+      detail: `人工将广告组「${before.name}」（${before.campaignName}）从 ${before.status} 改为 ${status}。`,
+      requested: {
+        from: before.status,
+        to: status,
+        adGroupName: before.name,
+        campaignName: before.campaignName,
+      },
+    });
+
+    // 人工暂停与自动暂停口径一致：释放的剩余日预算入池，带归因。
+    if (status === "PAUSED" && before.status !== "PAUSED") {
+      const { releaseToPool } = await import("./reallocate.server");
+      await releaseToPool({
+        adGroupId: before.id,
+        adGroupName: before.name,
+        campaignId: before.campaignId,
+        campaignName: before.campaignName,
+        amount: Math.max(0, before.dailyBudget - before.spentToday),
+        reason: "MANUAL",
+        note: `人工暂停广告组「${before.name}」，释放剩余日预算入待分配池。`,
+      });
+    }
+  }
+
   return getSnapshot();
 }
 
