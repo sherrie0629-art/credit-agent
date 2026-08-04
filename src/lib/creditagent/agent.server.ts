@@ -166,7 +166,7 @@ function mapCreative(r: Row): CreativeAsset {
     id: r.id,
     headline: r.headline,
     bodyText: r.body_text,
-    imageUrl: r.image_url ?? undefined,
+    imageUrl: toClientImageUrl(r.image_url, r.id),
     loanTermRange: r.loan_term_range,
     maxApr: Number(r.max_apr),
     complianceStatus: r.compliance_status,
