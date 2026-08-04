@@ -112,7 +112,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {error && (
           <div className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
             <TriangleAlert className="size-4 shrink-0" />
-            <span>后端数据加载失败：{error}。当前页面显示的是空数据，不代表数据库无记录。</span>
+            <span>
+              后端数据加载失败：{error}（已自动重试 3 次）。
+              {loaded
+                ? "当前显示的是上一次成功获取的数据，可能已过期。"
+                : "当前页面显示的是空数据，不代表数据库无记录。"}
+            </span>
             <button
               type="button"
               disabled={loading}
