@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { checkBudgetChange } from "./guardrails";
 import { loadLimits, preflight, recordGuardrail, recordManualAction } from "./guardrails.server";
+import { toClientImageUrl } from "./image-storage.server";
 
 
 type Row = Record<string, any>;
