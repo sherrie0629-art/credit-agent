@@ -32,6 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const online = useAgentStore((s) => s.agentOnline);
   const error = useAgentStore((s) => s.error);
   const loading = useAgentStore((s) => s.loading);
+  const loaded = useAgentStore((s) => s.loaded);
 
 
   return (
