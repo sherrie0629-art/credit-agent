@@ -66,6 +66,30 @@ export async function recordGuardrail(input: {
 }
 
 /**
+ * 人工操作审计留痕：只记录，不拦截。
+ * 写入失败不抛出——审计不能把人工止血操作卡死。
+ */
+export async function recordManualAction(input: {
+  action: string;
+  targetId?: string;
+  rule: string;
+  detail: string;
+  requested?: Record<string, unknown>;
+}): Promise<boolean> {
+  try {
+    await recordGuardrail({
+      action: input.action,
+      targetId: input.targetId,
+      decision: { verdict: "ALLOW", rule: input.rule, detail: input.detail },
+      requested: input.requested,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 全局前置闸门：熔断 + 频次。任何自动写入路径都先调用它。
  * automated=false 时表示人工操作，只受熔断之外的规则约束。
  */
