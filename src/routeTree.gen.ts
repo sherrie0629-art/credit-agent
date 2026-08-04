@@ -21,6 +21,7 @@ import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loa
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
 import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -84,6 +85,12 @@ const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
   path: '/api/public/cron/agent-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCreativeImageSplatRoute =
+  ApiPublicCreativeImageSplatRouteImport.update({
+    id: '/api/public/creative-image/$',
+    path: '/api/public/creative-image/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -110,6 +118,7 @@ export interface FileRoutesByTo {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -125,6 +134,7 @@ export interface FileRoutesById {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
+  '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/creative-image/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesByTo: FileRoutesByTo
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/creative-image/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   id:
@@ -169,6 +181,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
+    | '/api/public/creative-image/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesById: FileRoutesById
@@ -184,6 +197,7 @@ export interface RootRouteChildren {
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
+  ApiPublicCreativeImageSplatRoute: typeof ApiPublicCreativeImageSplatRoute
   ApiPublicCronAgentSweepRoute: typeof ApiPublicCronAgentSweepRoute
   ApiPublicCronUploadConversionsRoute: typeof ApiPublicCronUploadConversionsRoute
 }
@@ -274,6 +288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronAgentSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/creative-image/$': {
+      id: '/api/public/creative-image/$'
+      path: '/api/public/creative-image/$'
+      fullPath: '/api/public/creative-image/$'
+      preLoaderRoute: typeof ApiPublicCreativeImageSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -288,6 +309,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
+  ApiPublicCreativeImageSplatRoute: ApiPublicCreativeImageSplatRoute,
   ApiPublicCronAgentSweepRoute: ApiPublicCronAgentSweepRoute,
   ApiPublicCronUploadConversionsRoute: ApiPublicCronUploadConversionsRoute,
 }

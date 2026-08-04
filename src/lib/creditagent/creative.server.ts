@@ -35,7 +35,7 @@ export function mapVariant(r: Row): CreativeVariant {
     experimentId: r.experiment_id ?? undefined,
     headline: r.headline,
     bodyText: r.body_text,
-    imageUrl: r.image_url ?? undefined,
+    imageUrl: toClientImageUrl(r.image_url, r.id),
     angle: r.angle,
     complianceStatus: r.compliance_status,
     complianceScore: Number(r.compliance_score),
