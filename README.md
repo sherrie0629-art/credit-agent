@@ -1,14 +1,18 @@
-# Welcome to your Lovable project
+# Agent Builder Assistant
+
+按照附件中的需求文档帮我生成 agent 应用，如果你觉得需求过长，可以生成分步骤的实施方案或者清单
 
 This project was built with [Lovable](https://lovable.dev).
 
+**Live app**: https://credit-agent.lovable.app
+
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/fbb79c3c-e136-405b-91d9-6e9a53a5b400).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +24,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
