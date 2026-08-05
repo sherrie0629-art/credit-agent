@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { agentApi, useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
+import { agentApi, useAgentStore, agentSnapshotQuery, prefetchQueryNonBlocking } from "@/lib/creditagent/store";
 import type { AdGroup } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
 
@@ -170,8 +170,7 @@ export const Route = createFileRoute("/campaigns")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
+  loader: ({ context }) => prefetchQueryNonBlocking(context.queryClient, agentSnapshotQuery),
   component: CampaignsPage,
 });
 

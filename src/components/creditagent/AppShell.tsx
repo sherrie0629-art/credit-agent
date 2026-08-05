@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
@@ -28,11 +29,35 @@ const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useAgentBootstrap();
+  const router = useRouter();
   const mode = useAgentStore((s) => s.mode);
   const online = useAgentStore((s) => s.agentOnline);
   const error = useAgentStore((s) => s.error);
   const loading = useAgentStore((s) => s.loading);
   const loaded = useAgentStore((s) => s.loaded);
+
+  // 空闲时预热所有菜单页的代码块（图表页尤其重），点击时无需现下载。
+  useEffect(() => {
+    const idle =
+      (window as unknown as { requestIdleCallback?: (cb: () => void) => number })
+        .requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1_200));
+    const id = idle(() => {
+      for (const item of NAV) {
+        if (item.to === pathname) continue;
+        void router.preloadRoute({ to: item.to }).catch(() => undefined);
+      }
+    });
+    return () => {
+      const cancel = (window as unknown as { cancelIdleCallback?: (h: number) => void })
+        .cancelIdleCallback;
+      if (cancel) cancel(id as number);
+      else window.clearTimeout(id as number);
+    };
+    // 只需在首次挂载时预热一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
 
 
   return (

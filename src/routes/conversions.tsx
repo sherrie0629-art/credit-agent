@@ -30,7 +30,11 @@ import {
   simulateBatchFn,
   updateConversionSettingFn,
 } from "@/lib/creditagent/conversions.functions";
-import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
+import {
+  useAgentStore,
+  agentSnapshotQuery,
+  prefetchQueryNonBlocking,
+} from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/conversions")({
@@ -51,18 +55,22 @@ export const Route = createFileRoute("/conversions")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  loader: ({ context }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(agentSnapshotQuery).catch(() => undefined),
-      context.queryClient.ensureQueryData(conversionSnapshotQuery).catch(() => undefined),
-    ]).then(() => undefined),
+  loader: ({ context }) => {
+    const a = prefetchQueryNonBlocking(context.queryClient, agentSnapshotQuery);
+    const b = prefetchQueryNonBlocking(context.queryClient, conversionSnapshotQuery);
+    if (!a && !b) return undefined;
+    return Promise.all([a, b]).then(() => undefined);
+  },
   component: ConversionsPage,
 });
 
 const conversionSnapshotQuery = queryOptions({
   queryKey: ["conversion-snapshot"],
   queryFn: () => fetchConversionSnapshot(),
-  staleTime: 30_000,
+  // 与主快照保持一致：先用缓存渲染，过期后后台静默刷新。
+  staleTime: 60_000,
+  gcTime: 10 * 60_000,
+  refetchOnWindowFocus: false,
 });
 
 

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSyncExternalStore } from "react";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, type QueryClient } from "@tanstack/react-query";
 
 import {
   applyAiSuggestionFn,
@@ -160,6 +160,23 @@ export const agentSnapshotQuery = queryOptions({
   retry: 3,
   retryDelay: (attemptIndex) => Math.min(1_000 * 2 ** attemptIndex, 4_000),
 });
+
+/**
+ * 路由 loader 用的非阻塞预取：首次加载（缓存为空 / SSR）时才等待数据，
+ * 之后切页一律立即渲染上一次的缓存，新数据在后台静默到达。
+ */
+export function prefetchQueryNonBlocking(
+  queryClient: QueryClient,
+  options: { queryKey: readonly unknown[] },
+) {
+  const cached = queryClient.getQueryData(options.queryKey);
+  const promise = queryClient
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .ensureQueryData(options as any)
+    .catch(() => undefined);
+  if (cached !== undefined) return undefined;
+  return promise.then(() => undefined);
+}
 
 /** Feeds the SSR-prefetched snapshot into the store (called from the app shell). */
 export function useAgentBootstrap() {
