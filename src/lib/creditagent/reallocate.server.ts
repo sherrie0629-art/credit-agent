@@ -117,16 +117,13 @@ export async function expireStalePool() {
 
 /** 当日资金池状态：余额 = 已生效释放 − （已生效 + 待审批）分配。 */
 export async function getPoolState(): Promise<BudgetPoolState> {
-  const supabase = await db();
-  const day = today();
-  const { data } = await supabase
-    .from("budget_pool_entries")
-    .select("*")
-    .eq("pool_day", day)
-    .neq("status", "REVERTED")
-    .order("created_at", { ascending: false });
+  const { getReadClient } = await import("./read-client.server");
+  const supabase = await getReadClient();
+  // SECURITY DEFINER RPC so local dev (publishable key only) can read it too.
+  const { data } = await (supabase as any).rpc("get_budget_pool_today");
 
   const entries = ((data ?? []) as Row[]).map(mapEntry);
+
   const released = entries
     .filter((e) => e.direction === "RELEASE" && e.status === "APPLIED")
     .reduce((s, e) => s + e.amount, 0);
@@ -141,7 +138,8 @@ export async function getPoolState(): Promise<BudgetPoolState> {
     entries.find((e) => e.direction === "ALLOCATE" && e.status === "APPLIED")?.createdAt ?? null;
 
   return {
-    day,
+    day: today(),
+
     released,
     allocated,
     reserved,

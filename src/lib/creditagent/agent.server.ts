@@ -376,7 +376,8 @@ function feedbackHealthFrom(payload: Row): FeedbackHealth[] {
  * ~25 separate Data API requests, which dominated page load time.
  */
 export async function getSnapshot(): Promise<AgentSnapshot> {
-  const supabase = await db();
+  const { getReadClient } = await import("./read-client.server");
+  const supabase = await getReadClient();
   const { mapMetric, mapVariant, mapExperiment } = await import("./creative.server");
   const { getPoolState } = await import("./reallocate.server");
 
@@ -384,6 +385,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     (supabase as any).rpc("get_agent_snapshot"),
     getPoolState(),
   ]);
+
   if (error) throw new Error(error.message);
   const payload = (data ?? {}) as Row;
 
