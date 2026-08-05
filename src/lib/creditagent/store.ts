@@ -167,7 +167,7 @@ export const agentSnapshotQuery = queryOptions({
  */
 export function prefetchQueryNonBlocking(
   queryClient: QueryClient,
-  options: { queryKey: readonly unknown[]; queryFn: (...args: never[]) => unknown },
+  options: { queryKey: readonly unknown[] },
 ) {
   const cached = queryClient.getQueryData(options.queryKey);
   const promise = queryClient
