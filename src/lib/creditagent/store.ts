@@ -167,10 +167,13 @@ export const agentSnapshotQuery = queryOptions({
  */
 export function prefetchQueryNonBlocking(
   queryClient: QueryClient,
-  options: Parameters<QueryClient["ensureQueryData"]>[0],
+  options: { queryKey: readonly unknown[]; queryFn: (...args: never[]) => unknown },
 ) {
   const cached = queryClient.getQueryData(options.queryKey);
-  const promise = queryClient.ensureQueryData(options).catch(() => undefined);
+  const promise = queryClient
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .ensureQueryData(options as any)
+    .catch(() => undefined);
   if (cached !== undefined) return undefined;
   return promise.then(() => undefined);
 }
