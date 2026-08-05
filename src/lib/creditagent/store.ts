@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSyncExternalStore } from "react";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, type QueryClient } from "@tanstack/react-query";
 
 import {
   applyAiSuggestionFn,
