@@ -42,6 +42,8 @@ export function CreativeLibraryTab({
   const [imgBusy, setImgBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, { src: string; final: boolean }>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+
 
   const placementsByCreative = useMemo(() => {
     const map = new Map<string, CreativePlacement[]>();
@@ -166,7 +168,27 @@ export function CreativeLibraryTab({
         return (
           <article key={c.id} className="panel space-y-4 p-4">
             <div className="flex flex-wrap items-start gap-3">
+              {c.imageUrl && !failed[c.id] ? (
+                <a href={c.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                  <img
+                    src={c.imageUrl}
+                    alt={`素材原图：${c.headline}`}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
+                    className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
+                  />
+                </a>
+              ) : (
+                <div className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
+                  <ImageIcon className="size-4 opacity-60" />
+                  <span className="text-[10px]">
+                    {failed[c.id] ? "图片加载失败" : "暂无原图"}
+                  </span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
+
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
@@ -369,18 +391,27 @@ export function CreativeLibraryTab({
                           <span className="ml-auto label-mono">{VARIANT_STATUS_LABEL[v.status]}</span>
                         </div>
 
-                        {img && (
+                        {img && !failed[v.id] ? (
                           <img
                             src={img}
                             alt={`变体主视觉：${v.angle}`}
                             loading="lazy"
                             decoding="async"
+                            onError={() => setFailed((s) => ({ ...s, [v.id]: true }))}
                             className={cn(
                               "mt-2 aspect-video w-full rounded object-cover transition-[filter]",
                               p && !p.final ? "blur-xl" : "blur-0",
                             )}
                           />
+                        ) : (
+                          <div className="mt-2 flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
+                            <ImageIcon className="size-5 opacity-60" />
+                            <span className="text-[11px]">
+                              {failed[v.id] ? "图片加载失败，可重新生成" : "尚未生成主视觉"}
+                            </span>
+                          </div>
                         )}
+
 
                         <p className="mt-2 text-[11px] text-neon">{v.angle}</p>
                         <p className="mt-1 text-xs font-medium">{v.headline}</p>
