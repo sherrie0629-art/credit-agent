@@ -168,7 +168,27 @@ export function CreativeLibraryTab({
         return (
           <article key={c.id} className="panel space-y-4 p-4">
             <div className="flex flex-wrap items-start gap-3">
+              {c.imageUrl && !failed[c.id] ? (
+                <a href={c.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+                  <img
+                    src={c.imageUrl}
+                    alt={`素材原图：${c.headline}`}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
+                    className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
+                  />
+                </a>
+              ) : (
+                <div className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
+                  <ImageIcon className="size-4 opacity-60" />
+                  <span className="text-[10px]">
+                    {failed[c.id] ? "图片加载失败" : "暂无原图"}
+                  </span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
+
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
