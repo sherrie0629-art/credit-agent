@@ -9,6 +9,7 @@ import {
   useAgentStore,
   agentApi,
   agentSnapshotQuery,
+  prefetchQueryNonBlocking,
   refreshAgentState,
 } from "@/lib/creditagent/store";
 import { Badge } from "@/components/ui/badge";
