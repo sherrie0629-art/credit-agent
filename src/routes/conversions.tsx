@@ -30,7 +30,11 @@ import {
   simulateBatchFn,
   updateConversionSettingFn,
 } from "@/lib/creditagent/conversions.functions";
-import { useAgentStore, agentSnapshotQuery } from "@/lib/creditagent/store";
+import {
+  useAgentStore,
+  agentSnapshotQuery,
+  prefetchQueryNonBlocking,
+} from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/conversions")({
