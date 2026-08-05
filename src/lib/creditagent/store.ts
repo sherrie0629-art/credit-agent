@@ -161,6 +161,20 @@ export const agentSnapshotQuery = queryOptions({
   retryDelay: (attemptIndex) => Math.min(1_000 * 2 ** attemptIndex, 4_000),
 });
 
+/**
+ * 路由 loader 用的非阻塞预取：首次加载（缓存为空 / SSR）时才等待数据，
+ * 之后切页一律立即渲染上一次的缓存，新数据在后台静默到达。
+ */
+export function prefetchQueryNonBlocking(
+  queryClient: QueryClient,
+  options: Parameters<QueryClient["ensureQueryData"]>[0],
+) {
+  const cached = queryClient.getQueryData(options.queryKey);
+  const promise = queryClient.ensureQueryData(options).catch(() => undefined);
+  if (cached !== undefined) return undefined;
+  return promise.then(() => undefined);
+}
+
 /** Feeds the SSR-prefetched snapshot into the store (called from the app shell). */
 export function useAgentBootstrap() {
   const { data, error, isFetching } = useQuery(agentSnapshotQuery);
