@@ -1025,6 +1025,7 @@ export type Database = {
     }
     Functions: {
       get_agent_snapshot: { Args: never; Returns: Json }
+      get_budget_pool_today: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never
