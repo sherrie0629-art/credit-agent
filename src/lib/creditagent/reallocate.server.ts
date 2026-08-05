@@ -138,7 +138,8 @@ export async function getPoolState(): Promise<BudgetPoolState> {
     entries.find((e) => e.direction === "ALLOCATE" && e.status === "APPLIED")?.createdAt ?? null;
 
   return {
-    day,
+    day: today(),
+
     released,
     allocated,
     reserved,
