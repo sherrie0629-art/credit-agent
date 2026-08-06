@@ -15,6 +15,7 @@ import { computeFatigue, FATIGUE_LEVEL_LABEL, type FatigueLevel } from "@/lib/cr
 import { VARIANT_STATUS_LABEL } from "@/lib/creditagent/creative-types";
 import type { ComplianceInput } from "@/lib/creditagent/compliance";
 import type { CreativePlacement } from "@/lib/creditagent/types";
+import { creativeThumbUrl } from "@/lib/creditagent/image-url";
 import { streamImage } from "@/lib/streamImage";
 import { cn } from "@/lib/utils";
 
@@ -171,10 +172,11 @@ export function CreativeLibraryTab({
               {c.imageUrl && !failed[c.id] ? (
                 <a href={c.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
                   <img
-                    src={c.imageUrl}
+                    src={creativeThumbUrl(c.imageUrl, 256)}
                     alt={`素材原图：${c.headline}`}
                     loading="lazy"
                     decoding="async"
+                    fetchPriority="low"
                     onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
                     className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
                   />
@@ -393,10 +395,11 @@ export function CreativeLibraryTab({
 
                         {img && !failed[v.id] ? (
                           <img
-                            src={img}
+                            src={p?.src && !p.final ? img : creativeThumbUrl(img, 480)}
                             alt={`变体主视觉：${v.angle}`}
                             loading="lazy"
                             decoding="async"
+                            fetchPriority="low"
                             onError={() => setFailed((s) => ({ ...s, [v.id]: true }))}
                             className={cn(
                               "mt-2 aspect-video w-full rounded object-cover transition-[filter]",

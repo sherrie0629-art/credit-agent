@@ -5,7 +5,7 @@ import type { CreativeExperiment, CreativeVariant, ExperimentArm } from "./creat
 import { getCreativeFacts, getPrimaryPlacement, getSnapshot } from "./agent.server";
 import { checkComplianceGate } from "./guardrails";
 import { preflight, recordGuardrail } from "./guardrails.server";
-import { toClientImageUrl, uploadVariantImage } from "./image-storage.server";
+import { IMAGE_ROUTE_PREFIX, toClientImageUrl, uploadVariantImage } from "./image-storage.server";
 
 
 type Row = Record<string, any>;
@@ -592,12 +592,21 @@ export async function settleExperiment(experimentId: string) {
   const wv = winnerVariant.data ? mapVariant(winnerVariant.data as Row) : null;
 
   if (wv) {
+    // 写入 DB 的必须是存储短路径或 null，不能写 toClientImageUrl 产出的 legacy/ 代理地址。
+    const rawImageUrl = (winnerVariant.data as Row | null)?.image_url as string | null | undefined;
+    let promotedImageUrl: string | null = rawImageUrl ?? null;
+    if (promotedImageUrl?.startsWith("data:")) {
+      promotedImageUrl = (await uploadVariantImage(winner.armId, promotedImageUrl)) ?? null;
+    } else if (promotedImageUrl?.includes("/legacy/")) {
+      promotedImageUrl = `${IMAGE_ROUTE_PREFIX}/variants/${winner.armId}.png`;
+    }
+
     await supabase
       .from("creative_assets")
       .update({
         headline: wv.headline,
         body_text: wv.bodyText,
-        image_url: wv.imageUrl ?? null,
+        image_url: promotedImageUrl,
         compliance_status: wv.complianceStatus,
         fatigue_score: 0,
         fatigue_level: "HEALTHY",

@@ -28,11 +28,13 @@ export async function uploadVariantImage(
 ): Promise<string | null> {
   const parsed = parseDataUrl(dataUrl);
   if (!parsed) return null;
-  const ext = parsed.contentType.split("/")[1]?.split("+")[0] ?? "png";
-  const path = `variants/${variantId}.${ext}`;
+
+  const { optimizeForStorage } = await import("./image-transform.server");
+  const optimized = await optimizeForStorage(parsed.bytes, parsed.contentType);
+  const path = `variants/${variantId}.${optimized.ext}`;
   const supabase = await admin();
-  const { error } = await supabase.storage.from(BUCKET).upload(path, parsed.bytes, {
-    contentType: parsed.contentType,
+  const { error } = await supabase.storage.from(BUCKET).upload(path, optimized.bytes, {
+    contentType: optimized.contentType,
     upsert: true,
   });
   if (error) {
@@ -42,8 +44,10 @@ export async function uploadVariantImage(
   return `${IMAGE_ROUTE_PREFIX}/${path}`;
 }
 
+type ResolvedImage = { bytes: Uint8Array; contentType: string };
+
 /** 读取存储对象；给公开图片路由用。 */
-export async function readStoredImage(path: string) {
+export async function readStoredImage(path: string): Promise<ResolvedImage | null> {
   const supabase = await admin();
   const { data, error } = await supabase.storage.from(BUCKET).download(path);
   if (error || !data) return null;
@@ -53,11 +57,27 @@ export async function readStoredImage(path: string) {
   };
 }
 
+function storagePathFromRouteUrl(url: string): string | null {
+  if (!url.startsWith(`${IMAGE_ROUTE_PREFIX}/`)) return null;
+  const path = url.slice(IMAGE_ROUTE_PREFIX.length + 1);
+  if (!path || path.startsWith("legacy/")) return null;
+  return path;
+}
+
+/** legacy/{id} 404 时，按常见扩展名回退到对象存储里的 variants/{id}.* */
+async function readStoredImageById(id: string): Promise<ResolvedImage | null> {
+  for (const ext of ["png", "webp", "jpeg", "jpg"]) {
+    const hit = await readStoredImage(`variants/${id}.${ext}`);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /**
  * 兼容历史 base64：按变体 ID 取库里的 data URL 并解码，
  * 顺带把它迁移进对象存储，之后就走存储读取。
  */
-export async function readLegacyVariantImage(id: string) {
+export async function readLegacyVariantImage(id: string): Promise<ResolvedImage | null> {
   const supabase = await admin();
 
   // 素材变体与原始素材两张表都可能存着历史 base64。
@@ -70,9 +90,17 @@ export async function readLegacyVariantImage(id: string) {
       .maybeSingle();
     const url = (data as { image_url?: string | null } | null)?.image_url ?? null;
     if (!url) continue;
-    if (!url.startsWith("data:")) return null;
+
+    const storagePath = storagePathFromRouteUrl(url);
+    if (storagePath) {
+      const stored = await readStoredImage(storagePath);
+      if (stored) return stored;
+      continue;
+    }
+
+    if (!url.startsWith("data:")) continue;
     const parsed = parseDataUrl(url);
-    if (!parsed) return null;
+    if (!parsed) continue;
 
     // 惰性迁移：写入存储并把库里的巨型字符串换成短路径。
     const stored = await uploadVariantImage(id, url);
@@ -84,12 +112,22 @@ export async function readLegacyVariantImage(id: string) {
     }
     return parsed;
   }
-  return null;
+  return readStoredImageById(id);
+}
+
+/** 图片路由统一入口：legacy/* 与 variants/* 都走这里。 */
+export async function resolveCreativeImage(splat: string): Promise<ResolvedImage | null> {
+  if (splat.startsWith("legacy/")) {
+    return readLegacyVariantImage(splat.slice("legacy/".length));
+  }
+  return readStoredImage(splat);
 }
 
 /** 快照映射用：绝不把 base64 下发给前端。 */
 export function toClientImageUrl(raw: string | null | undefined, variantId: string) {
   if (!raw) return undefined;
   if (raw.startsWith("data:")) return `${IMAGE_ROUTE_PREFIX}/legacy/${variantId}`;
+  // 历史脏数据：DB 里误存了 legacy/ 代理地址，实际文件在 variants/{id}.png。
+  if (raw.includes("/legacy/")) return `${IMAGE_ROUTE_PREFIX}/variants/${variantId}.png`;
   return raw;
 }
