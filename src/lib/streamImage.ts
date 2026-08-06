@@ -45,9 +45,11 @@ export async function streamImage(
       )
         return;
       if (!payload) return;
+      const b64 = (payload as { b64_json?: string }).b64_json;
+      if (typeof b64 !== "string" || b64.length === 0) return;
       const isFinal = event.event === "image_generation.completed";
       flushSync(() => {
-        onFrame(`data:image/png;base64,${(payload as { b64_json: string }).b64_json}`, isFinal);
+        onFrame(`data:image/png;base64,${b64}`, isFinal);
       });
       if (isFinal) sawCompleted = true;
     },

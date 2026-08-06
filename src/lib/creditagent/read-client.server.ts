@@ -3,8 +3,8 @@
 // Production (Lovable Cloud) injects SUPABASE_SERVICE_ROLE_KEY, so we keep using
 // the admin client there. Local development (e.g. Cursor) only has the
 // publishable key, which cannot bypass RLS — for those environments we fall back
-// to a publishable-key client that calls the two SECURITY DEFINER read-only RPCs
-// (`get_agent_snapshot`, `get_budget_pool_today`) granted to `anon`.
+// to a publishable-key client that calls SECURITY DEFINER read-only RPCs
+// (`get_agent_snapshot`, `get_budget_pool_today`, `get_conversion_snapshot`) granted to `anon`.
 //
 // Writes always keep using the admin client and will fail loudly without the
 // service role key.

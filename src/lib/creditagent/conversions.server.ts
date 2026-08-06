@@ -758,25 +758,10 @@ export async function updateSetting(
  * Snapshot for the dashboard
  * ------------------------------------------------------------------ */
 
-export async function getConversionSnapshot(): Promise<ConversionSnapshot> {
-  const supabase = await db();
-  const [uploadsRes, settingsRes, leadCountRes] = await Promise.all([
-    supabase.from("conversion_uploads").select("*").order("created_at", { ascending: false }).limit(200),
-    supabase.from("conversion_settings").select("*").order("platform"),
-    supabase.from("leads").select("id", { count: "exact", head: true }),
-  ]);
-
-  const uploadRows = (uploadsRes.data ?? []) as Row[];
-  const { data: events } = await supabase
-    .from("lead_events")
-    .select("*")
-    .in("id", uploadRows.map((u) => u.event_id));
-  const eventById = new Map(((events ?? []) as Row[]).map((e) => [e.id, e]));
-  const { data: leads } = await supabase
-    .from("leads")
-    .select("id, channel, campaign_id")
-    .in("id", [...new Set(((events ?? []) as Row[]).map((e) => e.lead_id))]);
-  const leadById = new Map(((leads ?? []) as Row[]).map((l) => [l.id, l]));
+function mapConversionSnapshot(payload: Row): ConversionSnapshot {
+  const uploadRows = (payload.conversion_uploads ?? []) as Row[];
+  const eventById = new Map(((payload.lead_events ?? []) as Row[]).map((e) => [e.id, e]));
+  const leadById = new Map(((payload.leads ?? []) as Row[]).map((l) => [l.id, l]));
 
   const uploads: UploadRow[] = uploadRows.map((u) => {
     const e = eventById.get(u.event_id);
@@ -809,16 +794,9 @@ export async function getConversionSnapshot(): Promise<ConversionSnapshot> {
     .map((u) => (new Date(u.sentAt!).getTime() - new Date(u.occurredAt).getTime()) / 60_000)
     .filter((v) => v >= 0);
 
-  // Attribution: DB-side disbursements vs. what actually reached the platforms.
-  const { data: disbursed } = await supabase
-    .from("lead_events")
-    .select("id, occurred_at")
-    .eq("event_type", "LOAN_DISBURSED")
-    .order("occurred_at", { ascending: false })
-    .limit(400);
   const sentEventIds = new Set(sent.map((u) => u.eventId));
   const byDay = new Map<string, AttributionDay>();
-  for (const e of ((disbursed ?? []) as Row[])) {
+  for (const e of (payload.disbursed_events ?? []) as Row[]) {
     const day = String(e.occurred_at).slice(5, 10);
     const entry = byDay.get(day) ?? { day, dbDisbursed: 0, platformReported: 0 };
     entry.dbDisbursed += 1;
@@ -829,8 +807,8 @@ export async function getConversionSnapshot(): Promise<ConversionSnapshot> {
 
   return {
     uploads,
-    settings: ((settingsRes.data ?? []) as Row[]).map(mapSetting),
-    leadCount: leadCountRes.count ?? 0,
+    settings: ((payload.conversion_settings ?? []) as Row[]).map(mapSetting),
+    leadCount: Number(payload.lead_count ?? 0),
     attribution,
     kpis: {
       pending: uploads.filter((u) => u.status === "PENDING").length,
@@ -845,4 +823,13 @@ export async function getConversionSnapshot(): Promise<ConversionSnapshot> {
       uploadedValue: sent.reduce((a, u) => a + u.value, 0),
     },
   };
+}
+
+/** Aggregated read path — works with publishable key via SECURITY DEFINER RPC. */
+export async function getConversionSnapshot(): Promise<ConversionSnapshot> {
+  const { getReadClient } = await import("./read-client.server");
+  const supabase = await getReadClient();
+  const { data, error } = await (supabase as any).rpc("get_conversion_snapshot");
+  if (error) throw new Error(error.message);
+  return mapConversionSnapshot((data ?? {}) as Row);
 }
