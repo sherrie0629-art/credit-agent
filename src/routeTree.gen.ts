@@ -9,43 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AnalyticsRouteImport } from './routes/analytics'
-import { Route as CampaignsRouteImport } from './routes/campaigns'
-import { Route as ConversionsRouteImport } from './routes/conversions'
-import { Route as CreativeRouteImport } from './routes/creative'
-import { Route as LpRouteImport } from './routes/lp'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as LpRouteImport } from './routes/lp'
+import { Route as CreativeRouteImport } from './routes/creative'
+import { Route as ConversionsRouteImport } from './routes/conversions'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
-import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
-import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
-import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
+import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalyticsRoute = AnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CampaignsRoute = CampaignsRouteImport.update({
-  id: '/campaigns',
-  path: '/campaigns',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConversionsRoute = ConversionsRouteImport.update({
-  id: '/conversions',
-  path: '/conversions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CreativeRoute = CreativeRouteImport.update({
-  id: '/creative',
-  path: '/creative',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LpRoute = LpRouteImport.update({
@@ -53,9 +33,29 @@ const LpRoute = LpRouteImport.update({
   path: '/lp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const CreativeRoute = CreativeRouteImport.update({
+  id: '/creative',
+  path: '/creative',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversionsRoute = ConversionsRouteImport.update({
+  id: '/conversions',
+  path: '/conversions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGenerateCreativeImageRoute =
@@ -64,20 +64,20 @@ const ApiGenerateCreativeImageRoute =
     path: '/api/generate-creative-image',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
-  id: '/api/public/leads',
-  path: '/api/public/leads',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicLoanEventsRoute = ApiPublicLoanEventsRouteImport.update({
   id: '/api/public/loan-events',
   path: '/api/public/loan-events',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicCreativeImageSplatRoute =
-  ApiPublicCreativeImageSplatRouteImport.update({
-    id: '/api/public/creative-image/$',
-    path: '/api/public/creative-image/$',
+const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
+  id: '/api/public/leads',
+  path: '/api/public/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicCronUploadConversionsRoute =
+  ApiPublicCronUploadConversionsRouteImport.update({
+    id: '/api/public/cron/upload-conversions',
+    path: '/api/public/cron/upload-conversions',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
@@ -85,10 +85,10 @@ const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
   path: '/api/public/cron/agent-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicCronUploadConversionsRoute =
-  ApiPublicCronUploadConversionsRouteImport.update({
-    id: '/api/public/cron/upload-conversions',
-    path: '/api/public/cron/upload-conversions',
+const ApiPublicCreativeImageSplatRoute =
+  ApiPublicCreativeImageSplatRouteImport.update({
+    id: '/api/public/creative-image/$',
+    path: '/api/public/creative-image/$',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -204,39 +204,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analytics': {
-      id: '/analytics'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/campaigns': {
-      id: '/campaigns'
-      path: '/campaigns'
-      fullPath: '/campaigns'
-      preLoaderRoute: typeof CampaignsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/conversions': {
-      id: '/conversions'
-      path: '/conversions'
-      fullPath: '/conversions'
-      preLoaderRoute: typeof ConversionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/creative': {
-      id: '/creative'
-      path: '/creative'
-      fullPath: '/creative'
-      preLoaderRoute: typeof CreativeRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lp': {
@@ -246,11 +218,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
+    '/creative': {
+      id: '/creative'
+      path: '/creative'
+      fullPath: '/creative'
+      preLoaderRoute: typeof CreativeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conversions': {
+      id: '/conversions'
+      path: '/conversions'
+      fullPath: '/conversions'
+      preLoaderRoute: typeof ConversionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/generate-creative-image': {
@@ -260,13 +260,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/leads': {
-      id: '/api/public/leads'
-      path: '/api/public/leads'
-      fullPath: '/api/public/leads'
-      preLoaderRoute: typeof ApiPublicLeadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/loan-events': {
       id: '/api/public/loan-events'
       path: '/api/public/loan-events'
@@ -274,11 +267,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLoanEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/creative-image/$': {
-      id: '/api/public/creative-image/$'
-      path: '/api/public/creative-image/$'
-      fullPath: '/api/public/creative-image/$'
-      preLoaderRoute: typeof ApiPublicCreativeImageSplatRouteImport
+    '/api/public/leads': {
+      id: '/api/public/leads'
+      path: '/api/public/leads'
+      fullPath: '/api/public/leads'
+      preLoaderRoute: typeof ApiPublicLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/cron/upload-conversions': {
+      id: '/api/public/cron/upload-conversions'
+      path: '/api/public/cron/upload-conversions'
+      fullPath: '/api/public/cron/upload-conversions'
+      preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/cron/agent-sweep': {
@@ -288,11 +288,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronAgentSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/cron/upload-conversions': {
-      id: '/api/public/cron/upload-conversions'
-      path: '/api/public/cron/upload-conversions'
-      fullPath: '/api/public/cron/upload-conversions'
-      preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
+    '/api/public/creative-image/$': {
+      id: '/api/public/creative-image/$'
+      path: '/api/public/creative-image/$'
+      fullPath: '/api/public/creative-image/$'
+      preLoaderRoute: typeof ApiPublicCreativeImageSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
