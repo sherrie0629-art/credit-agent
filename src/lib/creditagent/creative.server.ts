@@ -5,7 +5,7 @@ import type { CreativeExperiment, CreativeVariant, ExperimentArm } from "./creat
 import { getCreativeFacts, getPrimaryPlacement, getSnapshot } from "./agent.server";
 import { checkComplianceGate } from "./guardrails";
 import { preflight, recordGuardrail } from "./guardrails.server";
-import { IMAGE_ROUTE_PREFIX, toClientImageUrl } from "./image-storage.server";
+import { IMAGE_ROUTE_PREFIX, toClientImageUrl, uploadVariantImage } from "./image-storage.server";
 
 
 type Row = Record<string, any>;
