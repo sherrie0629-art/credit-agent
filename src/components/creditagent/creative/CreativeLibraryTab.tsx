@@ -208,26 +208,70 @@ export function CreativeLibraryTab({
         return (
           <article key={c.id} className="panel space-y-4 p-4">
             <div className="flex flex-wrap items-start gap-3">
-              {c.imageUrl && !failed[c.id] ? (
-                <a href={c.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                  <img
-                    src={creativeThumbUrl(c.imageUrl, 256)}
-                    alt={`素材原图：${c.headline}`}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="low"
-                    onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
-                    className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
-                  />
-                </a>
-              ) : (
-                <div className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
-                  <ImageIcon className="size-4 opacity-60" />
-                  <span className="text-[10px]">
-                    {failed[c.id] ? "图片加载失败" : "暂无原图"}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const shot = preview[c.id];
+                const assetPrompt = `${c.headline}. ${c.bodyText}`;
+                const busy = Boolean(stage[c.id]);
+                if (shot) {
+                  return (
+                    <div className="shrink-0">
+                      <img
+                        src={shot.src}
+                        alt={`素材原图：${c.headline}`}
+                        className={cn(
+                          "h-20 w-32 rounded border border-border object-cover transition-[filter]",
+                          shot.final ? "blur-0" : "blur-md",
+                        )}
+                      />
+                      <p className="mt-1 w-32 text-center text-[10px] text-muted-foreground">
+                        {stage[c.id] ?? "已生成"}
+                      </p>
+                    </div>
+                  );
+                }
+                if (c.imageUrl && !failed[c.id]) {
+                  return (
+                    <div className="shrink-0">
+                      <a href={c.imageUrl} target="_blank" rel="noreferrer" className="block">
+                        <img
+                          src={creativeThumbUrl(c.imageUrl, 256)}
+                          alt={`素材原图：${c.headline}`}
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
+                          onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
+                          className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
+                        />
+                      </a>
+                      <button
+                        onClick={() => handleImage(c.id, assetPrompt, "asset")}
+                        disabled={busy}
+                        className="mt-1 w-32 rounded border border-border px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                      >
+                        重新生成主视觉
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    onClick={() => handleImage(c.id, assetPrompt, "asset")}
+                    disabled={busy}
+                    className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                  >
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin text-neon" />
+                    ) : (
+                      <ImageIcon className="size-4 opacity-60" />
+                    )}
+                    <span className="text-[10px]">
+                      {stage[c.id] ??
+                        (failed[c.id] ? "加载失败，点击重生成" : "暂无原图，点击生成")}
+                    </span>
+                  </button>
+                );
+              })()}
+
               <div className="min-w-0 flex-1">
 
                 <div className="flex flex-wrap items-center gap-2">
