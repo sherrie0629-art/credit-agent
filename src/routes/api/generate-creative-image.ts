@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/generate-creative-image")({
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-3.1-flash-image",
+            model: "google/gemini-3.1-flash-lite-image",
             messages: [
               {
                 role: "user",
