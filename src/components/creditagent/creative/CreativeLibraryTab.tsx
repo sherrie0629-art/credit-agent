@@ -42,6 +42,8 @@ export function CreativeLibraryTab({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, { src: string; final: boolean }>>({});
+  const [stage, setStage] = useState<Record<string, string>>({});
+
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
 
