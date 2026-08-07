@@ -101,7 +101,22 @@ export async function runAgentSweep() {
     }
   }
 
-  // 5) 跨广告组预算再分配：把池里的钱转到高胜率广告组（判定硬编码）
+  // 5) 离散 PID：按目标 CPS 提案单组预算微调（只出待审批卡，不直接改钱）
+  let pidSuggested = 0;
+  try {
+    const { runPidBudgetPass } = await import("./pid.server");
+    const pid = await runPidBudgetPass();
+    pidSuggested = pid.suggested;
+    detail.pid = {
+      suggested: pid.suggested,
+      skipped: pid.skipped,
+      details: pid.details,
+    };
+  } catch (e) {
+    detail.pidError = String(e);
+  }
+
+  // 6) 跨广告组预算再分配：把池里的钱转到高胜率广告组（判定硬编码）
   let reallocated = 0;
   try {
     const res = await runReallocation("SWEEP");
@@ -115,7 +130,7 @@ export async function runAgentSweep() {
     detail.reallocationError = String(e);
   }
 
-  // 6) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
+  // 7) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
   let advisorCreated = 0;
   try {
     const last = await lastAdvisorRunAt();
@@ -149,7 +164,7 @@ export async function runAgentSweep() {
     riskPauses,
     experimentsSettled: settled,
     reallocatedAmount: reallocated,
-
+    pidSuggested,
     paceBreaches,
     advisorSuggestions: advisorCreated,
   };

@@ -589,7 +589,7 @@ export async function approveDecision(id: string) {
     if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
       const group = await getAdGroup(decision.adGroupId);
       // effect 形如「日预算 $1000 → $1300（+30%）」，取箭头后的目标值。
-      const target = Number(/→\s*\$(\d+(?:\.\d+)?)/.exec(decision.effect)?.[1] ?? NaN);
+      const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
 
       const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
       if (group) {
@@ -634,17 +634,71 @@ export async function approveDecision(id: string) {
     return getSnapshot();
   }
 
+  // —— SWEEP / 事件驱动的预算调整卡（含 PID 贴 CPS）：批准时按 effect 目标值过风控后落库 ——
+  if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
+    const group = await getAdGroup(decision.adGroupId);
+    const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
+    const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+
+    if (group) {
+      const limits = await loadLimits();
+      const verdict = checkBudgetChange(limits, {
+        current: group.dailyBudget,
+        next: nextBudget,
+      });
+      await recordGuardrail({
+        action: "APPROVE_BUDGET_SHIFT",
+        targetId: group.id,
+        decision: verdict,
+        requested: {
+          from: group.dailyBudget,
+          to: nextBudget,
+          triggerSource: decision.triggerSource,
+          decisionId: id,
+        },
+      });
+      if (verdict.verdict === "DENY") {
+        await supabase
+          .from("agent_decisions")
+          .update({
+            guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
+          } as never)
+          .eq("id", id);
+        return getSnapshot();
+      }
+      const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+      await supabase
+        .from("ad_groups")
+        .update({
+          daily_budget: applied,
+          ai_suggestion:
+            decision.triggerSource === "SWEEP"
+              ? "已按 CPS 贴标建议调整日预算（人工批准）"
+              : "预算已按建议调整",
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", group.id);
+      if (verdict.verdict === "CLAMP") {
+        await supabase
+          .from("agent_decisions")
+          .update({
+            guardrail_note: `风控层已截断（${verdict.rule}）：${verdict.detail}`,
+          } as never)
+          .eq("id", id);
+      }
+    }
+
+    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+    await bumpTakeovers(1);
+    return getSnapshot();
+  }
+
   await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
   await bumpTakeovers(1);
 
   const targetGroup = decision.adGroupId;
   if (targetGroup) {
-    if (decision.actionType === "BUDGET_SHIFT" && decision.id === "dec_1039") {
-      await supabase
-        .from("ad_groups")
-        .update({ daily_budget: 1400, ai_suggestion: "预算已按风控建议下调" } as never)
-        .eq("id", targetGroup);
-    } else if (decision.actionType === "CREATIVE_PAUSE") {
+    if (decision.actionType === "CREATIVE_PAUSE") {
       await supabase
         .from("ad_groups")
         .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" } as never)
@@ -925,6 +979,14 @@ export async function setAdGroupBudget(id: string, dailyBudget: number) {
     .from("ad_groups")
     .update({ daily_budget: applied, updated_at: new Date().toISOString() } as never)
     .eq("id", id);
+
+  try {
+    const { resetPidState } = await import("./pid.server");
+    await resetPidState(id);
+  } catch (e) {
+    console.error("[pid] reset after manual budget failed", e);
+  }
+
   return { snapshot: await getSnapshot(), guardrail: verdict.verdict === "CLAMP" ? verdict : null };
 }
 

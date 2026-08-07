@@ -848,6 +848,36 @@ export type Database = {
           },
         ]
       }
+      pid_controller_state: {
+        Row: {
+          ad_group_id: string
+          integral: number
+          last_cps: number
+          last_error: number
+          last_output: number
+          last_suggestion_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_group_id: string
+          integral?: number
+          last_cps?: number
+          last_error?: number
+          last_output?: number
+          last_suggestion_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_group_id?: string
+          integral?: number
+          last_cps?: number
+          last_error?: number
+          last_output?: number
+          last_suggestion_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           ad_group_id: string | null
