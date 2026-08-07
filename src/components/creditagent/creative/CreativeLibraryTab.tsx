@@ -20,6 +20,15 @@ import { streamImage } from "@/lib/streamImage";
 import { cn } from "@/lib/utils";
 
 
+/** data:image/png;base64,... → 原始字节，用于二进制上传。 */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
   WATCH: "border-warning/40 bg-warning/12 text-warning",
