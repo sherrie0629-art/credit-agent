@@ -24,7 +24,6 @@ import {
   generateVariantsFn,
   launchExperimentFn,
   scanFatigueFn,
-  setVariantImageFn,
   settleExperimentFn,
 } from "./creative.functions";
 import type { AgentSnapshot, Campaign, ManagementMode } from "./types";
