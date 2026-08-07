@@ -441,9 +441,17 @@ export function CreativeLibraryTab({
                           />
                         ) : (
                           <div className="mt-2 flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
-                            <ImageIcon className="size-5 opacity-60" />
+                            {stage[v.id] ? (
+                              <Loader2 className="size-5 animate-spin text-neon" />
+                            ) : (
+                              <ImageIcon className="size-5 opacity-60" />
+                            )}
                             <span className="text-[11px]">
-                              {failed[v.id] ? "图片加载失败，可重新生成" : "尚未生成主视觉"}
+                              {stage[v.id]
+                                ? stage[v.id]
+                                : failed[v.id]
+                                  ? "图片加载失败，可重新生成"
+                                  : "尚未生成主视觉"}
                             </span>
                           </div>
                         )}
@@ -461,13 +469,14 @@ export function CreativeLibraryTab({
                             disabled={imgBusy === v.id}
                             className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                           >
-                            {imgBusy === v.id ? (
+                            {stage[v.id] ? (
                               <Loader2 className="size-3 animate-spin" />
                             ) : (
                               <ImageIcon className="size-3" />
                             )}
-                            {img ? "重新生成主视觉" : "生成主视觉"}
+                            {stage[v.id] ?? (img ? "重新生成主视觉" : "生成主视觉")}
                           </button>
+
                           <button
                             onClick={() =>
                               onReview({
