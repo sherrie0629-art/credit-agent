@@ -300,6 +300,14 @@ export const agentApi = {
     });
   },
 
+  /** 原始素材主视觉的本地局部 patch。 */
+  setAssetImageUrl(creativeId: string, imageUrl: string) {
+    set({
+      creatives: state.creatives.map((c) => (c.id === creativeId ? { ...c, imageUrl } : c)),
+    });
+  },
+
+
 
   async launchExperiment(creativeId: string, variantIds: string[]) {
     const res = await launchExperimentFn({ data: { creativeId, variantIds } });

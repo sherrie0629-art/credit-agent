@@ -111,21 +111,25 @@ export function CreativeLibraryTab({
     }
   }
 
-  async function handleImage(variantId: string, prompt: string) {
-    setImgBusy(variantId);
-    setStage((s) => ({ ...s, [variantId]: "AI 正在出图…" }));
+  async function handleImage(
+    targetId: string,
+    prompt: string,
+    kind: "variant" | "asset" = "variant",
+  ) {
+    setImgBusy(targetId);
+    setStage((s) => ({ ...s, [targetId]: "AI 正在出图…" }));
     try {
       let last = "";
       await streamImage("/api/generate-creative-image", prompt, (src, final) => {
         last = src;
-        setPreview((p) => ({ ...p, [variantId]: { src, final } }));
+        setPreview((p) => ({ ...p, [targetId]: { src, final } }));
       });
       // 图已经出来了：先解锁按钮、展示预览，保存在后台继续。
       setImgBusy(null);
-      setStage((s) => ({ ...s, [variantId]: "保存中…" }));
+      setStage((s) => ({ ...s, [targetId]: "保存中…" }));
       const bytes = dataUrlToBytes(last);
       const res = await fetch(
-        `/api/save-creative-image?variantId=${encodeURIComponent(variantId)}`,
+        `/api/save-creative-image?variantId=${encodeURIComponent(targetId)}&kind=${kind}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/octet-stream", "x-image-type": "image/png" },
@@ -134,20 +138,22 @@ export function CreativeLibraryTab({
       );
       if (!res.ok) throw new Error("图片保存失败，请重试");
       const saved = (await res.json()) as { imageUrl: string };
-      agentApi.setVariantImageUrl(variantId, saved.imageUrl);
-      setFailed((s) => ({ ...s, [variantId]: false }));
-      toast.success("变体主视觉已生成并保存");
+      if (kind === "asset") agentApi.setAssetImageUrl(targetId, saved.imageUrl);
+      else agentApi.setVariantImageUrl(targetId, saved.imageUrl);
+      setFailed((s) => ({ ...s, [targetId]: false }));
+      toast.success(kind === "asset" ? "原素材主视觉已生成并保存" : "变体主视觉已生成并保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "配图生成失败");
     } finally {
       setImgBusy(null);
       setStage((s) => {
         const next = { ...s };
-        delete next[variantId];
+        delete next[targetId];
         return next;
       });
     }
   }
+
 
 
   async function handleLaunch(creativeId: string) {
@@ -202,26 +208,70 @@ export function CreativeLibraryTab({
         return (
           <article key={c.id} className="panel space-y-4 p-4">
             <div className="flex flex-wrap items-start gap-3">
-              {c.imageUrl && !failed[c.id] ? (
-                <a href={c.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                  <img
-                    src={creativeThumbUrl(c.imageUrl, 256)}
-                    alt={`素材原图：${c.headline}`}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="low"
-                    onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
-                    className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
-                  />
-                </a>
-              ) : (
-                <div className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
-                  <ImageIcon className="size-4 opacity-60" />
-                  <span className="text-[10px]">
-                    {failed[c.id] ? "图片加载失败" : "暂无原图"}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const shot = preview[c.id];
+                const assetPrompt = `${c.headline}. ${c.bodyText}`;
+                const busy = Boolean(stage[c.id]);
+                if (shot) {
+                  return (
+                    <div className="shrink-0">
+                      <img
+                        src={shot.src}
+                        alt={`素材原图：${c.headline}`}
+                        className={cn(
+                          "h-20 w-32 rounded border border-border object-cover transition-[filter]",
+                          shot.final ? "blur-0" : "blur-md",
+                        )}
+                      />
+                      <p className="mt-1 w-32 text-center text-[10px] text-muted-foreground">
+                        {stage[c.id] ?? "已生成"}
+                      </p>
+                    </div>
+                  );
+                }
+                if (c.imageUrl && !failed[c.id]) {
+                  return (
+                    <div className="shrink-0">
+                      <a href={c.imageUrl} target="_blank" rel="noreferrer" className="block">
+                        <img
+                          src={creativeThumbUrl(c.imageUrl, 256)}
+                          alt={`素材原图：${c.headline}`}
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
+                          onError={() => setFailed((s) => ({ ...s, [c.id]: true }))}
+                          className="h-20 w-32 rounded border border-border object-cover transition-colors hover:border-neon/50"
+                        />
+                      </a>
+                      <button
+                        onClick={() => handleImage(c.id, assetPrompt, "asset")}
+                        disabled={busy}
+                        className="mt-1 w-32 rounded border border-border px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                      >
+                        重新生成主视觉
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    onClick={() => handleImage(c.id, assetPrompt, "asset")}
+                    disabled={busy}
+                    className="flex h-20 w-32 shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                  >
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin text-neon" />
+                    ) : (
+                      <ImageIcon className="size-4 opacity-60" />
+                    )}
+                    <span className="text-[10px]">
+                      {stage[c.id] ??
+                        (failed[c.id] ? "加载失败，点击重生成" : "暂无原图，点击生成")}
+                    </span>
+                  </button>
+                );
+              })()}
+
               <div className="min-w-0 flex-1">
 
                 <div className="flex flex-wrap items-center gap-2">

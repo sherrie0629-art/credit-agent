@@ -8,6 +8,7 @@ export const Route = createFileRoute("/api/save-creative-image")({
       POST: async ({ request }) => {
         const url = new URL(request.url);
         const variantId = url.searchParams.get("variantId") ?? "";
+        const kind = url.searchParams.get("kind") === "asset" ? "asset" : "variant";
         if (!variantId || variantId.length > 120 || !/^[\w-]+$/.test(variantId)) {
           return new Response("Bad variantId", { status: 400 });
         }
@@ -18,21 +19,32 @@ export const Route = createFileRoute("/api/save-creative-image")({
           return new Response("Bad payload", { status: 400 });
         }
 
+        const table = kind === "asset" ? "creative_assets" : "creative_variants";
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        // 先确认目标行存在，避免把无主文件写进存储桶。
+        const { data: row } = await supabaseAdmin
+          .from(table)
+          .select("id")
+          .eq("id", variantId)
+          .maybeSingle();
+        if (!row) return new Response("Unknown target", { status: 404 });
+
         const { storeVariantImageBytes } = await import(
           "@/lib/creditagent/image-storage.server"
         );
         const stored = await storeVariantImageBytes(variantId, bytes, contentType);
         if (!stored) return new Response("Upload failed", { status: 500 });
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { error } = await supabaseAdmin
-          .from("creative_variants")
+          .from(table)
           .update({ image_url: stored } as never)
           .eq("id", variantId);
         if (error) return new Response("Persist failed", { status: 500 });
 
-        return Response.json({ variantId, imageUrl: stored });
+        return Response.json({ variantId, imageUrl: stored, kind });
       },
+
     },
   },
 });
