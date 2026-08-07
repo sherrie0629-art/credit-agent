@@ -11,14 +11,6 @@ export const generateVariantsFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ creativeId: z.string().min(1).max(120) }).parse(d))
   .handler(async ({ data }) => creative.generateVariants(data.creativeId));
 
-export const setVariantImageFn = createServerFn({ method: "POST" })
-  .inputValidator((d) =>
-    z
-      .object({ variantId: z.string().min(1).max(120), imageUrl: z.string().min(1).max(8_000_000) })
-      .parse(d),
-  )
-  .handler(async ({ data }) => creative.setVariantImage(data.variantId, data.imageUrl));
-
 export const launchExperimentFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z

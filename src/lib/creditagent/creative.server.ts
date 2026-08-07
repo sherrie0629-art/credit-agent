@@ -320,22 +320,6 @@ export async function generateVariants(creativeId: string) {
   return { snapshot: await getSnapshot(), created: rows.length };
 }
 
-export async function setVariantImage(variantId: string, imageUrl: string) {
-  const supabase = await db();
-  // AI 生成的图是 base64 data URL，直接落库会把快照接口撑到数 MB，
-  // 因此先转存对象存储，库里只留一条短路径。
-  if (typeof imageUrl !== "string" || imageUrl.length === 0) return getSnapshot();
-  const stored = imageUrl.startsWith("data:")
-    ? await uploadVariantImage(variantId, imageUrl)
-    : imageUrl;
-  if (!stored) return getSnapshot();
-  await supabase
-    .from("creative_variants")
-    .update({ image_url: stored } as never)
-    .eq("id", variantId);
-  return getSnapshot();
-}
-
 // ---------------------------------------------------------------- 实验上线
 
 export async function launchExperiment(creativeId: string, variantIds: string[]) {

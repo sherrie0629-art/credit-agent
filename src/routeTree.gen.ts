@@ -16,6 +16,7 @@ import { Route as ConversionsRouteImport } from './routes/conversions'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
@@ -56,6 +57,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
+  id: '/api/save-creative-image',
+  path: '/api/save-creative-image',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGenerateCreativeImageRoute =
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
+  ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
   ApiPublicCreativeImageSplatRoute: typeof ApiPublicCreativeImageSplatRoute
@@ -253,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/save-creative-image': {
+      id: '/api/save-creative-image'
+      path: '/api/save-creative-image'
+      fullPath: '/api/save-creative-image'
+      preLoaderRoute: typeof ApiSaveCreativeImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generate-creative-image': {
       id: '/api/generate-creative-image'
       path: '/api/generate-creative-image'
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
+  ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
   ApiPublicCreativeImageSplatRoute: ApiPublicCreativeImageSplatRoute,
@@ -316,13 +337,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

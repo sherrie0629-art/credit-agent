@@ -24,7 +24,6 @@ import {
   generateVariantsFn,
   launchExperimentFn,
   scanFatigueFn,
-  setVariantImageFn,
   settleExperimentFn,
 } from "./creative.functions";
 import type { AgentSnapshot, Campaign, ManagementMode } from "./types";
@@ -294,9 +293,13 @@ export const agentApi = {
     return res.created;
   },
 
-  async setVariantImage(variantId: string, imageUrl: string) {
-    applySnapshot(await setVariantImageFn({ data: { variantId, imageUrl } }));
+  /** 主视觉保存走 /api/save-creative-image，返回后本地局部 patch，避免全量快照往返。 */
+  setVariantImageUrl(variantId: string, imageUrl: string) {
+    set({
+      variants: state.variants.map((v) => (v.id === variantId ? { ...v, imageUrl } : v)),
+    });
   },
+
 
   async launchExperiment(creativeId: string, variantIds: string[]) {
     const res = await launchExperimentFn({ data: { creativeId, variantIds } });

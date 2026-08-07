@@ -20,6 +20,15 @@ import { streamImage } from "@/lib/streamImage";
 import { cn } from "@/lib/utils";
 
 
+/** data:image/png;base64,... → 原始字节，用于二进制上传。 */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
   WATCH: "border-warning/40 bg-warning/12 text-warning",
@@ -42,6 +51,8 @@ export function CreativeLibraryTab({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, { src: string; final: boolean }>>({});
+  const [stage, setStage] = useState<Record<string, string>>({});
+
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
 
@@ -102,20 +113,42 @@ export function CreativeLibraryTab({
 
   async function handleImage(variantId: string, prompt: string) {
     setImgBusy(variantId);
+    setStage((s) => ({ ...s, [variantId]: "AI 正在出图…" }));
     try {
       let last = "";
       await streamImage("/api/generate-creative-image", prompt, (src, final) => {
         last = src;
         setPreview((p) => ({ ...p, [variantId]: { src, final } }));
       });
-      await agentApi.setVariantImage(variantId, last);
+      // 图已经出来了：先解锁按钮、展示预览，保存在后台继续。
+      setImgBusy(null);
+      setStage((s) => ({ ...s, [variantId]: "保存中…" }));
+      const bytes = dataUrlToBytes(last);
+      const res = await fetch(
+        `/api/save-creative-image?variantId=${encodeURIComponent(variantId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream", "x-image-type": "image/png" },
+          body: bytes as unknown as BodyInit,
+        },
+      );
+      if (!res.ok) throw new Error("图片保存失败，请重试");
+      const saved = (await res.json()) as { imageUrl: string };
+      agentApi.setVariantImageUrl(variantId, saved.imageUrl);
+      setFailed((s) => ({ ...s, [variantId]: false }));
       toast.success("变体主视觉已生成并保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "配图生成失败");
     } finally {
       setImgBusy(null);
+      setStage((s) => {
+        const next = { ...s };
+        delete next[variantId];
+        return next;
+      });
     }
   }
+
 
   async function handleLaunch(creativeId: string) {
     const ids = variants
@@ -408,9 +441,17 @@ export function CreativeLibraryTab({
                           />
                         ) : (
                           <div className="mt-2 flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
-                            <ImageIcon className="size-5 opacity-60" />
+                            {stage[v.id] ? (
+                              <Loader2 className="size-5 animate-spin text-neon" />
+                            ) : (
+                              <ImageIcon className="size-5 opacity-60" />
+                            )}
                             <span className="text-[11px]">
-                              {failed[v.id] ? "图片加载失败，可重新生成" : "尚未生成主视觉"}
+                              {stage[v.id]
+                                ? stage[v.id]
+                                : failed[v.id]
+                                  ? "图片加载失败，可重新生成"
+                                  : "尚未生成主视觉"}
                             </span>
                           </div>
                         )}
@@ -428,13 +469,14 @@ export function CreativeLibraryTab({
                             disabled={imgBusy === v.id}
                             className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                           >
-                            {imgBusy === v.id ? (
+                            {stage[v.id] ? (
                               <Loader2 className="size-3 animate-spin" />
                             ) : (
                               <ImageIcon className="size-3" />
                             )}
-                            {img ? "重新生成主视觉" : "生成主视觉"}
+                            {stage[v.id] ?? (img ? "重新生成主视觉" : "生成主视觉")}
                           </button>
+
                           <button
                             onClick={() =>
                               onReview({

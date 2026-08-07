@@ -21,20 +21,17 @@ function parseDataUrl(dataUrl: string): { bytes: Uint8Array; contentType: string
   return { bytes, contentType };
 }
 
-/** 把 data URL 上传到对象存储，返回可直接放进 <img src> 的短路径。 */
-export async function uploadVariantImage(
+/** 直接存原始字节，不做同步压缩（降采样交给读取路由的 ?w= 分支按需做）。 */
+export async function storeVariantImageBytes(
   variantId: string,
-  dataUrl: string,
+  bytes: Uint8Array,
+  contentType: string,
 ): Promise<string | null> {
-  const parsed = parseDataUrl(dataUrl);
-  if (!parsed) return null;
-
-  const { optimizeForStorage } = await import("./image-transform.server");
-  const optimized = await optimizeForStorage(parsed.bytes, parsed.contentType);
-  const path = `variants/${variantId}.${optimized.ext}`;
+  const ext = (contentType.split("/")[1]?.split("+")[0] || "png").toLowerCase();
+  const path = `variants/${variantId}.${ext}`;
   const supabase = await admin();
-  const { error } = await supabase.storage.from(BUCKET).upload(path, optimized.bytes, {
-    contentType: optimized.contentType,
+  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
+    contentType: contentType || "image/png",
     upsert: true,
   });
   if (error) {
@@ -43,6 +40,17 @@ export async function uploadVariantImage(
   }
   return `${IMAGE_ROUTE_PREFIX}/${path}`;
 }
+
+/** 把 data URL 上传到对象存储，返回可直接放进 <img src> 的短路径。 */
+export async function uploadVariantImage(
+  variantId: string,
+  dataUrl: string,
+): Promise<string | null> {
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed) return null;
+  return storeVariantImageBytes(variantId, parsed.bytes, parsed.contentType);
+}
+
 
 type ResolvedImage = { bytes: Uint8Array; contentType: string };
 
