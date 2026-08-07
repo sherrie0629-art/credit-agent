@@ -102,20 +102,42 @@ export function CreativeLibraryTab({
 
   async function handleImage(variantId: string, prompt: string) {
     setImgBusy(variantId);
+    setStage((s) => ({ ...s, [variantId]: "AI 正在出图…" }));
     try {
       let last = "";
       await streamImage("/api/generate-creative-image", prompt, (src, final) => {
         last = src;
         setPreview((p) => ({ ...p, [variantId]: { src, final } }));
       });
-      await agentApi.setVariantImage(variantId, last);
+      // 图已经出来了：先解锁按钮、展示预览，保存在后台继续。
+      setImgBusy(null);
+      setStage((s) => ({ ...s, [variantId]: "保存中…" }));
+      const bytes = dataUrlToBytes(last);
+      const res = await fetch(
+        `/api/save-creative-image?variantId=${encodeURIComponent(variantId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream", "x-image-type": "image/png" },
+          body: bytes as unknown as BodyInit,
+        },
+      );
+      if (!res.ok) throw new Error("图片保存失败，请重试");
+      const saved = (await res.json()) as { imageUrl: string };
+      agentApi.setVariantImageUrl(variantId, saved.imageUrl);
+      setFailed((s) => ({ ...s, [variantId]: false }));
       toast.success("变体主视觉已生成并保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "配图生成失败");
     } finally {
       setImgBusy(null);
+      setStage((s) => {
+        const next = { ...s };
+        delete next[variantId];
+        return next;
+      });
     }
   }
+
 
   async function handleLaunch(creativeId: string) {
     const ids = variants
