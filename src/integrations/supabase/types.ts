@@ -908,6 +908,54 @@ export type Database = {
         }
         Relationships: []
       }
+      pid_controller_state: {
+        Row: {
+          ad_group_id: string
+          created_at: string
+          integral: number
+          last_cps: number
+          last_error: number
+          last_output: number
+          last_suggestion_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_group_id: string
+          created_at?: string
+          integral?: number
+          last_cps?: number
+          last_error?: number
+          last_output?: number
+          last_suggestion_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_group_id?: string
+          created_at?: string
+          integral?: number
+          last_cps?: number
+          last_error?: number
+          last_output?: number
+          last_suggestion_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pid_controller_state_ad_group_id_fkey"
+            columns: ["ad_group_id"]
+            isOneToOne: true
+            referencedRelation: "ad_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pid_controller_state_ad_group_id_fkey"
+            columns: ["ad_group_id"]
+            isOneToOne: true
+            referencedRelation: "v_adgroup_facts"
+            referencedColumns: ["ad_group_id"]
+          },
+        ]
+      }
       sweep_runs: {
         Row: {
           detail: Json
