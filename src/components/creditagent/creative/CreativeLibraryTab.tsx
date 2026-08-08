@@ -29,6 +29,39 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return out;
 }
 
+const UPLOAD_MAX_WIDTH = 1200;
+
+/**
+ * 上传前在浏览器里降采样并转 WebP：2~3MB 的原图压到 150~300KB，
+ * 上传耗时基本消失，服务端也不用再做同步降采样。失败时回退原始 PNG 字节。
+ */
+async function prepareUpload(
+  dataUrl: string,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, UPLOAD_MAX_WIDTH / bitmap.width);
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.85),
+    );
+    if (!out || out.size === 0) throw new Error("encode failed");
+    return { bytes: new Uint8Array(await out.arrayBuffer()), contentType: out.type || "image/webp" };
+  } catch {
+    return { bytes: dataUrlToBytes(dataUrl), contentType: "image/png" };
+  }
+}
+
+
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
   WATCH: "border-warning/40 bg-warning/12 text-warning",
@@ -111,40 +144,56 @@ export function CreativeLibraryTab({
     }
   }
 
+  /** 保存走后台：压缩 → 上传 → 静默把 store 里的 URL 换成正式地址。 */
+  async function saveInBackground(targetId: string, dataUrl: string, kind: "variant" | "asset") {
+    try {
+      const { bytes, contentType } = await prepareUpload(dataUrl);
+      const res = await fetch(
+        `/api/save-creative-image?variantId=${encodeURIComponent(targetId)}&kind=${kind}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream", "x-image-type": contentType },
+          body: bytes as unknown as BodyInit,
+        },
+      );
+      if (!res.ok) throw new Error("图片保存失败");
+      const saved = (await res.json()) as { imageUrl: string };
+      if (kind === "asset") agentApi.setAssetImageUrl(targetId, saved.imageUrl);
+      else agentApi.setVariantImageUrl(targetId, saved.imageUrl);
+      setFailed((s) => ({ ...s, [targetId]: false }));
+    } catch {
+      toast.error("主视觉已生成，但保存失败", {
+        action: { label: "重试保存", onClick: () => void saveInBackground(targetId, dataUrl, kind) },
+      });
+    }
+  }
+
   async function handleImage(
     targetId: string,
     prompt: string,
     kind: "variant" | "asset" = "variant",
   ) {
     setImgBusy(targetId);
-    setStage((s) => ({ ...s, [targetId]: "AI 正在出图…" }));
+    const startedAt = Date.now();
+    const tick = () => {
+      const s = Math.round((Date.now() - startedAt) / 1000);
+      setStage((prev) => ({ ...prev, [targetId]: `AI 正在出图… ${s}s（通常 5-15 秒）` }));
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
     try {
       let last = "";
       await streamImage("/api/generate-creative-image", prompt, (src, final) => {
         last = src;
         setPreview((p) => ({ ...p, [targetId]: { src, final } }));
       });
-      // 图已经出来了：先解锁按钮、展示预览，保存在后台继续。
-      setImgBusy(null);
-      setStage((s) => ({ ...s, [targetId]: "保存中…" }));
-      const bytes = dataUrlToBytes(last);
-      const res = await fetch(
-        `/api/save-creative-image?variantId=${encodeURIComponent(targetId)}&kind=${kind}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream", "x-image-type": "image/png" },
-          body: bytes as unknown as BodyInit,
-        },
-      );
-      if (!res.ok) throw new Error("图片保存失败，请重试");
-      const saved = (await res.json()) as { imageUrl: string };
-      if (kind === "asset") agentApi.setAssetImageUrl(targetId, saved.imageUrl);
-      else agentApi.setVariantImageUrl(targetId, saved.imageUrl);
-      setFailed((s) => ({ ...s, [targetId]: false }));
-      toast.success(kind === "asset" ? "原素材主视觉已生成并保存" : "变体主视觉已生成并保存");
+      toast.success(kind === "asset" ? "原素材主视觉已生成" : "变体主视觉已生成");
+      // 图已经贴到卡片上了：立即解锁，保存放后台，不再让用户等。
+      void saveInBackground(targetId, last, kind);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "配图生成失败");
     } finally {
+      window.clearInterval(timer);
       setImgBusy(null);
       setStage((s) => {
         const next = { ...s };
@@ -153,6 +202,7 @@ export function CreativeLibraryTab({
       });
     }
   }
+
 
 
 

@@ -18,8 +18,12 @@ type Row = Record<string, any>;
 
 async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  // pid_controller_state 未包含在生成的类型里（自定义控制器状态表），这里放宽表名约束。
+  return supabaseAdmin as unknown as {
+    from: (table: string) => any;
+  };
 }
+
 
 function mapState(r: Row): PidControllerState & { lastSuggestionAt: string | null } {
   return {
