@@ -29,6 +29,39 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return out;
 }
 
+const UPLOAD_MAX_WIDTH = 1200;
+
+/**
+ * 上传前在浏览器里降采样并转 WebP：2~3MB 的原图压到 150~300KB，
+ * 上传耗时基本消失，服务端也不用再做同步降采样。失败时回退原始 PNG 字节。
+ */
+async function prepareUpload(
+  dataUrl: string,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, UPLOAD_MAX_WIDTH / bitmap.width);
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.85),
+    );
+    if (!out || out.size === 0) throw new Error("encode failed");
+    return { bytes: new Uint8Array(await out.arrayBuffer()), contentType: out.type || "image/webp" };
+  } catch {
+    return { bytes: dataUrlToBytes(dataUrl), contentType: "image/png" };
+  }
+}
+
+
 const LEVEL_STYLE: Record<FatigueLevel, string> = {
   HEALTHY: "border-success/40 bg-success/12 text-success",
   WATCH: "border-warning/40 bg-warning/12 text-warning",
