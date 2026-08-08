@@ -14,11 +14,35 @@ import {
 import { refreshAgentState, useAgentBootstrap, useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
-const NAV: { to: string; label: string; sub: string; icon: LucideIcon }[] = [
+const NAV: {
+  to: "/" | "/campaigns" | "/creative" | "/analytics" | "/conversions";
+  label: string;
+  sub: string;
+  icon: LucideIcon;
+  search?: Record<string, string>;
+}[] = [
   { to: "/", label: "决策指挥中心", sub: "白盒 Agent 实时推理", icon: Activity },
-  { to: "/campaigns", label: "预算与投放", sub: "全托管预算调配", icon: SlidersHorizontal },
-  { to: "/creative", label: "素材中心", sub: "合规审计 · 疲劳迭代 · A/B", icon: FlaskConical },
-  { to: "/analytics", label: "全链路归因", sub: "放款转化与 ROAS", icon: BarChart3 },
+  {
+    to: "/campaigns",
+    label: "预算与投放",
+    sub: "结构管理 · 全托管预算",
+    icon: SlidersHorizontal,
+    search: { tab: "budget" },
+  },
+  {
+    to: "/creative",
+    label: "素材中心",
+    sub: "合规审计 · 疲劳迭代 · A/B",
+    icon: FlaskConical,
+    search: { tab: "library" },
+  },
+  {
+    to: "/analytics",
+    label: "全链路归因",
+    sub: "复盘 · 高管周报",
+    icon: BarChart3,
+    search: { tab: "ops", week: "this" },
+  },
   { to: "/conversions", label: "离线转化回传", sub: "Google OCI · Meta CAPI", icon: Radio },
 ];
 
@@ -44,7 +68,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const id = idle(() => {
       for (const item of NAV) {
         if (item.to === pathname) continue;
-        void router.preloadRoute({ to: item.to }).catch(() => undefined);
+        void router
+          .preloadRoute(
+            item.search
+              ? ({ to: item.to, search: item.search } as never)
+              : ({ to: item.to } as never),
+          )
+          .catch(() => undefined);
       }
     });
     return () => {
@@ -62,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar/90 backdrop-blur lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar/90 backdrop-blur print:hidden lg:flex">
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
           <div className="relative flex size-9 items-center justify-center rounded-md border border-neon/40 bg-neon/10">
             <span className="font-mono text-sm font-bold neon-text">CA</span>
@@ -81,6 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.to}
                 to={item.to}
+                search={item.search as never}
                 className={cn(
                   "group flex items-start gap-3 rounded-md px-3 py-2.5 transition-colors",
                   active
@@ -117,15 +148,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex gap-1 overflow-x-auto border-b border-border bg-sidebar/80 p-2 lg:hidden">
+        <div className="flex gap-1 overflow-x-auto border-b border-border bg-sidebar/80 p-2 print:hidden lg:hidden">
           {NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
+              search={item.search as never}
               className={cn(
                 "shrink-0 rounded-md px-3 py-2 text-xs",
-
-
                 pathname === item.to
                   ? "bg-sidebar-accent text-neon"
                   : "text-muted-foreground",
@@ -136,7 +166,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </div>
         {error && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
+          <div className="print:hidden flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
             <TriangleAlert className="size-4 shrink-0" />
             <span>
               后端数据加载失败：{error}（已自动重试 3 次）。
@@ -155,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         )}
-        <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:p-8 print:p-0">{children}</main>
 
       </div>
     </div>

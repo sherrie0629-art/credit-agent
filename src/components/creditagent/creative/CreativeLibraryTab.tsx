@@ -4,12 +4,21 @@ import { toast } from "sonner";
 import {
   ImageIcon,
   Loader2,
+  Plus,
   RadarIcon,
   Rocket,
   ShieldCheck,
   Sparkles,
   TrendingDown,
 } from "lucide-react";
+import { CreateCreativeForm } from "@/components/creditagent/structure/CreateCreativeForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { agentApi, useAgentStore } from "@/lib/creditagent/store";
 import { computeFatigue, FATIGUE_LEVEL_LABEL, type FatigueLevel } from "@/lib/creditagent/fatigue";
 import { VARIANT_STATUS_LABEL } from "@/lib/creditagent/creative-types";
@@ -88,6 +97,7 @@ export function CreativeLibraryTab({
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
+  const [createOpen, setCreateOpen] = useState(false);
 
 
   const placementsByCreative = useMemo(() => {
@@ -236,15 +246,41 @@ export function CreativeLibraryTab({
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <TrendingDown className="size-4 text-neon" /> 素材库与疲劳雷达
         </h2>
-        <button
-          onClick={handleScan}
-          disabled={scanning}
-          className="inline-flex items-center gap-2 rounded-md border border-neon/50 bg-neon/10 px-4 py-2 text-sm font-medium text-neon transition-colors hover:bg-neon/20 disabled:opacity-50"
-        >
-          {scanning ? <Loader2 className="size-4 animate-spin" /> : <RadarIcon className="size-4" />}
-          立即巡检疲劳
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:border-neon/40 hover:text-neon"
+          >
+            <Plus className="size-4" />
+            新建原素材
+          </button>
+          <button
+            onClick={handleScan}
+            disabled={scanning}
+            className="inline-flex items-center gap-2 rounded-md border border-neon/50 bg-neon/10 px-4 py-2 text-sm font-medium text-neon transition-colors hover:bg-neon/20 disabled:opacity-50"
+          >
+            {scanning ? <Loader2 className="size-4 animate-spin" /> : <RadarIcon className="size-4" />}
+            立即巡检疲劳
+          </button>
+        </div>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>新建原素材</DialogTitle>
+            <DialogDescription>
+              填写文案与合规披露字段；创建后可在卡片上生成主视觉，再到「投放结构」绑定广告组。
+            </DialogDescription>
+          </DialogHeader>
+          <CreateCreativeForm
+            onCreated={() => {
+              setCreateOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {!loaded && <p className="text-sm text-muted-foreground">正在加载素材指标…</p>}
 
@@ -364,6 +400,7 @@ export function CreativeLibraryTab({
                       <Link
                         key={p.adGroupId}
                         to="/campaigns"
+                        search={{ tab: "structure" }}
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon",
                           p.status === "ACTIVE"

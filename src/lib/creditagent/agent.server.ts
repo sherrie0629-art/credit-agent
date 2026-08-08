@@ -67,6 +67,11 @@ function mapAdGroup(
     placement: r.placement,
     audience: r.audience,
     bidStrategy: r.bid_strategy,
+    bidTarget: (() => {
+      if (r.bid_target === null || r.bid_target === undefined || r.bid_target === "") return null;
+      const n = Number(r.bid_target);
+      return Number.isFinite(n) ? n : null;
+    })(),
     status: r.status,
     dailyBudget: Number(r.daily_budget),
     spentToday: Number(r.spent_today),

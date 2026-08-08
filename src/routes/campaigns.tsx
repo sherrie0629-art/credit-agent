@@ -1,14 +1,16 @@
 import { Fragment, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 
 import { Pause, Play, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { ChannelBadge } from "@/components/creditagent/badges";
+import { StructureTab } from "@/components/creditagent/structure/StructureTab";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -20,6 +22,9 @@ import {
 import { agentApi, useAgentStore, agentSnapshotQuery, prefetchQueryNonBlocking } from "@/lib/creditagent/store";
 import type { AdGroup } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
+
+const TABS = ["budget", "structure"] as const;
+type TabKey = (typeof TABS)[number];
 
 const POOL_REASON_LABEL: Record<string, string> = {
   RISK_PAUSE: "风控暂停释放",
@@ -153,6 +158,9 @@ function BudgetPoolPanel() {
 
 
 export const Route = createFileRoute("/campaigns")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: TABS.includes(search.tab as TabKey) ? (search.tab as TabKey) : ("budget" as TabKey),
+  }),
   head: () => ({
     meta: [
       { title: "全托管预算调配引擎 | CreditAgent AI" },
@@ -242,6 +250,42 @@ function BudgetCell({ group }: { group: AdGroup }) {
 }
 
 function CampaignsPage() {
+  const { tab } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  return (
+    <AppShell>
+      <header className="panel p-5">
+        <p className="label-mono">module 02</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+          广告投放与预算调配
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          层级：广告系列 Campaign → 广告组 Ad Group → 素材 Creative · Planner Agent 按后端放款表现在广告组层级分配资金
+        </p>
+      </header>
+
+      <Tabs
+        value={tab}
+        onValueChange={(next) => navigate({ search: { tab: next as TabKey } })}
+        className="mt-4"
+      >
+        <TabsList>
+          <TabsTrigger value="budget">预算与托管</TabsTrigger>
+          <TabsTrigger value="structure">投放结构</TabsTrigger>
+        </TabsList>
+        <TabsContent value="budget" className="mt-4 space-y-0">
+          <BudgetTab />
+        </TabsContent>
+        <TabsContent value="structure" className="mt-4">
+          <StructureTab />
+        </TabsContent>
+      </Tabs>
+    </AppShell>
+  );
+}
+
+function BudgetTab() {
   const campaigns = useAgentStore((s) => s.campaigns);
   const adGroups = useAgentStore((s) => s.adGroups);
   const mode = useAgentStore((s) => s.mode);
@@ -258,14 +302,10 @@ function CampaignsPage() {
     totalSpent / Math.max(1, adGroups.reduce((s, g) => s + g.approvedLoans, 0));
 
   return (
-    <AppShell>
-      <header className="panel p-5">
-        <p className="label-mono">module 02</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          广告投放与预算调配
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          层级：广告系列 Campaign → 广告组 Ad Group → 素材 Creative · Planner Agent 按后端放款表现在广告组层级分配资金
+    <>
+      <section className="panel p-5">
+        <p className="text-xs text-muted-foreground">
+          托管模式、熔断与预算矩阵。创建系列/广告组请切到「投放结构」。
         </p>
 
 
@@ -379,7 +419,7 @@ function CampaignsPage() {
             </div>
           </div>
         </div>
-      </header>
+      </section>
 
       <BudgetPoolPanel />
 
@@ -453,6 +493,7 @@ function CampaignsPage() {
                           <p className="truncate text-sm">{c.name}</p>
                           <p className="font-mono text-[11px] text-muted-foreground">
                             {c.audience} · {c.bidStrategy}
+                            {c.bidTarget != null ? ` $${c.bidTarget}` : ""}
                           </p>
                           <p className="font-mono text-[11px] text-muted-foreground">
                             {c.leads} 条线索 · {c.approvedLoans} 笔通过
@@ -566,7 +607,7 @@ function CampaignsPage() {
           </Table>
         </div>
       </section>
-    </AppShell>
+    </>
   );
 }
 

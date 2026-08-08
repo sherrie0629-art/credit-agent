@@ -26,7 +26,16 @@ import {
   scanFatigueFn,
   settleExperimentFn,
 } from "./creative.functions";
-import type { AgentSnapshot, Campaign, ManagementMode } from "./types";
+import {
+  createAdGroupFn,
+  createCampaignFn,
+  createCreativeFn,
+  updateAdGroupFn,
+  updateCampaignFn,
+  updatePlacementStatusFn,
+  upsertPlacementFn,
+} from "./structure.functions";
+import type { AgentSnapshot, Campaign, Channel, ManagementMode } from "./types";
 
 // Client-side cache of the real backend state. Every mutation goes through a
 // server function that writes to the database and returns the fresh snapshot.
@@ -317,6 +326,92 @@ export const agentApi = {
 
   async settleExperiment(experimentId: string) {
     const res = await settleExperimentFn({ data: { experimentId } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async createCampaign(input: {
+    name: string;
+    channel: Channel;
+    status?: "ACTIVE" | "PAUSED";
+    dailyBudget?: number;
+  }) {
+    const res = await createCampaignFn({ data: input });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async updateCampaign(
+    id: string,
+    patch: { name?: string; status?: "ACTIVE" | "PAUSED"; dailyBudget?: number },
+  ) {
+    const res = await updateCampaignFn({ data: { id, ...patch } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async createAdGroup(input: {
+    campaignId: string;
+    name: string;
+    placement: string;
+    audience: string;
+    bidStrategy: string;
+    bidTarget?: number | null;
+    dailyBudget: number;
+    status?: "ACTIVE" | "PAUSED" | "LEARNING";
+  }) {
+    const res = await createAdGroupFn({ data: input });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async updateAdGroup(
+    id: string,
+    patch: {
+      name?: string;
+      placement?: string;
+      audience?: string;
+      bidStrategy?: string;
+      bidTarget?: number | null;
+      dailyBudget?: number;
+      status?: "ACTIVE" | "PAUSED" | "LEARNING";
+    },
+  ) {
+    const res = await updateAdGroupFn({ data: { id, ...patch } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async createCreative(input: {
+    headline: string;
+    bodyText: string;
+    loanTermRange: string;
+    maxApr: number;
+    specialAdCategory?: boolean;
+    imageUrl?: string | null;
+  }) {
+    const res = await createCreativeFn({ data: input });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async upsertPlacement(input: {
+    adGroupId: string;
+    creativeId: string;
+    share: number;
+    status?: "ACTIVE" | "PAUSED";
+  }) {
+    const res = await upsertPlacementFn({ data: input });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async updatePlacementStatus(input: {
+    adGroupId: string;
+    creativeId: string;
+    status: "ACTIVE" | "PAUSED";
+  }) {
+    const res = await updatePlacementStatusFn({ data: input });
     applySnapshot(res.snapshot);
     return res;
   },

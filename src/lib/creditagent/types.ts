@@ -65,6 +65,11 @@ export interface AdGroup {
   placement: string;
   audience: string;
   bidStrategy: string;
+  /**
+   * Target amount for strategies that need one (Google tCPA / Meta Cost Cap).
+   * Null when strategy is Maximize Conversions / Lowest Cost.
+   */
+  bidTarget: number | null;
   status: "ACTIVE" | "PAUSED" | "LEARNING" | "COMPLIANCE_HOLD";
   dailyBudget: number;
   spentToday: number;
