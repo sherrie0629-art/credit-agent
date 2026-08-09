@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AgentBadge, ChannelBadge, StatusBadge } from "./badges";
+import { toastForExternal } from "@/lib/creditagent/google-ads";
 import { agentApi } from "@/lib/creditagent/store";
 import type { AgentDecision } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
@@ -37,14 +38,25 @@ export function DecisionCard({
     setBusy(true);
     try {
       if (kind === "approve") {
-        await agentApi.approveDecision(decision.id);
-        toast.success("决策已批准并调用广告 API", { description: decision.effect });
+        const external = await agentApi.approveDecision(decision.id);
+        const t = toastForExternal(external);
+        const description = [decision.effect, t.description].filter(Boolean).join(" · ");
+        if (t.kind === "error") toast.error(t.title, { description });
+        else if (t.kind === "success") toast.success(t.title, { description });
+        else toast(t.title, { description });
       } else if (kind === "reject") {
         await agentApi.rejectDecision(decision.id);
         toast("决策已被人工否决", { description: "Agent 将在下一轮采集重新评估" });
       } else {
         const to = await agentApi.rollbackDecision(decision.id);
-        toast.success("已回滚（Mock API）", { description: `恢复配置：${to}` });
+        toast.success("已回滚（仅本地）", { description: `恢复配置：${to}` });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("GOOGLE_ADS_UNBOUND") || msg.includes("Google Ads")) {
+        toast.error("未推送 Google", { description: msg.replace(/^GOOGLE_ADS_UNBOUND:/, "") });
+      } else {
+        toast.error("操作失败", { description: msg });
       }
     } finally {
       setBusy(false);
@@ -121,6 +133,12 @@ export function DecisionCard({
       {decision.guardrailNote && (
         <p className="mt-2 rounded-md border border-warning/40 bg-warning/8 p-2 text-[11px] text-warning">
           风控规则层：{decision.guardrailNote}
+        </p>
+      )}
+
+      {decision.externalMutateDetail && (
+        <p className="mt-2 rounded-md border border-border p-2 font-mono text-[11px] text-muted-foreground">
+          Google Ads：{decision.externalMutateStatus ?? "—"} · {decision.externalMutateDetail}
         </p>
       )}
 

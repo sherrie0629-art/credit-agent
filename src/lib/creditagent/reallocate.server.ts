@@ -363,12 +363,21 @@ export async function pendingAllocationsFor(decisionId: string): Promise<BudgetP
 export async function applyReallocationDecision(decisionId: string) {
   const supabase = await db();
   const entries = (await pendingAllocationsFor(decisionId)).filter((e) => e.status === "PENDING");
-  if (entries.length === 0) return { applied: 0, denied: 0, notes: [] as string[] };
+  if (entries.length === 0) {
+    return {
+      applied: 0,
+      denied: 0,
+      notes: [] as string[],
+      external: null as import("./google-ads").ExternalMutateResult | null,
+    };
+  }
 
   const gate = await preflight({ action: "APPROVE_REALLOCATION", automated: false });
   const notes: string[] = [];
   let applied = 0;
   let denied = 0;
+  let external: import("./google-ads").ExternalMutateResult | null = null;
+  const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
 
   for (const e of entries) {
     const { data } = await supabase
@@ -398,6 +407,13 @@ export async function applyReallocationDecision(decisionId: string) {
     }
 
     const target = verdict.verdict === "CLAMP" ? (verdict.value ?? next) : next;
+    if (e.adGroupId) {
+      const ext = await syncGoogleAdGroupBudget(e.adGroupId, target);
+      if (ext.pushed || !external) external = ext;
+      if (!ext.pushed && ext.status !== "SKIPPED_OFF" && ext.status !== "SKIPPED_NON_GOOGLE" && ext.status !== "SKIPPED_KILL_SWITCH") {
+        notes.push(`${e.adGroupName}：${ext.detail}`);
+      }
+    }
     await supabase
       .from("ad_groups")
       .update({
@@ -414,7 +430,7 @@ export async function applyReallocationDecision(decisionId: string) {
     if (verdict.verdict === "CLAMP") notes.push(`${e.adGroupName}：${verdict.detail}`);
   }
 
-  return { applied, denied, notes };
+  return { applied, denied, notes, external };
 }
 
 /** 回滚再分配：把已生效的加预算按流水逆向写回，并把资金退还池中。 */

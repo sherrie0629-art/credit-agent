@@ -246,12 +246,22 @@ export async function updateAdGroup(
     update.daily_budget = applied;
     if (verdict.verdict === "CLAMP") guardrail = verdict;
 
+    if (applied !== Number(current.daily_budget)) {
+      const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+      await syncGoogleAdGroupBudget(id, applied);
+    }
+
     try {
       const { resetPidState } = await import("./pid.server");
       await resetPidState(id);
     } catch (e) {
       console.error("[pid] reset after structure budget edit failed", e);
     }
+  }
+
+  if (patch.status !== undefined && patch.status !== current.status) {
+    const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
+    await syncGoogleAdGroupStatus(id, patch.status);
   }
 
   const { error } = await supabase.from("ad_groups").update(update as never).eq("id", id);

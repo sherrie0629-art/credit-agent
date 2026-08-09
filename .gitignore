@@ -15,6 +15,13 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.env
+.env.*
+!.env.example
+
+# Google Ads OAuth secrets (never commit)
+**/google-ads-oauth-tokens.txt
+*client_secret*.apps.googleusercontent.com.json
 
 # Wrangler / Cloudflare
 .wrangler/

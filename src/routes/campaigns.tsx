@@ -5,7 +5,9 @@ import { Pause, Play, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { ChannelBadge } from "@/components/creditagent/badges";
+import { GoogleAdsConnectionPanel } from "@/components/creditagent/GoogleAdsConnectionPanel";
 import { StructureTab } from "@/components/creditagent/structure/StructureTab";
+import { toastForExternal } from "@/lib/creditagent/google-ads";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -224,18 +226,37 @@ function BudgetCell({ group }: { group: AdGroup }) {
         const next = Number(value);
         setEditing(false);
         if (!Number.isFinite(next) || next <= 0) return;
-        const guardrail = await agentApi.setAdGroupBudget(group.id, Math.round(next));
-        if (guardrail?.verdict === "DENY") {
-          toast.error("风控规则层已拦截该预算变动", { description: guardrail.detail });
-        } else if (guardrail?.verdict === "CLAMP") {
-          toast.warning("风控规则层已截断该预算", { description: guardrail.detail });
-        } else {
-          toast.success("每日预算已更新", {
-            description: `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
+        try {
+          const { guardrail, external } = await agentApi.setAdGroupBudget(
+            group.id,
+            Math.round(next),
+          );
+          if (guardrail?.verdict === "DENY") {
+            toast.error("风控规则层已拦截该预算变动", { description: guardrail.detail });
+          } else if (guardrail?.verdict === "CLAMP") {
+            toast.warning("风控规则层已截断该预算", { description: guardrail.detail });
+          } else {
+            const t = toastForExternal(external);
+            if (t.kind === "success") {
+              toast.success(t.title, {
+                description:
+                  t.description ??
+                  `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
+              });
+            } else {
+              toast.success("每日预算已更新（仅本地）", {
+                description:
+                  t.description ??
+                  `${group.name} → $${Math.round(next).toLocaleString()} / 日`,
+              });
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast.error("预算更新失败", {
+            description: msg.replace(/^GOOGLE_ADS_UNBOUND:/, ""),
           });
         }
-
-
       }}
     >
       <Input
@@ -310,13 +331,14 @@ function BudgetTab() {
 
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <GoogleAdsConnectionPanel />
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label className="text-xs">托管模式</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {mode === "FULL_AUTO"
-                    ? "全自动：Agent 直接调用广告 API 执行调价与预算转移。"
+                    ? "全自动：护栏通过后，对已绑定的 Google 测试资源尝试推送；未绑定或 MODE=off 时仅本地。"
                     : "半自动：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
                 </p>
               </div>

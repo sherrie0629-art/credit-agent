@@ -52,6 +52,9 @@ export interface AgentDecision {
 
   /** 风控规则层对该决策的拦截 / 截断说明。 */
   guardrailNote?: string;
+  /** Google Ads（test）mutate 结果，便于值班排障。 */
+  externalMutateStatus?: string;
+  externalMutateDetail?: string;
 }
 
 
@@ -84,6 +87,8 @@ export interface AdGroup {
   compliancePassRate: number;
   last20ApprovalRate: number;
   aiSuggestion: string;
+  /** Google Ads ad_group resource name when bound for test API. */
+  googleResourceName?: string | null;
 }
 
 
@@ -127,6 +132,9 @@ export interface Campaign {
   /** Approval rate of the last 20 leads — drives risk-first auto-pause. */
   last20ApprovalRate: number;
   aiSuggestion: string;
+  /** Google Ads campaign / campaign_budget resource names when bound. */
+  googleResourceName?: string | null;
+  googleBudgetResourceName?: string | null;
 }
 
 /** Backend (post-loan) truth for one creative, derived from leads + lead_events. */

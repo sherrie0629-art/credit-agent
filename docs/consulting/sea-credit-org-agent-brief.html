@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CreditAgent · 东南亚消金组织管理咨询简报</title>
+  <style>
+    :root {
+      --ink: #1a1f24;
+      --muted: #5c6570;
+      --line: #d8dde3;
+      --paper: #f7f5f1;
+      --accent: #0f6b5c;
+      --accent-soft: #e6f2ef;
+      --warn: #8a4b12;
+    }
+
+    * { box-sizing: border-box; }
+
+    @page {
+      size: A4;
+      margin: 14mm 16mm 16mm 16mm;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #e8e6e1;
+      color: var(--ink);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 12px auto;
+      padding: 16mm 18mm 18mm;
+      background: var(--paper);
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      position: relative;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .sheet:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    @media print {
+      html, body { background: white; }
+      .sheet {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        background: white;
+      }
+      .no-print { display: none !important; }
+    }
+
+    .export-hint {
+      max-width: 210mm;
+      margin: 16px auto 0;
+      padding: 10px 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .export-hint strong { color: var(--ink); }
+
+    h1, h2, h3 {
+      margin: 0 0 0.45em;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      line-height: 1.25;
+    }
+
+    h1 { font-size: 22pt; }
+    h2 {
+      font-size: 14.5pt;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 6px;
+      margin-bottom: 14px;
+    }
+    h3 { font-size: 11pt; margin-top: 1em; }
+
+    p { margin: 0 0 0.7em; }
+    .lead { font-size: 11.5pt; color: var(--ink); }
+    .muted { color: var(--muted); }
+    .small { font-size: 9pt; color: var(--muted); }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 9pt;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .kicker {
+      font-size: 9.5pt;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: none;
+      margin-bottom: 10px;
+    }
+
+    ul { margin: 0.3em 0 0.8em 1.2em; padding: 0; }
+    li { margin-bottom: 0.35em; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 14px;
+      font-size: 9.2pt;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--accent-soft);
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 10px;
+      margin: 12px 0 16px;
+    }
+    .stat {
+      flex: 1;
+      border-left: 3px solid var(--accent);
+      padding: 6px 0 6px 10px;
+      background: transparent;
+    }
+    .stat .n {
+      font-size: 16pt;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+    .stat .l { font-size: 8.5pt; color: var(--muted); margin-top: 2px; }
+
+    .callout {
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      padding: 10px 12px;
+      margin: 12px 0;
+      background: #fff;
+    }
+    .callout.warn {
+      border-left-color: var(--warn);
+    }
+
+    .footer {
+      position: absolute;
+      left: 18mm;
+      right: 18mm;
+      bottom: 12mm;
+      font-size: 8pt;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media print {
+      .footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 4px 0 0;
+      }
+      .sheet { padding-bottom: 10mm; }
+    }
+
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 255mm;
+    }
+    @media print {
+      .cover { min-height: 250mm; }
+    }
+
+    .cover-main { margin-top: 48mm; }
+    .cover h1 { font-size: 26pt; margin-bottom: 14px; }
+    .cover .sub { font-size: 12pt; color: var(--muted); max-width: 28em; }
+    .cover-meta {
+      margin-top: 28px;
+      font-size: 10pt;
+      color: var(--muted);
+    }
+    .cover-meta span {
+      display: inline-block;
+      margin-right: 14px;
+      margin-bottom: 6px;
+    }
+    .rule {
+      width: 48px;
+      height: 3px;
+      background: var(--accent);
+      margin: 18px 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      background: #fff;
+    }
+    .box h3 { margin-top: 0; color: var(--accent); }
+
+    ol.steps {
+      margin: 0.4em 0 0.8em 1.2em;
+      padding: 0;
+    }
+    ol.steps li { margin-bottom: 0.5em; }
+
+    .page-num::after { content: none; }
+  </style>
+</head>
+<body>
+  <div class="export-hint no-print">
+    <strong>导出 PDF：</strong>用 Chrome 打开本文件 → 打印（⌘P）→ 目标选「另存为 PDF」→ 边距默认 / 背景图形开启。
+    也可在终端执行仓库内说明中的 headless 命令。文档共 9 页（A4）。
+  </div>
+
+  <!-- 1 封面 -->
+  <section class="sheet cover">
+    <div>
+      <p class="kicker">CREDITAGENT · 组织管理咨询简报</p>
+      <div class="cover-main">
+        <p class="tag">东南亚 · 消费信贷 · 出海投放</p>
+        <div class="rule"></div>
+        <h1>人少预算重：<br />消金出海投放的组织解法</h1>
+        <p class="sub lead">
+          年媒体预算约 ¥1000 万、自有投手 2 人时，瓶颈通常不是再招第 3 个投手，
+          而是把「盯盘改价」换成「人审 Agent 提案 + 可回滚的授权参数」。
+        </p>
+        <p class="cover-meta">
+          <span>预算口径：¥10,000,000 / 年</span>
+          <span>编制：2 投手 · 年薪合计约 ¥60–80 万</span>
+          <span>平台：CreditAgent</span>
+        </p>
+      </div>
+    </div>
+    <div>
+      <p class="small">仅供内部研讨 · 数字为示意口径，实施前按账户本位币与当地合规要求校准。</p>
+      <div class="footer" style="position:static;border:0;padding:0;margin-top:8px;">
+        <span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span>
+        <span>1 / 9</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 一页结论 -->
+  <section class="sheet">
+    <p class="kicker">02 · 一页结论</p>
+    <h2>先算账，再谈编制</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="n">¥1000 万</div>
+        <div class="l">年媒体预算（示意）</div>
+      </div>
+      <div class="stat">
+        <div class="n">≈¥70 万</div>
+        <div class="l">2 投手人力中位（30–40 万×2）</div>
+      </div>
+      <div class="stat">
+        <div class="n">≈7%</div>
+        <div class="l">人力 / 媒体比 · 应盯 CPS 而非 CPL</div>
+      </div>
+    </div>
+
+    <p class="lead">
+      对东南亚出海消金来说，真正贵的不是人力占比，而是<strong>花错的预算</strong>：
+      前端线索好看、授信与放款对不上时，千万级预算会被「假效率」吞掉。
+    </p>
+
+    <div class="callout">
+      <strong>建议目标态（不扩招硬岗）</strong>
+      <p style="margin:6px 0 0;">
+        Agent 负责提案与巡检；人只批关键动作（预算大挪、风险开关、合规争议）。
+        经营会看 CPS / 授信 / 放款与回传健康度，而不是只看花费与 CPL。
+      </p>
+    </div>
+
+    <h3>两条组织红线（本简报主轴）</h3>
+    <ol class="steps">
+      <li><strong>增长负责人与市场负责人不可合并。</strong>目标函数冲突；小团队可「人兼岗」，但 KPI / 汇报线 / 拍板权必须拆开；未来编制禁止再合并。</li>
+      <li><strong>投手稳态后优先转岗，不建议一刀裁。</strong>演进为「1 投放主责 + 1 AI 运营」，总人头可持平；Agent 替代重复调优，不替代账户监管责任。</li>
+    </ol>
+
+    <p class="small">产品锚点：CreditAgent 半自动审批队列、护栏与 Kill Switch、预算池、素材合规门禁、转化回传、经营复盘 / 高管周报。不承诺多租户权限体系已上线。</p>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>2 / 9</span></div>
+  </section>
+
+  <!-- 3 人效顶墙 -->
+  <section class="sheet">
+    <p class="kicker">03 · 人效为什么顶墙</p>
+    <h2>两个投手管千万预算，卡在哪</h2>
+    <p>不是「人不努力」，而是三类工作同时抢同一双手：</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:22%">过载类型</th>
+          <th>日常症状</th>
+          <th style="width:28%">只加人会怎样</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>跨渠道调预算</strong></td>
+          <td>Google / Meta 来回改日预算，决策慢半拍，高峰期漏批或拍脑袋</td>
+          <td>第 3 个投手仍在盯盘，吞吐线性涨、沟通成本也涨</td>
+        </tr>
+        <tr>
+          <td><strong>合规素材迭代</strong></td>
+          <td>禁词、APR / 期限披露、疲劳素材替换抢执行时间</td>
+          <td>仍缺「门禁 + 节奏」，人多不等于合规稳</td>
+        </tr>
+        <tr>
+          <td><strong>放款真反馈滞后</strong></td>
+          <td>平台学的是点击与表单，授信 / 放款回传不健康时越投越偏</td>
+          <td>报表更多，闭环不闭合，CPS 仍飘</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="two-col">
+      <div class="box">
+        <h3>路径 A · 再招投手</h3>
+        <p class="muted">编制 +1，成本 +30–40 万/年。决策仍靠人肉盯盘，授权靠口头习惯。</p>
+      </div>
+      <div class="box">
+        <h3>路径 B · 加 Agent 班次</h3>
+        <p class="muted">提案与巡检自动化；人审关键卡。授权写进阈值，可回滚。编制优先转岗而非膨胀。</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>一句话</strong>：千万级预算下，优先买的是「决策吞吐 + 后端闭环」，不是再买一双手去点后台。
+    </div>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>3 / 9</span></div>
+  </section>
+
+  <!-- 4 协作模型 -->
+  <section class="sheet">
+    <p class="kicker">04 · 协作模型</p>
+    <h2>从「按渠道分账号」到「人审 Agent 提案」</h2>
+    <p>
+      旧习惯：投手 A 管 Google、投手 B 管 Meta，各自优化前端指标。
+      新习惯：Agent 按 CPS / 风险规则出提案；人按角色审批；增长与市场<strong>分列两行，禁止合并成一个总指挥</strong>。
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>模式</th>
+          <th>人做什么</th>
+          <th>Agent 做什么</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>半自动</strong></td>
+          <td>审待办队列：批准 / 驳回 / 回滚</td>
+          <td>巡检与提案（预算、素材、风险暂停等）</td>
+        </tr>
+        <tr>
+          <td><strong>全自动（护栏内）</strong></td>
+          <td>盯异常、管 Kill Switch、复盘误伤</td>
+          <td>阈值内自执行；越界仍进待审</td>
+        </tr>
+        <tr>
+          <td><strong>LLM 建议</strong></td>
+          <td>必须人工拍板</td>
+          <td>只生成待审建议，不直连执行</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>极简 RACI（示意）</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>事项</th>
+          <th>增长负责人</th>
+          <th>市场负责人</th>
+          <th>投手 / AgentOps</th>
+          <th>Agent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>目标 CPS / 预算组合</td>
+          <td>A</td>
+          <td>C</td>
+          <td>R</td>
+          <td>提案</td>
+        </tr>
+        <tr>
+          <td>合规口径与素材供给</td>
+          <td>C</td>
+          <td>A</td>
+          <td>R</td>
+          <td>门禁提示</td>
+        </tr>
+        <tr>
+          <td>日级调预算 / 再分配</td>
+          <td>C（定门槛）</td>
+          <td>I</td>
+          <td>A（审批）</td>
+          <td>R（提案）</td>
+        </tr>
+        <tr>
+          <td>Kill Switch / 紧急停投</td>
+          <td>I</td>
+          <td>I</td>
+          <td>A / R</td>
+          <td>可触发建议</td>
+        </tr>
+        <tr>
+          <td>经营周报进会</td>
+          <td>A</td>
+          <td>C</td>
+          <td>R</td>
+          <td>出数</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small">R=执行 · A=拍板 · C=协商 · I=知情。增长与市场两列不可合并为同一人同一套 KPI。</p>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>4 / 9</span></div>
+  </section>
+
+  <!-- 5 授权阈值 -->
+  <section class="sheet">
+    <p class="kicker">05 · 把风险写成参数</p>
+    <h2>可控 ≠ 无人</h2>
+    <p>把「谁能改多少」从口头习惯，改成写进系统的阈值。下面是示意口径，上线前由增长负责人牵头、CEO 签字确认。</p>
+    <table>
+      <thead>
+        <tr>
+          <th>参数</th>
+          <th>示意阈值</th>
+          <th>谁关心</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>单次预算变动上限</td>
+          <td>≤ 30%</td>
+          <td>增长 · 投手审批</td>
+        </tr>
+        <tr>
+          <td>日累计预算变动</td>
+          <td>≤ 50%</td>
+          <td>增长 · 防止一天内掏空</td>
+        </tr>
+        <tr>
+          <td>广告组日预算绝对上限</td>
+          <td>按账户设定（如 ≤ $20,000）</td>
+          <td>增长 · 财务对账</td>
+        </tr>
+        <tr>
+          <td>低授信自动暂停</td>
+          <td>近窗授信通过率低于门槛 → 风险优先暂停</td>
+          <td>增长 · 风控语境</td>
+        </tr>
+        <tr>
+          <td>每小时动作数</td>
+          <td>设上限，防刷操作</td>
+          <td>投放主责值班</td>
+        </tr>
+        <tr>
+          <td>LLM / 顾问类建议</td>
+          <td><strong>一律待审</strong>，禁止直执</td>
+          <td>全体</td>
+        </tr>
+        <tr>
+          <td>Kill Switch</td>
+          <td>指定值班人；触发后全停提案执行</td>
+          <td>投手主责 · CEO 知情</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>落地提醒</strong>
+      <p style="margin:6px 0 0;">
+        平台界面货币多为账户本位（如 USD 花费展示）；财务用人民币对账时，单独建换算口径，避免经营会各说各话。
+      </p>
+    </div>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>5 / 9</span></div>
+  </section>
+
+  <!-- 6 三条链路 -->
+  <section class="sheet">
+    <p class="kicker">06 · 三条链路</p>
+    <h2>预算 · 素材 · 转化，各改什么</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%">链路</th>
+          <th>现在</th>
+          <th>以后（人 × Agent）</th>
+          <th style="width:22%">谁负责</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>预算再分配</strong></td>
+          <td>投手凭感觉挪日预算，缺少冻结与归因</td>
+          <td>提案 → 资金池冻结 → 人批准 → 分配；可回滚</td>
+          <td>增长定门槛<br />投手 / AgentOps 审批</td>
+        </tr>
+        <tr>
+          <td><strong>素材合规</strong></td>
+          <td>上线后才发现禁词 / 缺披露；疲劳素材拖指标</td>
+          <td>合规门禁 + 疲劳替换节奏；争议素材市场侧拍板</td>
+          <td>市场定口径<br />投手执行供给</td>
+        </tr>
+        <tr>
+          <td><strong>转化回传</strong></td>
+          <td>平台只见前端转化；授信 / 放款反馈慢或缺口大</td>
+          <td>回传健康度进周报；缺口优先于加预算</td>
+          <td>增长盯结果<br />AgentOps 盯链路</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      三条链路改完，经营会才有资格问：「这周多花的钱，有没有换成放款？」
+      否则组织再怎么画架构图，也只是换人盯同一套前端报表。
+    </p>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>6 / 9</span></div>
+  </section>
+
+  <!-- 7 增长 vs 市场 -->
+  <section class="sheet">
+    <p class="kicker">07 · 组织红线</p>
+    <h2>增长 vs 市场：为什么必须分开</h2>
+    <p class="lead">未来组织原则：<strong>增长负责人与市场负责人不可合并为同一岗位、同一套 KPI。</strong></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>增长负责人</th>
+          <th>市场负责人</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>对什么负责</strong></td>
+          <td>获客效率与后端结果：CPS、授信、放款、渠道组合、预算再分配门槛</td>
+          <td>品牌与合规叙事、素材供给、本地化表达与市场节奏</td>
+        </tr>
+        <tr>
+          <td><strong>典型问题</strong></td>
+          <td>「这笔钱换来多少真放款？」</td>
+          <td>「这话能不能说？素材够不够？品牌有没有伤？」</td>
+        </tr>
+        <tr>
+          <td><strong>不该兼什么</strong></td>
+          <td>不背品牌露出 KPI；不为「花完预算」而投</td>
+          <td>不直接拍日常调价 / 调预算执行细节</td>
+        </tr>
+        <tr>
+          <td><strong>与 Agent</strong></td>
+          <td>经营目标与授权阈值的主人</td>
+          <td>合规与素材供给的主人；协作审批，不是同一总指挥</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>为什么一人兼会出事</h3>
+    <ul>
+      <li><strong>目标函数冲突：</strong>增长追 CPS，市场追声量与合规表达；兼岗时容易牺牲其中一头。</li>
+      <li><strong>结果失真：</strong>常见两种偏：前端好看、放款难看；或表达过紧、量起不来。</li>
+      <li><strong>事故难追责：</strong>出问题后无法复盘是「策略错」还是「口径错」。</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>小团队过渡写法</strong>
+      <p style="margin:6px 0 0;">
+        现阶段可以「一个人干两摊活」，但职级称呼、周会汇报线、考核指标必须拆开两套。
+        规模上来后<strong>编制也要拆开</strong>，禁止再合并。不要把增长 / 市场压进两个投手编制里「顺便兼了」。
+      </p>
+    </div>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>7 / 9</span></div>
+  </section>
+
+  <!-- 8 投手转岗 -->
+  <section class="sheet">
+    <p class="kicker">08 · 投手去留</p>
+    <h2>稳态之后：还要不要两个投手？</h2>
+    <p>Agent 稳定后，编制建议从「2 个纯投手」演进为「1 投放主责 + 1 AI 运营」。总人头可持平；<strong>不建议双人同时裁掉</strong>。</p>
+
+    <h3>稳态判定（示意，可改）</h3>
+    <ul>
+      <li>连续 4–6 周：待审提案按时消化，护栏内少误伤</li>
+      <li>CPS 周报进入经营会，回传健康度能讲清楚</li>
+      <li>日常从「盯盘改价」为主，变为「批关键卡 + 看异常」为主</li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28%">出路</th>
+          <th>做什么</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>保留 1 名投放主责</strong></td>
+          <td>账户安全、Kill Switch 值班、异常复盘。千万级预算不宜零人盯账户。</td>
+        </tr>
+        <tr>
+          <td><strong>另 1 名转 AI 运营 / AgentOps</strong></td>
+          <td>训队列规则、整理拒批原因反哺策略、盯转化回传缺口、维护授权阈值与周报口径。</td>
+        </tr>
+        <tr>
+          <td><strong>不建议</strong></td>
+          <td>Agent 一稳就裁掉两人；或把增长 / 市场负责人塞进这两个编制兼掉。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>技能迁徙（对照日常）</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>现在会</th>
+          <th>转岗后要会</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>读决策卡理由链</td><td>改护栏 / 授权阈值</td></tr>
+        <tr><td>调预算</td><td>审预算池提案与回滚</td></tr>
+        <tr><td>上素材</td><td>过合规门禁 + 疲劳替换节奏</td></tr>
+        <tr><td>看渠道报表</td><td>看授信 / 放款与回传健康度</td></tr>
+      </tbody>
+    </table>
+
+    <p class="small">仅当预算显著下降或账户整体外包托管时，才讨论减编，且仍须保留可响应的值班责任人。</p>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>8 / 9</span></div>
+  </section>
+
+  <!-- 9 90 天 -->
+  <section class="sheet">
+    <p class="kicker">09 · 90 天与拍板</p>
+    <h2>怎么走，CEO 要拍哪几下</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%">阶段</th>
+          <th>动作</th>
+          <th style="width:28%">验收</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>D0–30</strong></td>
+          <td>半自动上线；写入护栏与 Kill Switch 值班人；增长 / 市场分岗书面确认（可兼人、不兼糊权责）</td>
+          <td>队列日清；无越权直执</td>
+        </tr>
+        <tr>
+          <td><strong>D30–60</strong></td>
+          <td>CPS 周报进经营会；回传健康度固定议程；整理拒批原因</td>
+          <td>会上看后端指标，不只看花费</td>
+        </tr>
+        <tr>
+          <td><strong>D60–90</strong></td>
+          <td>评估护栏内部分自动执行；启动「1 投放主责 + 1 AI 运营」转岗（示意 Q2/Q3）</td>
+          <td>稳态标准达标；转岗表签字</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>CEO 拍板清单（5 件）</h3>
+    <ol class="steps">
+      <li>目标 CPS（及不可接受的授信/放款底线）</li>
+      <li>授权阈值表（单次 / 日累计 / 绝对上限）</li>
+      <li>Kill Switch 值班人（主 + 备）</li>
+      <li><strong>书面确认：增长负责人与市场负责人分岗</strong>（KPI 与汇报线拆开）</li>
+      <li><strong>投手转岗时间表</strong>（示意：稳态后 1 人转 AI 运营，不双裁）</li>
+    </ol>
+
+    <div class="callout">
+      <strong>收束</strong>
+      <p style="margin:6px 0 0;">
+        人少不是弱点，权责糊才是。Agent 用来抬吞吐；分岗用来保目标不打架；转岗用来留住懂账户的人。
+        这三件事对齐了，¥1000 万预算才值得继续加码。
+      </p>
+    </div>
+    <div class="footer"><span>CreditAgent · 组织管理咨询简报 · 仅供内部研讨</span><span>9 / 9</span></div>
+  </section>
+</body>
+</html>

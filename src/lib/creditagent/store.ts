@@ -27,6 +27,10 @@ import {
   settleExperimentFn,
 } from "./creative.functions";
 import {
+  bindGoogleAdGroupFn,
+  bindGoogleCampaignFn,
+} from "./google-ads.functions";
+import {
   createAdGroupFn,
   createCampaignFn,
   createCreativeFn,
@@ -213,7 +217,9 @@ function optimistic(patch: Partial<State>) {
 
 export const agentApi = {
   async approveDecision(id: string) {
-    applySnapshot(await approveDecisionFn({ data: { id } }));
+    const res = await approveDecisionFn({ data: { id } });
+    applySnapshot(res.snapshot);
+    return res.external ?? null;
   },
 
   async rejectDecision(id: string) {
@@ -246,15 +252,29 @@ export const agentApi = {
 
 
   async setAdGroupStatus(id: string, status: Campaign["status"]) {
+    const prev = state.adGroups;
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, status } : g)) });
-    applySnapshot(await setAdGroupStatusFn({ data: { id, status } }));
+    try {
+      const res = await setAdGroupStatusFn({ data: { id, status } });
+      applySnapshot(res.snapshot);
+      return res.external ?? null;
+    } catch (e) {
+      set({ adGroups: prev });
+      throw e;
+    }
   },
 
   async setAdGroupBudget(id: string, dailyBudget: number) {
+    const prev = state.adGroups;
     optimistic({ adGroups: state.adGroups.map((g) => (g.id === id ? { ...g, dailyBudget } : g)) });
-    const res = await setAdGroupBudgetFn({ data: { id, dailyBudget } });
-    applySnapshot(res.snapshot);
-    return res.guardrail;
+    try {
+      const res = await setAdGroupBudgetFn({ data: { id, dailyBudget } });
+      applySnapshot(res.snapshot);
+      return { guardrail: res.guardrail, external: res.external ?? null };
+    } catch (e) {
+      set({ adGroups: prev });
+      throw e;
+    }
   },
 
 
@@ -346,6 +366,24 @@ export const agentApi = {
     patch: { name?: string; status?: "ACTIVE" | "PAUSED"; dailyBudget?: number },
   ) {
     const res = await updateCampaignFn({ data: { id, ...patch } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async bindGoogleCampaign(
+    campaignId: string,
+    googleResourceName: string | null,
+    googleBudgetResourceName: string | null,
+  ) {
+    const res = await bindGoogleCampaignFn({
+      data: { campaignId, googleResourceName, googleBudgetResourceName },
+    });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async bindGoogleAdGroup(adGroupId: string, googleResourceName: string | null) {
+    const res = await bindGoogleAdGroupFn({ data: { adGroupId, googleResourceName } });
     applySnapshot(res.snapshot);
     return res;
   },

@@ -25,6 +25,7 @@ export type Database = {
           compliance_pass_rate: number
           created_at: string
           daily_budget: number
+          google_resource_name: string | null
           id: string
           impressions: number
           name: string
@@ -44,6 +45,7 @@ export type Database = {
           compliance_pass_rate?: number
           created_at?: string
           daily_budget?: number
+          google_resource_name?: string | null
           id: string
           impressions?: number
           name: string
@@ -63,6 +65,7 @@ export type Database = {
           compliance_pass_rate?: number
           created_at?: string
           daily_budget?: number
+          google_resource_name?: string | null
           id?: string
           impressions?: number
           name?: string
@@ -147,6 +150,8 @@ export type Database = {
           creative_id: string | null
           creative_name: string | null
           effect: string
+          external_mutate_detail: string | null
+          external_mutate_status: string | null
           guardrail_note: string | null
           id: string
           reasoning_chain: Json
@@ -171,6 +176,8 @@ export type Database = {
           creative_id?: string | null
           creative_name?: string | null
           effect?: string
+          external_mutate_detail?: string | null
+          external_mutate_status?: string | null
           guardrail_note?: string | null
           id: string
           reasoning_chain?: Json
@@ -195,6 +202,8 @@ export type Database = {
           creative_id?: string | null
           creative_name?: string | null
           effect?: string
+          external_mutate_detail?: string | null
+          external_mutate_status?: string | null
           guardrail_note?: string | null
           id?: string
           reasoning_chain?: Json
@@ -317,6 +326,8 @@ export type Database = {
           created_at: string
           daily_budget: number
           disbursed_amount: number
+          google_budget_resource_name: string | null
+          google_resource_name: string | null
           id: string
           impressions: number
           last20_approval_rate: number
@@ -339,6 +350,8 @@ export type Database = {
           created_at?: string
           daily_budget?: number
           disbursed_amount?: number
+          google_budget_resource_name?: string | null
+          google_resource_name?: string | null
           id: string
           impressions?: number
           last20_approval_rate?: number
@@ -361,6 +374,8 @@ export type Database = {
           created_at?: string
           daily_budget?: number
           disbursed_amount?: number
+          google_budget_resource_name?: string | null
+          google_resource_name?: string | null
           id?: string
           impressions?: number
           last20_approval_rate?: number

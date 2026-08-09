@@ -98,8 +98,8 @@ export function StructureTab() {
             <p className="label-mono">structure</p>
             <h2 className="mt-1 text-sm font-semibold tracking-wide">投放结构管理</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Campaign → Ad Group → Creative 绑定 · 本地库为 Source of Truth · LIVE
-              同步第二期灰显
+              Campaign → Ad Group → Creative · 本地为 SoT · Google 测试户可手工绑定
+              resource name（MODE=test 时推送预算/状态）
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -283,13 +283,28 @@ function CampaignEditor({
     campaign.status === "PAUSED" ? "PAUSED" : "ACTIVE",
   );
   const [dailyBudget, setDailyBudget] = useState(String(campaign.dailyBudget));
+  const [googleResourceName, setGoogleResourceName] = useState(
+    campaign.googleResourceName ?? "",
+  );
+  const [googleBudgetResourceName, setGoogleBudgetResourceName] = useState(
+    campaign.googleBudgetResourceName ?? "",
+  );
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setName(campaign.name);
     setStatus(campaign.status === "PAUSED" ? "PAUSED" : "ACTIVE");
     setDailyBudget(String(campaign.dailyBudget));
-  }, [campaign.id, campaign.name, campaign.status, campaign.dailyBudget]);
+    setGoogleResourceName(campaign.googleResourceName ?? "");
+    setGoogleBudgetResourceName(campaign.googleBudgetResourceName ?? "");
+  }, [
+    campaign.id,
+    campaign.name,
+    campaign.status,
+    campaign.dailyBudget,
+    campaign.googleResourceName,
+    campaign.googleBudgetResourceName,
+  ]);
 
   return (
     <div className="space-y-4">
@@ -314,6 +329,13 @@ function CampaignEditor({
               status,
               dailyBudget: Number(dailyBudget) || 0,
             });
+            if (campaign.channel === "Google") {
+              await agentApi.bindGoogleCampaign(
+                campaign.id,
+                googleResourceName.trim() || null,
+                googleBudgetResourceName.trim() || null,
+              );
+            }
             onSaved();
           } catch (err) {
             toast.error("保存失败", { description: errMsg(err) });
@@ -347,6 +369,29 @@ function CampaignEditor({
             onChange={(e) => setDailyBudget(e.target.value)}
           />
         </Field>
+        {campaign.channel === "Google" && (
+          <>
+            <Field label="Google campaign resource name">
+              <Input
+                value={googleResourceName}
+                onChange={(e) => setGoogleResourceName(e.target.value)}
+                placeholder="customers/123/campaigns/456"
+                className="font-mono text-xs"
+              />
+            </Field>
+            <Field label="Google campaign_budget resource name">
+              <Input
+                value={googleBudgetResourceName}
+                onChange={(e) => setGoogleBudgetResourceName(e.target.value)}
+                placeholder="customers/123/campaignBudgets/789"
+                className="font-mono text-xs"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                测试 API 改日预算写入此 CampaignBudget；未绑定则 MODE=test 下拒绝推送。
+              </p>
+            </Field>
+          </>
+        )}
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={busy}>
             {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
@@ -385,6 +430,7 @@ function AdGroupEditor({
   const [status, setStatus] = useState<"ACTIVE" | "PAUSED" | "LEARNING">(
     group.status === "COMPLIANCE_HOLD" ? "PAUSED" : (group.status as "ACTIVE" | "PAUSED" | "LEARNING"),
   );
+  const [googleResourceName, setGoogleResourceName] = useState(group.googleResourceName ?? "");
   const [busy, setBusy] = useState(false);
 
   const [bindCreativeId, setBindCreativeId] = useState(creatives[0]?.id ?? "");
@@ -403,6 +449,7 @@ function AdGroupEditor({
         ? "PAUSED"
         : (group.status as "ACTIVE" | "PAUSED" | "LEARNING"),
     );
+    setGoogleResourceName(group.googleResourceName ?? "");
   }, [
     group.id,
     group.name,
@@ -412,6 +459,7 @@ function AdGroupEditor({
     group.bidTarget,
     group.dailyBudget,
     group.status,
+    group.googleResourceName,
   ]);
 
   const placementOptions = placementsFor(group.channel);
@@ -453,6 +501,9 @@ function AdGroupEditor({
               dailyBudget: Math.round(Number(dailyBudget)),
               status,
             });
+            if (group.channel === "Google") {
+              await agentApi.bindGoogleAdGroup(group.id, googleResourceName.trim() || null);
+            }
             if (res.guardrail?.verdict === "CLAMP") {
               toast.warning("预算已被风控截断", { description: res.guardrail.detail });
             } else {
@@ -561,6 +612,19 @@ function AdGroupEditor({
             </Select>
           </Field>
         </div>
+        {group.channel === "Google" && (
+          <Field label="Google ad_group resource name">
+            <Input
+              value={googleResourceName}
+              onChange={(e) => setGoogleResourceName(e.target.value)}
+              placeholder="customers/123/adGroups/456"
+              className="font-mono text-xs"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              手工绑定测试户资源；未绑定且 MODE=test 时状态/预算推送会被拒绝。
+            </p>
+          </Field>
+        )}
         <Button type="submit" size="sm" disabled={busy} className="w-fit">
           {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
           保存广告组

@@ -42,6 +42,8 @@ function mapCampaign(r: Row): Campaign {
     compliancePassRate: Number(r.compliance_pass_rate),
     last20ApprovalRate: Number(r.last20_approval_rate),
     aiSuggestion: r.ai_suggestion,
+    googleResourceName: r.google_resource_name ?? null,
+    googleBudgetResourceName: r.google_budget_resource_name ?? null,
   };
 }
 
@@ -86,6 +88,7 @@ function mapAdGroup(
     compliancePassRate: Number(r.compliance_pass_rate),
     last20ApprovalRate: f?.last20ApprovalRate ?? 0,
     aiSuggestion: r.ai_suggestion,
+    googleResourceName: r.google_resource_name ?? null,
   };
 }
 
@@ -114,8 +117,25 @@ function mapDecision(r: Row): AgentDecision {
     creativeName: r.creative_name ?? undefined,
     triggerSource: (r.trigger_source ?? "EVENT") as "EVENT" | "SWEEP" | "LLM",
     guardrailNote: r.guardrail_note ?? undefined,
+    externalMutateStatus: r.external_mutate_status ?? undefined,
+    externalMutateDetail: r.external_mutate_detail ?? undefined,
   };
 
+}
+
+async function noteExternalMutate(
+  decisionId: string,
+  external: { status: string; detail: string } | null | undefined,
+) {
+  if (!external) return;
+  const supabase = await db();
+  await supabase
+    .from("agent_decisions")
+    .update({
+      external_mutate_status: external.status,
+      external_mutate_detail: external.detail,
+    } as never)
+    .eq("id", decisionId);
 }
 
 /** All creative → ad group delivery links, enriched with hierarchy metadata and real lead facts. */
@@ -539,8 +559,9 @@ async function getAdGroup(id: string) {
 export async function approveDecision(id: string) {
   const supabase = await db();
   const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
-  if (!data) return getSnapshot();
+  if (!data) return { snapshot: await getSnapshot(), external: null };
   const decision = mapDecision(data as Row);
+  let external: import("./google-ads").ExternalMutateResult | null = null;
 
   await recordManualAction({
     action: "APPROVE_DECISION",
@@ -555,13 +576,17 @@ export async function approveDecision(id: string) {
     },
   });
 
-
+  const finish = async () => {
+    if (external) await noteExternalMutate(id, external);
+    return { snapshot: await getSnapshot(), external };
+  };
 
   // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
   const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
   const poolEntries = await pendingAllocationsFor(id);
   if (poolEntries.length > 0) {
     const res = await applyReallocationDecision(id);
+    external = res.external ?? null;
     await supabase
       .from("agent_decisions")
       .update({
@@ -569,10 +594,8 @@ export async function approveDecision(id: string) {
         guardrail_note: res.notes.length ? res.notes.join(" / ") : null,
       } as never)
       .eq("id", id);
-    return getSnapshot();
+    return finish();
   }
-
-
 
   // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
   if (decision.triggerSource === "LLM") {
@@ -588,7 +611,7 @@ export async function approveDecision(id: string) {
           guardrail_note: `批准被规则层拒绝（${gate.decision.rule}）：${gate.decision.detail}`,
         } as never)
         .eq("id", id);
-      return getSnapshot();
+      return finish();
     }
 
     if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
@@ -615,9 +638,11 @@ export async function approveDecision(id: string) {
               guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
             } as never)
             .eq("id", id);
-          return getSnapshot();
+          return finish();
         }
         const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+        const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+        external = await syncGoogleAdGroupBudget(group.id, applied);
         await supabase
           .from("ad_groups")
           .update({
@@ -628,6 +653,8 @@ export async function approveDecision(id: string) {
           .eq("id", group.id);
       }
     } else if (decision.actionType === "CREATIVE_PAUSE" && decision.adGroupId) {
+      const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
+      external = await syncGoogleAdGroupStatus(decision.adGroupId, "PAUSED");
       await supabase
         .from("ad_groups")
         .update({ status: "PAUSED", ai_suggestion: "按 LLM 分析师建议暂停，已过风控闸门" } as never)
@@ -636,7 +663,7 @@ export async function approveDecision(id: string) {
 
     await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
     await bumpTakeovers(1);
-    return getSnapshot();
+    return finish();
   }
 
   // —— SWEEP / 事件驱动的预算调整卡（含 PID 贴 CPS）：批准时按 effect 目标值过风控后落库 ——
@@ -669,9 +696,11 @@ export async function approveDecision(id: string) {
             guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
           } as never)
           .eq("id", id);
-        return getSnapshot();
+        return finish();
       }
       const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+      const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+      external = await syncGoogleAdGroupBudget(group.id, applied);
       await supabase
         .from("ad_groups")
         .update({
@@ -695,23 +724,25 @@ export async function approveDecision(id: string) {
 
     await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
     await bumpTakeovers(1);
-    return getSnapshot();
+    return finish();
+  }
+
+  const targetGroup = decision.adGroupId;
+  if (targetGroup && decision.actionType === "CREATIVE_PAUSE") {
+    const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
+    external = await syncGoogleAdGroupStatus(targetGroup, "PAUSED");
+    await supabase
+      .from("ad_groups")
+      .update({
+        status: "PAUSED",
+        ai_suggestion: "低质素材已暂停，合规变体接量中",
+      } as never)
+      .eq("id", targetGroup);
   }
 
   await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
   await bumpTakeovers(1);
-
-  const targetGroup = decision.adGroupId;
-  if (targetGroup) {
-    if (decision.actionType === "CREATIVE_PAUSE") {
-      await supabase
-        .from("ad_groups")
-        .update({ ai_suggestion: "低质素材已暂停，合规变体接量中" } as never)
-        .eq("id", targetGroup);
-    }
-  }
-
-  return getSnapshot();
+  return finish();
 }
 
 
@@ -923,6 +954,9 @@ export async function setRiskFirst(riskFirst: boolean) {
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
   const before = await getAdGroup(id);
+  const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
+  const external = await syncGoogleAdGroupStatus(id, status);
+
   await supabase
     .from("ad_groups")
     .update({ status, updated_at: new Date().toISOString() } as never)
@@ -933,12 +967,13 @@ export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
       action: "SET_AD_GROUP_STATUS",
       targetId: id,
       rule: "MANUAL_OVERRIDE",
-      detail: `人工将广告组「${before.name}」（${before.campaignName}）从 ${before.status} 改为 ${status}。`,
+      detail: `人工将广告组「${before.name}」（${before.campaignName}）从 ${before.status} 改为 ${status}。${external.detail}`,
       requested: {
         from: before.status,
         to: status,
         adGroupName: before.name,
         campaignName: before.campaignName,
+        external,
       },
     });
 
@@ -957,14 +992,14 @@ export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
     }
   }
 
-  return getSnapshot();
+  return { snapshot: await getSnapshot(), external };
 }
 
 /** 人工改预算：仍需过绝对上限与单次幅度校验，超限直接拒绝并留痕。 */
 export async function setAdGroupBudget(id: string, dailyBudget: number) {
   const supabase = await db();
   const group = await getAdGroup(id);
-  if (!group) return { snapshot: await getSnapshot(), guardrail: null };
+  if (!group) return { snapshot: await getSnapshot(), guardrail: null, external: null };
 
   const limits = await loadLimits();
   const verdict = checkBudgetChange(limits, { current: group.dailyBudget, next: dailyBudget });
@@ -976,10 +1011,13 @@ export async function setAdGroupBudget(id: string, dailyBudget: number) {
   });
 
   if (verdict.verdict === "DENY") {
-    return { snapshot: await getSnapshot(), guardrail: verdict };
+    return { snapshot: await getSnapshot(), guardrail: verdict, external: null };
   }
 
   const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? dailyBudget) : dailyBudget;
+  const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+  const external = await syncGoogleAdGroupBudget(id, applied);
+
   await supabase
     .from("ad_groups")
     .update({ daily_budget: applied, updated_at: new Date().toISOString() } as never)
@@ -992,7 +1030,11 @@ export async function setAdGroupBudget(id: string, dailyBudget: number) {
     console.error("[pid] reset after manual budget failed", e);
   }
 
-  return { snapshot: await getSnapshot(), guardrail: verdict.verdict === "CLAMP" ? verdict : null };
+  return {
+    snapshot: await getSnapshot(),
+    guardrail: verdict.verdict === "CLAMP" ? verdict : null,
+    external,
+  };
 }
 
 export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SWEEP" = "EVENT") {
@@ -1065,7 +1107,7 @@ export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SW
         : "后端放款率低于阈值，触发风险拦截：预算削减 40% 并转移至高胜率广告组。",
       guardrailNote ?? "风控规则层校验通过：预算变动在硬编码限额内。",
       mode === "FULL_AUTO"
-        ? "托管模式 = Full-Auto：直接调用广告 API 执行。"
+        ? "托管模式 = Full-Auto：护栏通过后尝试推送 Google（test）或仅本地落库。"
         : "托管模式 = Semi-Auto：推送审批卡片，等待人工确认。",
     ],
     trigger_metric: "CostPerDisbursement",
@@ -1083,6 +1125,11 @@ export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SW
     .maybeSingle();
 
   if (mode === "FULL_AUTO") {
+    const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+    const external = await syncGoogleAdGroupBudget(group.id, nextBudget);
+    if (inserted) {
+      await noteExternalMutate((inserted as Row).id, external);
+    }
     await supabase
       .from("ad_groups")
       .update({ daily_budget: nextBudget } as never)
