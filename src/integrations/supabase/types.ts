@@ -19,7 +19,6 @@ export type Database = {
           ai_suggestion: string
           audience: string
           bid_strategy: string
-          bid_target: number | null
           campaign_id: string
           channel: string
           clicks: number
@@ -39,7 +38,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id: string
           channel: string
           clicks?: number
@@ -59,7 +57,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id?: string
           channel?: string
           clicks?: number
@@ -1078,10 +1075,6 @@ export type Database = {
       get_agent_snapshot: { Args: never; Returns: Json }
       get_budget_pool_today: { Args: never; Returns: Json }
       get_conversion_snapshot: { Args: never; Returns: Json }
-      get_period_conversion_facts: {
-        Args: { p_from: string; p_to: string }
-        Returns: Json
-      }
     }
     Enums: {
       [_ in never]: never
