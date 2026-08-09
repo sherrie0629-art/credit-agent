@@ -19,7 +19,6 @@ export type Database = {
           ai_suggestion: string
           audience: string
           bid_strategy: string
-          bid_target: number | null
           campaign_id: string
           channel: string
           clicks: number
@@ -27,13 +26,10 @@ export type Database = {
           created_at: string
           daily_budget: number
           google_resource_name: string | null
-          google_sync_at: string | null
           id: string
           impressions: number
           name: string
-          origin: string
           placement: string
-          platform_removed: boolean
           sort_order: number
           spent_today: number
           status: string
@@ -43,7 +39,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id: string
           channel: string
           clicks?: number
@@ -51,13 +46,10 @@ export type Database = {
           created_at?: string
           daily_budget?: number
           google_resource_name?: string | null
-          google_sync_at?: string | null
           id: string
           impressions?: number
           name: string
-          origin?: string
           placement?: string
-          platform_removed?: boolean
           sort_order?: number
           spent_today?: number
           status?: string
@@ -67,7 +59,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id?: string
           channel?: string
           clicks?: number
@@ -75,13 +66,10 @@ export type Database = {
           created_at?: string
           daily_budget?: number
           google_resource_name?: string | null
-          google_sync_at?: string | null
           id?: string
           impressions?: number
           name?: string
-          origin?: string
           placement?: string
-          platform_removed?: boolean
           sort_order?: number
           spent_today?: number
           status?: string
@@ -340,15 +328,12 @@ export type Database = {
           disbursed_amount: number
           google_budget_resource_name: string | null
           google_resource_name: string | null
-          google_sync_at: string | null
           id: string
           impressions: number
           last20_approval_rate: number
           leads: number
           name: string
-          origin: string
           placement: string
-          platform_removed: boolean
           sort_order: number
           spent_today: number
           status: string
@@ -367,15 +352,12 @@ export type Database = {
           disbursed_amount?: number
           google_budget_resource_name?: string | null
           google_resource_name?: string | null
-          google_sync_at?: string | null
           id: string
           impressions?: number
           last20_approval_rate?: number
           leads?: number
           name: string
-          origin?: string
-          placement?: string
-          platform_removed?: boolean
+          placement: string
           sort_order?: number
           spent_today?: number
           status?: string
@@ -394,15 +376,12 @@ export type Database = {
           disbursed_amount?: number
           google_budget_resource_name?: string | null
           google_resource_name?: string | null
-          google_sync_at?: string | null
           id?: string
           impressions?: number
           last20_approval_rate?: number
           leads?: number
           name?: string
-          origin?: string
           placement?: string
-          platform_removed?: boolean
           sort_order?: number
           spent_today?: number
           status?: string
@@ -570,8 +549,6 @@ export type Database = {
           created_at: string
           fatigue_level: string
           fatigue_score: number
-          google_resource_name: string | null
-          google_sync_at: string | null
           headline: string
           id: string
           image_url: string | null
@@ -579,8 +556,6 @@ export type Database = {
           launched_at: string
           loan_term_range: string
           max_apr: number
-          origin: string
-          platform_removed: boolean
           sort_order: number
         }
         Insert: {
@@ -590,8 +565,6 @@ export type Database = {
           created_at?: string
           fatigue_level?: string
           fatigue_score?: number
-          google_resource_name?: string | null
-          google_sync_at?: string | null
           headline: string
           id: string
           image_url?: string | null
@@ -599,8 +572,6 @@ export type Database = {
           launched_at?: string
           loan_term_range?: string
           max_apr?: number
-          origin?: string
-          platform_removed?: boolean
           sort_order?: number
         }
         Update: {
@@ -610,8 +581,6 @@ export type Database = {
           created_at?: string
           fatigue_level?: string
           fatigue_score?: number
-          google_resource_name?: string | null
-          google_sync_at?: string | null
           headline?: string
           id?: string
           image_url?: string | null
@@ -619,8 +588,6 @@ export type Database = {
           launched_at?: string
           loan_term_range?: string
           max_apr?: number
-          origin?: string
-          platform_removed?: boolean
           sort_order?: number
         }
         Relationships: []
@@ -852,45 +819,6 @@ export type Database = {
           rule?: string
           target_id?: string
           verdict?: string
-        }
-        Relationships: []
-      }
-      google_structure_sync_runs: {
-        Row: {
-          ad_groups_upserted: number
-          campaigns_upserted: number
-          creatives_upserted: number
-          detail: Json
-          error: string | null
-          finished_at: string | null
-          id: number
-          marked_removed: number
-          ok: boolean
-          started_at: string
-        }
-        Insert: {
-          ad_groups_upserted?: number
-          campaigns_upserted?: number
-          creatives_upserted?: number
-          detail?: Json
-          error?: string | null
-          finished_at?: string | null
-          id?: number
-          marked_removed?: number
-          ok?: boolean
-          started_at?: string
-        }
-        Update: {
-          ad_groups_upserted?: number
-          campaigns_upserted?: number
-          creatives_upserted?: number
-          detail?: Json
-          error?: string | null
-          finished_at?: string | null
-          id?: number
-          marked_removed?: number
-          ok?: boolean
-          started_at?: string
         }
         Relationships: []
       }
