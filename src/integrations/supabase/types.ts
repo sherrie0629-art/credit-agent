@@ -19,7 +19,6 @@ export type Database = {
           ai_suggestion: string
           audience: string
           bid_strategy: string
-          bid_target: number | null
           campaign_id: string
           channel: string
           clicks: number
@@ -43,7 +42,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id: string
           channel: string
           clicks?: number
@@ -67,7 +65,6 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
-          bid_target?: number | null
           campaign_id?: string
           channel?: string
           clicks?: number
@@ -374,7 +371,7 @@ export type Database = {
           leads?: number
           name: string
           origin?: string
-          placement?: string
+          placement: string
           platform_removed?: boolean
           sort_order?: number
           spent_today?: number
@@ -822,6 +819,45 @@ export type Database = {
         }
         Relationships: []
       }
+      google_structure_sync_runs: {
+        Row: {
+          ad_groups_upserted: number
+          campaigns_upserted: number
+          creatives_upserted: number
+          detail: Json
+          error: string | null
+          finished_at: string | null
+          id: number
+          marked_removed: number
+          ok: boolean
+          started_at: string
+        }
+        Insert: {
+          ad_groups_upserted?: number
+          campaigns_upserted?: number
+          creatives_upserted?: number
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: never
+          marked_removed?: number
+          ok?: boolean
+          started_at?: string
+        }
+        Update: {
+          ad_groups_upserted?: number
+          campaigns_upserted?: number
+          creatives_upserted?: number
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: never
+          marked_removed?: number
+          ok?: boolean
+          started_at?: string
+        }
+        Relationships: []
+      }
       guardrail_events: {
         Row: {
           action: string
@@ -852,45 +888,6 @@ export type Database = {
           rule?: string
           target_id?: string
           verdict?: string
-        }
-        Relationships: []
-      }
-      google_structure_sync_runs: {
-        Row: {
-          ad_groups_upserted: number
-          campaigns_upserted: number
-          creatives_upserted: number
-          detail: Json
-          error: string | null
-          finished_at: string | null
-          id: number
-          marked_removed: number
-          ok: boolean
-          started_at: string
-        }
-        Insert: {
-          ad_groups_upserted?: number
-          campaigns_upserted?: number
-          creatives_upserted?: number
-          detail?: Json
-          error?: string | null
-          finished_at?: string | null
-          id?: number
-          marked_removed?: number
-          ok?: boolean
-          started_at?: string
-        }
-        Update: {
-          ad_groups_upserted?: number
-          campaigns_upserted?: number
-          creatives_upserted?: number
-          detail?: Json
-          error?: string | null
-          finished_at?: string | null
-          id?: number
-          marked_removed?: number
-          ok?: boolean
-          started_at?: string
         }
         Relationships: []
       }
