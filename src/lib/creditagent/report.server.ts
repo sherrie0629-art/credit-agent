@@ -154,10 +154,11 @@ async function loadConversionByChannel(
     ["Meta", emptyChannel("Meta")],
   ]);
 
-  const { data: rpcData, error: rpcErr } = await supabase.rpc("get_period_conversion_facts", {
-    p_from: fromIso,
-    p_to: toIso,
-  });
+  // Optional RPC: may not exist in every environment — falls back to table reads below.
+  const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)(
+    "get_period_conversion_facts",
+    { p_from: fromIso, p_to: toIso },
+  );
 
   if (!rpcErr && Array.isArray(rpcData)) {
     for (const raw of rpcData as Row[]) {
