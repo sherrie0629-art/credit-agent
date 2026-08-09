@@ -45,11 +45,11 @@ function AnalyticsPage() {
   const navigate = useNavigate({ from: Route.fullPath });
 
   function setTab(next: string) {
-    navigate({ search: (prev) => ({ ...prev, tab: next as TabKey }) });
+    navigate({ search: { tab: next as TabKey, week } });
   }
 
   function setWeek(next: WeekKey) {
-    navigate({ search: (prev) => ({ ...prev, week: next }) });
+    navigate({ search: { tab, week: next } });
   }
 
   return (
