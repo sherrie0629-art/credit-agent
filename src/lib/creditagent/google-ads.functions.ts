@@ -2,7 +2,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import * as ads from "./google-ads.server";
+import { syncGoogleStructure } from "./google-ads-sync.server";
 import { getSnapshot } from "./agent.server";
+
+export const syncGoogleStructureFn = createServerFn({ method: "POST" }).handler(async () =>
+  syncGoogleStructure(),
+);
 
 export const pingGoogleAdsFn = createServerFn({ method: "GET" }).handler(async () =>
   ads.pingGoogleAds(),

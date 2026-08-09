@@ -29,6 +29,7 @@ import {
 import {
   bindGoogleAdGroupFn,
   bindGoogleCampaignFn,
+  syncGoogleStructureFn,
 } from "./google-ads.functions";
 import {
   createAdGroupFn,
@@ -384,6 +385,13 @@ export const agentApi = {
 
   async bindGoogleAdGroup(adGroupId: string, googleResourceName: string | null) {
     const res = await bindGoogleAdGroupFn({ data: { adGroupId, googleResourceName } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  /** Google → Agent one-way structure pull (never mutates demo rows). */
+  async syncGoogleStructure() {
+    const res = await syncGoogleStructureFn();
     applySnapshot(res.snapshot);
     return res;
   },

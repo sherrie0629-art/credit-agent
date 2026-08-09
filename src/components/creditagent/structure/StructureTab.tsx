@@ -8,6 +8,7 @@ import {
   Pause,
   Play,
   Plus,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 
@@ -53,6 +54,27 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLIANCE_HOLD: "合规拦截",
 };
 
+function OriginBadge({
+  origin,
+  platformRemoved,
+}: {
+  origin?: "demo" | "google_sync";
+  platformRemoved?: boolean;
+}) {
+  if (origin === "google_sync") {
+    return (
+      <span className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-700 dark:text-sky-300">
+        {platformRemoved ? "Google · 已移除" : "Google"}
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+      演示
+    </span>
+  );
+}
+
 function errMsg(e: unknown) {
   const raw = e instanceof Error ? e.message : String(e);
   if (raw.includes("COMPLIANCE_BLOCKED")) return "合规 FAILED 的素材不能设为 ACTIVE";
@@ -74,11 +96,31 @@ export function StructureTab() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
 
   const selectedCampaign =
     selection?.kind === "campaign" ? campaigns.find((c) => c.id === selection.id) : null;
   const selectedGroup =
     selection?.kind === "adGroup" ? adGroups.find((g) => g.id === selection.id) : null;
+
+  const selectedIsGoogleSync =
+    selectedCampaign?.origin === "google_sync" || selectedGroup?.origin === "google_sync";
+
+  const syncFromGoogle = async () => {
+    setSyncBusy(true);
+    try {
+      const res = await agentApi.syncGoogleStructure();
+      if (res.ok) {
+        toast.success("已从 Google 同步结构", { description: res.message });
+      } else {
+        toast.error(res.message, { description: res.error ?? "请先在预算页完成探活（MODE=test）" });
+      }
+    } catch (err) {
+      toast.error("同步失败", { description: errMsg(err) });
+    } finally {
+      setSyncBusy(false);
+    }
+  };
 
   const groupsByCampaign = useMemo(() => {
     const map = new Map<string, AdGroup[]>();
@@ -98,11 +140,19 @@ export function StructureTab() {
             <p className="label-mono">structure</p>
             <h2 className="mt-1 text-sm font-semibold tracking-wide">投放结构管理</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Campaign → Ad Group → Creative · 本地为 SoT · Google 测试户可手工绑定
-              resource name（MODE=test 时推送预算/状态）
+              Campaign → Ad Group → Creative · Google 结构单向同步（只读镜像）· 演示数据保留 ·
+              MODE=test 时可托管推送预算/暂停
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" disabled={syncBusy} onClick={() => void syncFromGoogle()}>
+              {syncBusy ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              从 Google 同步结构
+            </Button>
             <Button size="sm" onClick={() => setWizardOpen(true)}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
               新建向导
@@ -115,7 +165,17 @@ export function StructureTab() {
               size="sm"
               variant="outline"
               onClick={() => setCreateGroupOpen(true)}
-              disabled={campaigns.length === 0}
+              disabled={
+                campaigns.length === 0 ||
+                selectedCampaign?.origin === "google_sync" ||
+                (selectedGroup != null &&
+                  campaigns.find((c) => c.id === selectedGroup.campaignId)?.origin === "google_sync")
+              }
+              title={
+                selectedIsGoogleSync
+                  ? "Google 同步系列请在广告后台新建子级后再点同步"
+                  : undefined
+              }
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               新建广告组
@@ -159,6 +219,7 @@ export function StructureTab() {
                     />
                     <ChannelBadge channel={camp.channel} />
                     <span className="min-w-0 flex-1 truncate font-medium">{camp.name}</span>
+                    <OriginBadge origin={camp.origin} platformRemoved={camp.platformRemoved} />
                     <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                       {groups.length}
                     </span>
@@ -179,6 +240,7 @@ export function StructureTab() {
                               onClick={() => setSelection({ kind: "adGroup", id: g.id })}
                             >
                               <span className="min-w-0 truncate">{g.name}</span>
+                              <OriginBadge origin={g.origin} platformRemoved={g.platformRemoved} />
                               <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                                 ${g.dailyBudget.toLocaleString()}
                               </span>
@@ -290,6 +352,7 @@ function CampaignEditor({
     campaign.googleBudgetResourceName ?? "",
   );
   const [busy, setBusy] = useState(false);
+  const fromGoogle = campaign.origin === "google_sync";
 
   useEffect(() => {
     setName(campaign.name);
@@ -313,10 +376,16 @@ function CampaignEditor({
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <ChannelBadge channel={campaign.channel} />
           <h3 className="text-base font-semibold">{campaign.name}</h3>
+          <OriginBadge origin={campaign.origin} platformRemoved={campaign.platformRemoved} />
           <span className="font-mono text-[11px] text-muted-foreground">
             {groupCount} 个广告组 · CPS ${campaign.cps.toFixed(2)}
           </span>
         </div>
+        {fromGoogle && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            结构以 Google 为准：请在广告后台改名/拆组后点「从 Google 同步结构」。此处可调状态与日预算（托管推送）。
+          </p>
+        )}
       </div>
       <form
         className="grid max-w-xl gap-3"
@@ -325,11 +394,11 @@ function CampaignEditor({
           setBusy(true);
           try {
             await agentApi.updateCampaign(campaign.id, {
-              name,
+              name: fromGoogle ? campaign.name : name,
               status,
               dailyBudget: Number(dailyBudget) || 0,
             });
-            if (campaign.channel === "Google") {
+            if (campaign.channel === "Google" && !fromGoogle) {
               await agentApi.bindGoogleCampaign(
                 campaign.id,
                 googleResourceName.trim() || null,
@@ -345,7 +414,13 @@ function CampaignEditor({
         }}
       >
         <Field label="名称">
-          <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={120}
+            disabled={fromGoogle}
+          />
         </Field>
         <Field label="渠道（创建后不可改）">
           <Input value={campaign.channel} disabled />
@@ -377,6 +452,8 @@ function CampaignEditor({
                 onChange={(e) => setGoogleResourceName(e.target.value)}
                 placeholder="customers/123/campaigns/456"
                 className="font-mono text-xs"
+                disabled={fromGoogle}
+                readOnly={fromGoogle}
               />
             </Field>
             <Field label="Google campaign_budget resource name">
@@ -385,9 +462,13 @@ function CampaignEditor({
                 onChange={(e) => setGoogleBudgetResourceName(e.target.value)}
                 placeholder="customers/123/campaignBudgets/789"
                 className="font-mono text-xs"
+                disabled={fromGoogle}
+                readOnly={fromGoogle}
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                测试 API 改日预算写入此 CampaignBudget；未绑定则 MODE=test 下拒绝推送。
+                {fromGoogle
+                  ? "同步时已自动对上号；托管改日预算写入此 CampaignBudget。"
+                  : "测试 API 改日预算写入此 CampaignBudget；未对上号则 MODE=test 下拒绝推送。"}
               </p>
             </Field>
           </>
@@ -395,7 +476,7 @@ function CampaignEditor({
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={busy}>
             {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            保存系列
+            {fromGoogle ? "保存托管设置" : "保存系列"}
           </Button>
           <Button type="button" size="sm" variant="outline" asChild>
             <Link to="/campaigns" search={{ tab: "budget" }}>
@@ -432,6 +513,7 @@ function AdGroupEditor({
   );
   const [googleResourceName, setGoogleResourceName] = useState(group.googleResourceName ?? "");
   const [busy, setBusy] = useState(false);
+  const fromGoogle = group.origin === "google_sync";
 
   const [bindCreativeId, setBindCreativeId] = useState(creatives[0]?.id ?? "");
   const [bindShare, setBindShare] = useState("100");
@@ -472,6 +554,7 @@ function AdGroupEditor({
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <ChannelBadge channel={group.channel} />
           <h3 className="text-base font-semibold">{group.name}</h3>
+          <OriginBadge origin={group.origin} platformRemoved={group.platformRemoved} />
           <span className="rounded border px-2 py-0.5 text-[11px]">
             {STATUS_LABEL[group.status] ?? group.status}
           </span>
@@ -479,6 +562,11 @@ function AdGroupEditor({
         <p className="mt-1 font-mono text-[11px] text-muted-foreground">
           {group.campaignName} · CPL ${group.cpl.toFixed(2)} · CPS ${group.cps.toFixed(2)}
         </p>
+        {fromGoogle && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            结构以 Google 为准，请在广告后台修改后点同步。日预算与状态仍可托管推送到 Google。
+          </p>
+        )}
       </div>
 
       <form
@@ -487,21 +575,33 @@ function AdGroupEditor({
           e.preventDefault();
           setBusy(true);
           try {
-            if (bidStrategyNeedsTarget(bidStrategy) && !(Number(bidTarget) > 0)) {
+            if (
+              !fromGoogle &&
+              bidStrategyNeedsTarget(bidStrategy) &&
+              !(Number(bidTarget) > 0)
+            ) {
               toast.error("请填写目标出价金额");
               setBusy(false);
               return;
             }
-            const res = await agentApi.updateAdGroup(group.id, {
-              name,
-              placement,
-              audience,
-              bidStrategy,
-              bidTarget: bidStrategyNeedsTarget(bidStrategy) ? Number(bidTarget) : null,
-              dailyBudget: Math.round(Number(dailyBudget)),
-              status,
-            });
-            if (group.channel === "Google") {
+            const res = await agentApi.updateAdGroup(
+              group.id,
+              fromGoogle
+                ? {
+                    dailyBudget: Math.round(Number(dailyBudget)),
+                    status,
+                  }
+                : {
+                    name,
+                    placement,
+                    audience,
+                    bidStrategy,
+                    bidTarget: bidStrategyNeedsTarget(bidStrategy) ? Number(bidTarget) : null,
+                    dailyBudget: Math.round(Number(dailyBudget)),
+                    status,
+                  },
+            );
+            if (group.channel === "Google" && !fromGoogle) {
               await agentApi.bindGoogleAdGroup(group.id, googleResourceName.trim() || null);
             }
             if (res.guardrail?.verdict === "CLAMP") {
@@ -517,11 +617,17 @@ function AdGroupEditor({
         }}
       >
         <Field label="名称">
-          <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={120}
+            disabled={fromGoogle}
+          />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="版位">
-            <Select value={placement} onValueChange={setPlacement}>
+            <Select value={placement} onValueChange={setPlacement} disabled={fromGoogle}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -540,6 +646,7 @@ function AdGroupEditor({
           <Field label="出价策略">
             <Select
               value={bidStrategy}
+              disabled={fromGoogle}
               onValueChange={(v) => {
                 setBidStrategy(v);
                 if (!bidStrategyNeedsTarget(v)) setBidTarget("");
@@ -569,7 +676,8 @@ function AdGroupEditor({
               step="0.01"
               value={bidTarget}
               onChange={(e) => setBidTarget(e.target.value)}
-              required
+              required={!fromGoogle}
+              disabled={fromGoogle}
               placeholder={bidStrategy === "Cost Cap" ? "例如 25" : "例如 42"}
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -584,6 +692,7 @@ function AdGroupEditor({
             rows={2}
             required
             maxLength={240}
+            disabled={fromGoogle}
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -619,22 +728,28 @@ function AdGroupEditor({
               onChange={(e) => setGoogleResourceName(e.target.value)}
               placeholder="customers/123/adGroups/456"
               className="font-mono text-xs"
+              disabled={fromGoogle}
+              readOnly={fromGoogle}
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              手工绑定测试户资源；未绑定且 MODE=test 时状态/预算推送会被拒绝。
+              {fromGoogle
+                ? "同步时已自动对上号；托管推送预算/状态时使用。"
+                : "手工对上测试户资源；未对上且 MODE=test 时状态/预算推送会被拒绝。"}
             </p>
           </Field>
         )}
         <Button type="submit" size="sm" disabled={busy} className="w-fit">
           {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          保存广告组
+          {fromGoogle ? "保存托管设置" : "保存广告组"}
         </Button>
       </form>
 
       <div className="border-t border-border pt-4">
         <h4 className="text-sm font-semibold">素材绑定</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          同广告组 ACTIVE 份额合计建议 ≈ 100%。合规 FAILED 不可 ACTIVE。
+          {fromGoogle
+            ? "Google 同步广告组的素材结构只读；在广告后台改广告后点同步。"
+            : "同广告组 ACTIVE 份额合计建议 ≈ 100%。合规 FAILED 不可 ACTIVE。"}
         </p>
         <ul className="mt-3 space-y-2">
           {placements.map((p) => {
@@ -651,42 +766,47 @@ function AdGroupEditor({
                     {c && ` · 合规 ${c.complianceStatus}`}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-[11px]"
-                  onClick={async () => {
-                    try {
-                      const next = p.status === "PAUSED" ? "ACTIVE" : "PAUSED";
-                      await agentApi.updatePlacementStatus({
-                        adGroupId: group.id,
-                        creativeId: p.creativeId,
-                        status: next,
-                      });
-                      toast(`${c?.headline ?? p.creativeId} → ${next}`);
-                    } catch (err) {
-                      toast.error("更新失败", { description: errMsg(err) });
-                    }
-                  }}
-                >
-                  {p.status === "PAUSED" ? (
-                    <>
-                      <Play className="mr-1 h-3 w-3" /> 启用
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="mr-1 h-3 w-3" /> 暂停
-                    </>
-                  )}
-                </Button>
+                {!fromGoogle && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-[11px]"
+                    onClick={async () => {
+                      try {
+                        const next = p.status === "PAUSED" ? "ACTIVE" : "PAUSED";
+                        await agentApi.updatePlacementStatus({
+                          adGroupId: group.id,
+                          creativeId: p.creativeId,
+                          status: next,
+                        });
+                        toast(`${c?.headline ?? p.creativeId} → ${next}`);
+                      } catch (err) {
+                        toast.error("更新失败", { description: errMsg(err) });
+                      }
+                    }}
+                  >
+                    {p.status === "PAUSED" ? (
+                      <>
+                        <Play className="mr-1 h-3 w-3" /> 启用
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="mr-1 h-3 w-3" /> 暂停
+                      </>
+                    )}
+                  </Button>
+                )}
               </li>
             );
           })}
           {placements.length === 0 && (
-            <li className="text-xs text-muted-foreground">尚未绑定素材。</li>
+            <li className="text-xs text-muted-foreground">
+              {fromGoogle ? "同步后此处会显示 Google 广告摘要。" : "尚未绑定素材。"}
+            </li>
           )}
         </ul>
 
+        {!fromGoogle && (
         <form
           className="mt-4 grid max-w-xl gap-3 rounded-md border border-dashed border-border p-3"
           onSubmit={async (e) => {
@@ -750,6 +870,7 @@ function AdGroupEditor({
             </Button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
@@ -865,8 +986,15 @@ function CreateAdGroupDialog({
   defaultCampaignId?: string;
   onCreated: (id: string, campaignId: string) => void;
 }) {
-  const [campaignId, setCampaignId] = useState(defaultCampaignId ?? campaigns[0]?.id ?? "");
-  const campaign = campaigns.find((c) => c.id === campaignId);
+  // Local-only structure: never attach new groups under Google-synced campaigns.
+  const editableCampaigns = useMemo(
+    () => campaigns.filter((c) => c.origin !== "google_sync"),
+    [campaigns],
+  );
+  const [campaignId, setCampaignId] = useState(
+    defaultCampaignId ?? editableCampaigns[0]?.id ?? "",
+  );
+  const campaign = editableCampaigns.find((c) => c.id === campaignId);
   const channel = campaign?.channel ?? "Google";
   const [name, setName] = useState("");
   const [placement, setPlacement] = useState(placementsFor(channel)[0]);
@@ -878,14 +1006,17 @@ function CreateAdGroupDialog({
 
   useEffect(() => {
     if (!open) return;
-    const id = defaultCampaignId ?? campaigns[0]?.id ?? "";
-    setCampaignId(id);
-    const ch = campaigns.find((c) => c.id === id)?.channel ?? "Google";
+    const preferred =
+      defaultCampaignId && editableCampaigns.some((c) => c.id === defaultCampaignId)
+        ? defaultCampaignId
+        : (editableCampaigns[0]?.id ?? "");
+    setCampaignId(preferred);
+    const ch = editableCampaigns.find((c) => c.id === preferred)?.channel ?? "Google";
     setPlacement(placementsFor(ch)[0]);
     const strategy = bidStrategiesFor(ch)[0];
     setBidStrategy(strategy);
     setBidTarget(bidStrategyNeedsTarget(strategy) ? "42" : "");
-  }, [open, defaultCampaignId, campaigns]);
+  }, [open, defaultCampaignId, editableCampaigns]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -902,6 +1033,11 @@ function CreateAdGroupDialog({
             try {
               if (bidStrategyNeedsTarget(bidStrategy) && !(Number(bidTarget) > 0)) {
                 toast.error("请填写目标出价金额");
+                setBusy(false);
+                return;
+              }
+              if (!campaignId || editableCampaigns.every((c) => c.id !== campaignId)) {
+                toast.error("请选择本地演示系列（不能在 Google 同步系列下新建）");
                 setBusy(false);
                 return;
               }
@@ -936,7 +1072,7 @@ function CreateAdGroupDialog({
               value={campaignId}
               onValueChange={(id) => {
                 setCampaignId(id);
-                const ch = campaigns.find((c) => c.id === id)?.channel ?? "Google";
+                const ch = editableCampaigns.find((c) => c.id === id)?.channel ?? "Google";
                 setPlacement(placementsFor(ch)[0]);
                 const strategy = bidStrategiesFor(ch)[0];
                 setBidStrategy(strategy);
@@ -944,16 +1080,21 @@ function CreateAdGroupDialog({
               }}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder={editableCampaigns.length ? undefined : "无本地系列"} />
               </SelectTrigger>
               <SelectContent>
-                {campaigns.map((c) => (
+                {editableCampaigns.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.channel} · {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {editableCampaigns.length === 0 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Google 同步系列不能在 Agent 下新建广告组；请先新建本地演示系列，或在广告后台建组后同步。
+              </p>
+            )}
           </Field>
           <Field label="名称">
             <Input value={name} onChange={(e) => setName(e.target.value)} required />

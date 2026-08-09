@@ -89,6 +89,9 @@ export interface AdGroup {
   aiSuggestion: string;
   /** Google Ads ad_group resource name when bound for test API. */
   googleResourceName?: string | null;
+  /** demo = local mock; google_sync = pulled from Google (structure read-only). */
+  origin?: "demo" | "google_sync";
+  platformRemoved?: boolean;
 }
 
 
@@ -135,6 +138,9 @@ export interface Campaign {
   /** Google Ads campaign / campaign_budget resource names when bound. */
   googleResourceName?: string | null;
   googleBudgetResourceName?: string | null;
+  /** demo = local mock; google_sync = pulled from Google (structure read-only). */
+  origin?: "demo" | "google_sync";
+  platformRemoved?: boolean;
 }
 
 /** Backend (post-loan) truth for one creative, derived from leads + lead_events. */
@@ -164,6 +170,9 @@ export interface CreativeAsset {
   lastScannedAt?: string;
   /** Real downstream performance; undefined when the creative has no leads yet. */
   backend?: CreativeBackendFacts;
+  origin?: "demo" | "google_sync";
+  googleResourceName?: string | null;
+  platformRemoved?: boolean;
 }
 
 

@@ -41,8 +41,15 @@ export function GoogleAdsConnectionPanel() {
     void refresh();
   }, []);
 
-  const modeLabel =
-    result?.mode === "test" ? (result.ok ? "Test · 已连接" : "Test · 未连通") : "Off";
+  const modeLabel = !result
+    ? busy
+      ? "检查中"
+      : "—"
+    : result.mode === "test"
+      ? result.ok
+        ? "Test · 已连接"
+        : "Test · 未连通"
+      : "Off";
 
   return (
     <div className="rounded-md border border-border bg-background/50 p-4">
@@ -50,7 +57,7 @@ export function GoogleAdsConnectionPanel() {
         <div>
           <p className="text-xs font-medium">Google Ads</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            测试账户 API · MODE 默认 off · 密钥仅 server env
+            测试账户 API · MODE 默认 off · 密钥仅 server env · 探活只检查连接；结构请到「投放结构」用一键同步导入
           </p>
         </div>
         <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void refresh()}>
@@ -80,7 +87,9 @@ export function GoogleAdsConnectionPanel() {
         )}
       </div>
 
-      <p className="mt-2 text-xs text-muted-foreground">{result?.message ?? "检查连接中…"}</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {result?.message ?? (busy ? "检查连接中…" : "尚未探活")}
+      </p>
       {result?.error && (
         <p className="mt-1 font-mono text-[11px] text-destructive">{result.error}</p>
       )}

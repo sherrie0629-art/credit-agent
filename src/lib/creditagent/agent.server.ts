@@ -44,6 +44,8 @@ function mapCampaign(r: Row): Campaign {
     aiSuggestion: r.ai_suggestion,
     googleResourceName: r.google_resource_name ?? null,
     googleBudgetResourceName: r.google_budget_resource_name ?? null,
+    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    platformRemoved: Boolean(r.platform_removed),
   };
 }
 
@@ -89,6 +91,8 @@ function mapAdGroup(
     last20ApprovalRate: f?.last20ApprovalRate ?? 0,
     aiSuggestion: r.ai_suggestion,
     googleResourceName: r.google_resource_name ?? null,
+    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    platformRemoved: Boolean(r.platform_removed),
   };
 }
 
@@ -200,6 +204,9 @@ function mapCreative(r: Row): CreativeAsset {
     fatigueLevel: (r.fatigue_level ?? "HEALTHY") as CreativeAsset["fatigueLevel"],
     launchedAt: r.launched_at ?? undefined,
     lastScannedAt: r.last_scanned_at ?? undefined,
+    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    googleResourceName: r.google_resource_name ?? null,
+    platformRemoved: Boolean(r.platform_removed),
   };
 }
 
