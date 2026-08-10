@@ -19,6 +19,7 @@ export type Database = {
           ai_suggestion: string
           audience: string
           bid_strategy: string
+          bid_target: number | null
           campaign_id: string
           channel: string
           clicks: number
@@ -42,6 +43,7 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
+          bid_target?: number | null
           campaign_id: string
           channel: string
           clicks?: number
@@ -65,6 +67,7 @@ export type Database = {
           ai_suggestion?: string
           audience?: string
           bid_strategy?: string
+          bid_target?: number | null
           campaign_id?: string
           channel?: string
           clicks?: number
