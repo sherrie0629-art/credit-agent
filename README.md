@@ -24,3 +24,18 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+### 本地调试（只读模式）
+
+后端由 Lovable Cloud 托管，`SUPABASE_SERVICE_ROLE_KEY` 只在云端运行时注入，本地无法获取。
+本地因此以 **只读模式** 运行：
+
+1. 在项目根目录创建 `.env`，按 `.env.example` 顶部填四行（URL + publishable key，
+   其中不带 `VITE_` 前缀的两行是服务端读取的，缺了首屏就是空白）。
+2. `npm run dev` 后，命令中心 / 投放结构 / 素材中心 / 离线转化等页面的数据均可正常读取——
+   它们统一走 `get_agent_snapshot` 等 SECURITY DEFINER 只读 RPC（已授权给 anon）。
+3. 审批、预算调整、素材生成与保存、回传上传等写入操作会提示
+   「本地开发环境为只读模式」，请在 Lovable 云端预览中验证。
+
+publishable key 是公开密钥，放本地没有安全风险；service role key 永远不要加 `VITE_` 前缀，
+也不要提交到仓库。

@@ -23,8 +23,8 @@ function resolveBidTarget(bidStrategy: string, bidTarget: number | null | undefi
 type Row = Record<string, any>;
 
 async function db() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  const { getAdminClient } = await import("./read-client.server");
+  return getAdminClient();
 }
 
 function newId(prefix: string) {

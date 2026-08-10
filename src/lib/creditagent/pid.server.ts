@@ -17,7 +17,8 @@ import type { AdGroup } from "./types";
 type Row = Record<string, any>;
 
 async function db() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { getAdminClient } = await import("./read-client.server");
+  const supabaseAdmin = await getAdminClient();
   // pid_controller_state 未包含在生成的类型里（自定义控制器状态表），这里放宽表名约束。
   return supabaseAdmin as unknown as {
     from: (table: string) => any;

@@ -24,8 +24,8 @@ const PING_TIMEOUT_MS = 20_000;
 const ADS_API_VERSION = "v24";
 
 async function db() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  const { getAdminClient } = await import("./read-client.server");
+  return getAdminClient();
 }
 
 /** Resolve proxy URL for Ads REST (SOCKS required on many China networks). */
