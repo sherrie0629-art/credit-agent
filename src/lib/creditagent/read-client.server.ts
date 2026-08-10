@@ -60,3 +60,16 @@ export async function getReadClient() {
 export function hasServiceRole() {
   return Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]);
 }
+
+export const LOCAL_WRITE_HINT =
+  "本地开发环境为只读模式（缺少 SUPABASE_SERVICE_ROLE_KEY，Lovable Cloud 不下发该密钥）。写入类操作请在云端预览中验证。";
+
+/**
+ * Admin (service role) client for privileged writes.
+ * Throws a human-readable hint instead of a raw env error when running locally.
+ */
+export async function getAdminClient() {
+  if (!hasServiceRole()) throw new Error(LOCAL_WRITE_HINT);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
