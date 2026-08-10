@@ -148,6 +148,7 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       }
       const id = `g_adg_${g.id}`;
       seenAdGroupIds.add(id);
+      adGroupToCampaign.set(id, campaignId);
       const parentBudget = campaigns.find((c) => c.id === campaignGoogleId);
       const dailyBudget =
         parentBudget?.budgetMicros != null
