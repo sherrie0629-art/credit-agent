@@ -11,6 +11,7 @@ import {
   searchCampaigns,
 } from "./google-ads.server";
 import { recordGuardrail } from "./guardrails.server";
+import { hasServiceRole, LOCAL_WRITE_HINT } from "./read-client.server";
 
 type Row = Record<string, any>;
 
@@ -42,7 +43,6 @@ export type GoogleStructureSyncResult = {
 
 export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> {
   const env = getGoogleAdsEnvStatus();
-  const supabase = await db();
   const startedAt = new Date().toISOString();
 
   const empty = async (partial: Partial<GoogleStructureSyncResult> & { message: string }) => ({
@@ -61,6 +61,24 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
   if (!env.configured) {
     return empty({
       message: `凭证不完整，缺少：${env.missing.join(", ")}`,
+    });
+  }
+  // Structure sync writes campaigns/ad_groups/creatives — needs service role.
+  // Local Cursor is read-only by default; Lovable Cloud injects the key.
+  if (!hasServiceRole()) {
+    return empty({
+      message: "本地为只读模式，无法写入结构镜像",
+      error: LOCAL_WRITE_HINT,
+    });
+  }
+
+  let supabase;
+  try {
+    supabase = await db();
+  } catch (e) {
+    return empty({
+      message: "无法连接数据库（管理员密钥）",
+      error: e instanceof Error ? e.message : String(e),
     });
   }
 

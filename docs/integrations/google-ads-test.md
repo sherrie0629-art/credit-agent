@@ -50,7 +50,7 @@ GOOGLE_ADS_PROXY=socks5h://127.0.0.1:10886
 Google 侧已删的资源会软标记 `platform_removed=true`，不物理删除（避免断决策历史）。
 
 RPC：`syncGoogleStructureFn` → `src/lib/creditagent/google-ads-sync.server.ts`。  
-前置：`GOOGLE_ADS_MODE=test` + 凭证齐 + 代理（如需）。
+前置：`GOOGLE_ADS_MODE=test` + 凭证齐 + 代理（如需）。结构同步要写库，需 `SUPABASE_SERVICE_ROLE_KEY`（Lovable Cloud 自动注入；本地 Cursor 默认为只读，请在云端预览验证，或自行配置 service_role）。
 
 探活**不会**导入结构；结构请用一键同步。
 
