@@ -185,6 +185,8 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       if (!ad.id) continue;
       const adGroupId = `g_adg_${ad.adGroupId}`;
       if (!seenAdGroupIds.has(adGroupId)) continue;
+      const placementCampaignId = adGroupToCampaign.get(adGroupId);
+      if (!placementCampaignId) continue;
       const id = `g_ad_${ad.id}`;
       seenCreativeIds.add(id);
       const creativeRow = {
