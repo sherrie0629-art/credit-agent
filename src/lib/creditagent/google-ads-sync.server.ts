@@ -97,6 +97,7 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
     const seenCampaignIds = new Set<string>();
     const seenAdGroupIds = new Set<string>();
     const seenCreativeIds = new Set<string>();
+    const adGroupToCampaign = new Map<string, string>();
 
     for (const c of campaigns) {
       if (!c.id || !c.resourceName) continue;
