@@ -7,8 +7,8 @@ const BUCKET = "creative-images";
 export const IMAGE_ROUTE_PREFIX = "/api/public/creative-image";
 
 async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  const { getAdminClient } = await import("./read-client.server");
+  return getAdminClient();
 }
 
 function parseDataUrl(dataUrl: string): { bytes: Uint8Array; contentType: string } | null {

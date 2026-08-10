@@ -12,8 +12,8 @@ import { releaseToPool, runReallocation } from "./reallocate.server";
 type Row = Record<string, any>;
 
 async function db() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  const { getAdminClient } = await import("./read-client.server");
+  return getAdminClient();
 }
 
 export async function runAgentSweep() {

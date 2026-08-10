@@ -21,8 +21,8 @@ export const ADVISOR_MIN_INTERVAL_MS = 6 * 3600_000;
 type Row = Record<string, any>;
 
 async function db() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  const { getAdminClient } = await import("./read-client.server");
+  return getAdminClient();
 }
 
 const ACTION_LABEL: Record<string, string> = {
