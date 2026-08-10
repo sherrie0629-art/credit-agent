@@ -97,6 +97,7 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
     const seenCampaignIds = new Set<string>();
     const seenAdGroupIds = new Set<string>();
     const seenCreativeIds = new Set<string>();
+    const adGroupToCampaign = new Map<string, string>();
 
     for (const c of campaigns) {
       if (!c.id || !c.resourceName) continue;
@@ -147,6 +148,7 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       }
       const id = `g_adg_${g.id}`;
       seenAdGroupIds.add(id);
+      adGroupToCampaign.set(id, campaignId);
       const parentBudget = campaigns.find((c) => c.id === campaignGoogleId);
       const dailyBudget =
         parentBudget?.budgetMicros != null
@@ -183,6 +185,8 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       if (!ad.id) continue;
       const adGroupId = `g_adg_${ad.adGroupId}`;
       if (!seenAdGroupIds.has(adGroupId)) continue;
+      const placementCampaignId = adGroupToCampaign.get(adGroupId);
+      if (!placementCampaignId) continue;
       const id = `g_ad_${ad.id}`;
       seenCreativeIds.add(id);
       const creativeRow = {
@@ -208,16 +212,17 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       if (cErr) throw new Error(`creative upsert ${id}: ${cErr.message}`);
 
       const placementStatus = mapAdStatus(ad.status) === "ACTIVE" ? "ACTIVE" : "PAUSED";
-      const { error: pErr } = await supabase.from("creative_placements").upsert(
-        {
-          creative_id: id,
-          ad_group_id: adGroupId,
-          status: placementStatus,
-          share: 1,
-          started_at: syncAt,
-        } as never,
-        { onConflict: "creative_id,ad_group_id" },
-      );
+      const placementRow = {
+        creative_id: id,
+        campaign_id: placementCampaignId,
+        ad_group_id: adGroupId,
+        status: placementStatus,
+        share: 1,
+        started_at: syncAt,
+      };
+      const { error: pErr } = await supabase
+        .from("creative_placements")
+        .upsert(placementRow as never, { onConflict: "creative_id,ad_group_id" });
       if (pErr) {
         // Fallback if composite PK name differs: delete+insert
         await supabase
@@ -225,13 +230,9 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
           .delete()
           .eq("creative_id", id)
           .eq("ad_group_id", adGroupId);
-        const { error: pErr2 } = await supabase.from("creative_placements").insert({
-          creative_id: id,
-          ad_group_id: adGroupId,
-          status: placementStatus,
-          share: 1,
-          started_at: syncAt,
-        } as never);
+        const { error: pErr2 } = await supabase
+          .from("creative_placements")
+          .insert(placementRow as never);
         if (pErr2) throw new Error(`placement upsert ${id}: ${pErr2.message}`);
       }
       creativesUpserted += 1;
