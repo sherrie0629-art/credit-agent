@@ -140,8 +140,8 @@ export function StructureTab() {
             <p className="label-mono">structure</p>
             <h2 className="mt-1 text-sm font-semibold tracking-wide">投放结构管理</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Campaign → Ad Group → Creative · Google 结构单向同步（只读镜像）· 演示数据保留 ·
-              MODE=test 时可托管推送预算/暂停
+              Campaign → Ad Group → Creative · Google 结构单向同步（只读镜像）· 演示数据可本地编辑 ·
+              预算/暂停请走审批卡片或预算矩阵
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -383,7 +383,7 @@ function CampaignEditor({
         </div>
         {fromGoogle && (
           <p className="mt-2 text-xs text-muted-foreground">
-            结构以 Google 为准：请在广告后台改名/拆组后点「从 Google 同步结构」。此处可调状态与日预算（托管推送）。
+            结构以 Google 为准：请在广告后台改名/拆组后点「从 Google 同步结构」。预算与暂停请走审批卡片或预算矩阵，不在此页直改。
           </p>
         )}
       </div>
@@ -391,14 +391,15 @@ function CampaignEditor({
         className="grid max-w-xl gap-3"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (fromGoogle) return;
           setBusy(true);
           try {
             await agentApi.updateCampaign(campaign.id, {
-              name: fromGoogle ? campaign.name : name,
+              name,
               status,
               dailyBudget: Number(dailyBudget) || 0,
             });
-            if (campaign.channel === "Google" && !fromGoogle) {
+            if (campaign.channel === "Google") {
               await agentApi.bindGoogleCampaign(
                 campaign.id,
                 googleResourceName.trim() || null,
@@ -426,7 +427,11 @@ function CampaignEditor({
           <Input value={campaign.channel} disabled />
         </Field>
         <Field label="状态">
-          <Select value={status} onValueChange={(v) => setStatus(v as "ACTIVE" | "PAUSED")}>
+          <Select
+            value={status}
+            onValueChange={(v) => setStatus(v as "ACTIVE" | "PAUSED")}
+            disabled={fromGoogle}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -442,6 +447,8 @@ function CampaignEditor({
             min={0}
             value={dailyBudget}
             onChange={(e) => setDailyBudget(e.target.value)}
+            disabled={fromGoogle}
+            readOnly={fromGoogle}
           />
         </Field>
         {campaign.channel === "Google" && (
@@ -467,20 +474,22 @@ function CampaignEditor({
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {fromGoogle
-                  ? "同步时已自动对上号；托管改日预算写入此 CampaignBudget。"
+                  ? "同步时已自动对上号；审批通过后的托管推送会用此 CampaignBudget。"
                   : "测试 API 改日预算写入此 CampaignBudget；未对上号则 MODE=test 下拒绝推送。"}
               </p>
             </Field>
           </>
         )}
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={busy}>
-            {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            {fromGoogle ? "保存托管设置" : "保存系列"}
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {!fromGoogle && (
+            <Button type="submit" size="sm" disabled={busy}>
+              {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              保存系列
+            </Button>
+          )}
           <Button type="button" size="sm" variant="outline" asChild>
             <Link to="/campaigns" search={{ tab: "budget" }}>
-              查看预算矩阵
+              去预算与托管
             </Link>
           </Button>
         </div>
@@ -564,7 +573,7 @@ function AdGroupEditor({
         </p>
         {fromGoogle && (
           <p className="mt-2 text-xs text-muted-foreground">
-            结构以 Google 为准，请在广告后台修改后点同步。日预算与状态仍可托管推送到 Google。
+            结构以 Google 为准，请在广告后台修改后点同步。预算与暂停请走审批卡片或预算矩阵，不在此页直改。
           </p>
         )}
       </div>
@@ -573,35 +582,24 @@ function AdGroupEditor({
         className="grid max-w-xl gap-3"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (fromGoogle) return;
           setBusy(true);
           try {
-            if (
-              !fromGoogle &&
-              bidStrategyNeedsTarget(bidStrategy) &&
-              !(Number(bidTarget) > 0)
-            ) {
+            if (bidStrategyNeedsTarget(bidStrategy) && !(Number(bidTarget) > 0)) {
               toast.error("请填写目标出价金额");
               setBusy(false);
               return;
             }
-            const res = await agentApi.updateAdGroup(
-              group.id,
-              fromGoogle
-                ? {
-                    dailyBudget: Math.round(Number(dailyBudget)),
-                    status,
-                  }
-                : {
-                    name,
-                    placement,
-                    audience,
-                    bidStrategy,
-                    bidTarget: bidStrategyNeedsTarget(bidStrategy) ? Number(bidTarget) : null,
-                    dailyBudget: Math.round(Number(dailyBudget)),
-                    status,
-                  },
-            );
-            if (group.channel === "Google" && !fromGoogle) {
+            const res = await agentApi.updateAdGroup(group.id, {
+              name,
+              placement,
+              audience,
+              bidStrategy,
+              bidTarget: bidStrategyNeedsTarget(bidStrategy) ? Number(bidTarget) : null,
+              dailyBudget: Math.round(Number(dailyBudget)),
+              status,
+            });
+            if (group.channel === "Google") {
               await agentApi.bindGoogleAdGroup(group.id, googleResourceName.trim() || null);
             }
             if (res.guardrail?.verdict === "CLAMP") {
@@ -702,13 +700,16 @@ function AdGroupEditor({
               min={1}
               value={dailyBudget}
               onChange={(e) => setDailyBudget(e.target.value)}
-              required
+              required={!fromGoogle}
+              disabled={fromGoogle}
+              readOnly={fromGoogle}
             />
           </Field>
           <Field label="状态">
             <Select
               value={status}
               onValueChange={(v) => setStatus(v as "ACTIVE" | "PAUSED" | "LEARNING")}
+              disabled={fromGoogle}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -733,15 +734,26 @@ function AdGroupEditor({
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
               {fromGoogle
-                ? "同步时已自动对上号；托管推送预算/状态时使用。"
+                ? "同步时已自动对上号；审批通过后的托管推送会使用此资源。"
                 : "手工对上测试户资源；未对上且 MODE=test 时状态/预算推送会被拒绝。"}
             </p>
           </Field>
         )}
-        <Button type="submit" size="sm" disabled={busy} className="w-fit">
-          {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          {fromGoogle ? "保存托管设置" : "保存广告组"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {!fromGoogle && (
+            <Button type="submit" size="sm" disabled={busy} className="w-fit">
+              {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              保存广告组
+            </Button>
+          )}
+          {fromGoogle && (
+            <Button type="button" size="sm" variant="outline" asChild>
+              <Link to="/campaigns" search={{ tab: "budget" }}>
+                去预算与托管
+              </Link>
+            </Button>
+          )}
+        </div>
       </form>
 
       <div className="border-t border-border pt-4">

@@ -29,6 +29,7 @@ import {
 import {
   bindGoogleAdGroupFn,
   bindGoogleCampaignFn,
+  seedGoogleAdsWriteTestDecisionsFn,
   syncGoogleStructureFn,
 } from "./google-ads.functions";
 import {
@@ -392,6 +393,13 @@ export const agentApi = {
   /** Google → Agent one-way structure pull (never mutates demo rows). */
   async syncGoogleStructure() {
     const res = await syncGoogleStructureFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  /** Seed PENDING cards that exercise Google Ads budget/status mutate on approve. */
+  async seedGoogleAdsWriteTestDecisions() {
+    const res = await seedGoogleAdsWriteTestDecisionsFn();
     applySnapshot(res.snapshot);
     return res;
   },
