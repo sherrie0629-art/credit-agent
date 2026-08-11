@@ -21,6 +21,7 @@ import { loadLimits, recordGuardrail } from "./guardrails.server";
 type Row = Record<string, any>;
 
 const PING_TIMEOUT_MS = 20_000;
+const ADS_API_TIMEOUT_MS = 20_000;
 const ADS_API_VERSION = "v24";
 
 async function db() {
@@ -45,7 +46,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     const timer = setTimeout(() => {
       reject(
         new GoogleAdsApiError(
-          `${label} 超时（${ms}ms）。请确认 GOOGLE_ADS_PROXY 指向可用 SOCKS（如 socks5h://127.0.0.1:10886）且代理已开启，然后重启 npm run dev`,
+          `${label}超时（${Math.round(ms / 1000)}s）。Google 未响应，本地未改动。请确认代理可用后重试。`,
         ),
       );
     }, ms);
@@ -108,7 +109,9 @@ async function adsHttps(
       },
     );
     req.on("timeout", () => {
-      req.destroy(new GoogleAdsApiError(`HTTPS 请求超时：${u.hostname}`));
+      req.destroy(
+        new GoogleAdsApiError(`Google 未响应（HTTPS 超时），本地未改动：${u.hostname}`),
+      );
     });
     req.on("error", reject);
     if (init.body) req.write(init.body);
@@ -129,14 +132,18 @@ async function getAccessToken(): Promise<string> {
     grant_type: "refresh_token",
   }).toString();
 
-  const res = await adsHttps("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Content-Length": String(Buffer.byteLength(body)),
-    },
-    body,
-  });
+  const res = await withTimeout(
+    adsHttps("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": String(Buffer.byteLength(body)),
+      },
+      body,
+    }),
+    ADS_API_TIMEOUT_MS,
+    "OAuth token 刷新",
+  );
   if (res.status < 200 || res.status >= 300) {
     throw new GoogleAdsApiError(`OAuth token 刷新失败 HTTP ${res.status}: ${res.text.slice(0, 240)}`);
   }
@@ -166,11 +173,15 @@ async function adsApi(
   const body = init.body === undefined ? undefined : JSON.stringify(init.body);
   if (body) headers["Content-Length"] = String(Buffer.byteLength(body));
 
-  const res = await adsHttps(`https://googleads.googleapis.com/${ADS_API_VERSION}/${path}`, {
-    method: init.method ?? (body ? "POST" : "GET"),
-    headers,
-    body,
-  });
+  const res = await withTimeout(
+    adsHttps(`https://googleads.googleapis.com/${ADS_API_VERSION}/${path}`, {
+      method: init.method ?? (body ? "POST" : "GET"),
+      headers,
+      body,
+    }),
+    ADS_API_TIMEOUT_MS,
+    "Google Ads API ",
+  );
   if (res.status < 200 || res.status >= 300) {
     throw new GoogleAdsApiError(`Google Ads API HTTP ${res.status}: ${res.text.slice(0, 400)}`);
   }

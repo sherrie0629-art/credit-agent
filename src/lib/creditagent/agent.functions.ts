@@ -31,6 +31,12 @@ export const setKillSwitchFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ on: z.boolean() }).parse(d))
   .handler(async ({ data }) => agent.setKillSwitch(data.on));
 
+export const setRiskPostureFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ posture: z.enum(["GUARDED", "RISK_FIRST", "KILL_SWITCH"]) }).parse(d),
+  )
+  .handler(async ({ data }) => agent.setRiskPosture(data.posture));
+
 
 export const setAdGroupStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>

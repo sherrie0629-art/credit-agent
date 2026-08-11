@@ -42,12 +42,17 @@ export async function runAgentSweep() {
     detail.fatigueError = String(e);
   }
 
-  // 2) 风控通过率兜底暂停
+  // 2) 风控通过率兜底暂停（仅 RISK_FIRST 姿态；autoPauseRiskyGroups 内再闸一次）
   let riskPauses = 0;
   try {
-    const res = await autoPauseRiskyGroups("SWEEP");
-    riskPauses = res.pausedCampaigns.length;
-    detail.riskPauses = res.pausedCampaigns;
+    const snap = await getSnapshot();
+    if (snap.riskPosture === "RISK_FIRST") {
+      const res = await autoPauseRiskyGroups("SWEEP");
+      riskPauses = res.pausedCampaigns.length;
+      detail.riskPauses = res.pausedCampaigns;
+    } else {
+      detail.riskPausesSkipped = snap.riskPosture;
+    }
   } catch (e) {
     detail.riskError = String(e);
   }

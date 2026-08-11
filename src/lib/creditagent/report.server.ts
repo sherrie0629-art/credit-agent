@@ -310,6 +310,10 @@ async function loadPeriodFactsForRange(
 
 export async function getExecWeeklyReport(week: WeekKey, includeAppendix = true) {
   const bundle = await getAnalyticsPeriodBundle(week);
+  const pending = bundle.snapshot.decisions.filter((d) => d.status === "PENDING_APPROVAL");
+  const pendingActionable = pending.filter(
+    (d) => d.actionType === "BUDGET_SHIFT" || d.actionType === "CREATIVE_PAUSE",
+  );
   const report = buildExecReport({
     period: bundle.period,
     prior: bundle.prior,
@@ -323,6 +327,8 @@ export async function getExecWeeklyReport(week: WeekKey, includeAppendix = true)
       disbursedCount: g.disbursedCount,
     })),
     decisionCount: bundle.decisionCount,
+    pendingDecisionCount: pending.length,
+    pendingActionableCount: pendingActionable.length,
     killSwitch: bundle.snapshot.killSwitch,
     includeAppendix,
   });
@@ -331,18 +337,36 @@ export async function getExecWeeklyReport(week: WeekKey, includeAppendix = true)
 
 export async function getOpsAnalyticsBundle(week: WeekKey) {
   const bundle = await getAnalyticsPeriodBundle(week);
-  const { buildOpsInsights } = await import("./report");
-  const insights = buildOpsInsights({
+  const { buildAnalyticsBrief } = await import("./report");
+  const pending = bundle.snapshot.decisions.filter((d) => d.status === "PENDING_APPROVAL");
+  const pendingActionable = pending.filter(
+    (d) => d.actionType === "BUDGET_SHIFT" || d.actionType === "CREATIVE_PAUSE",
+  );
+  const brief = buildAnalyticsBrief({
     period: bundle.period,
     prior: bundle.prior,
     feedback: bundle.feedbackHealth,
     channelBreakdown: bundle.snapshot.channelBreakdown,
+    adGroups: bundle.snapshot.adGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      channel: g.channel,
+      cps: g.cps,
+      spentToday: g.spentToday,
+      disbursedCount: g.disbursedCount,
+      status: g.status,
+    })),
+    pendingDecisionCount: pending.length,
+    pendingActionableCount: pendingActionable.length,
+    killSwitch: bundle.snapshot.killSwitch,
   });
   return {
     period: bundle.period,
     prior: bundle.prior,
     feedbackHealth: bundle.feedbackHealth,
-    insights,
+    insights: brief.bullets,
+    decisionBrief: brief.decisionBrief,
+    opsDiagnostics: brief.opsDiagnostics,
     funnel: bundle.snapshot.funnel,
     channelTrend: bundle.snapshot.channelTrend,
     channelBreakdown: bundle.snapshot.channelBreakdown,

@@ -112,11 +112,16 @@ export async function createAdGroup(input: {
   const supabase = await db();
   const { data: camp, error: campErr } = await supabase
     .from("campaigns")
-    .select("id, name, channel")
+    .select("id, name, channel, origin")
     .eq("id", input.campaignId)
     .maybeSingle();
   if (campErr) throw new Error(campErr.message);
   if (!camp) throw new Error("CAMPAIGN_NOT_FOUND");
+  if ((camp as Row).origin === "google_sync" || (camp as Row).origin === "meta_sync") {
+    throw new Error(
+      "GOOGLE_SYNC_PARENT:不能在平台同步系列下新建广告组；请新建本地系列，或在广告后台建组后同步。",
+    );
+  }
 
   const channel = (camp as Row).channel as Channel;
   const name = input.name.trim();
@@ -247,8 +252,8 @@ export async function updateAdGroup(
     if (verdict.verdict === "CLAMP") guardrail = verdict;
 
     if (applied !== Number(current.daily_budget)) {
-      const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
-      await syncGoogleAdGroupBudget(id, applied);
+      const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+      await syncExternalAdGroupBudget(id, applied);
     }
 
     try {
@@ -260,8 +265,8 @@ export async function updateAdGroup(
   }
 
   if (patch.status !== undefined && patch.status !== current.status) {
-    const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
-    await syncGoogleAdGroupStatus(id, patch.status);
+    const { syncExternalAdGroupStatus } = await import("./external-ads.server");
+    await syncExternalAdGroupStatus(id, patch.status);
   }
 
   const { error } = await supabase.from("ad_groups").update(update as never).eq("id", id);

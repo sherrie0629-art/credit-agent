@@ -9,7 +9,9 @@ import type {
   CreativePlacement,
   FeedbackHealth,
   ManagementMode,
+  RiskPosture,
 } from "./types";
+import { deriveRiskPosture, flagsForRiskPosture } from "./types";
 import { checkBudgetChange } from "./guardrails";
 import { loadLimits, preflight, recordGuardrail, recordManualAction } from "./guardrails.server";
 import { toClientImageUrl } from "./image-storage.server";
@@ -44,7 +46,9 @@ function mapCampaign(r: Row): Campaign {
     aiSuggestion: r.ai_suggestion,
     googleResourceName: r.google_resource_name ?? null,
     googleBudgetResourceName: r.google_budget_resource_name ?? null,
-    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    metaResourceName: r.meta_resource_name ?? null,
+    origin:
+      r.origin === "google_sync" || r.origin === "meta_sync" ? r.origin : "demo",
     platformRemoved: Boolean(r.platform_removed),
   };
 }
@@ -91,7 +95,9 @@ function mapAdGroup(
     last20ApprovalRate: f?.last20ApprovalRate ?? 0,
     aiSuggestion: r.ai_suggestion,
     googleResourceName: r.google_resource_name ?? null,
-    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    metaResourceName: r.meta_resource_name ?? null,
+    origin:
+      r.origin === "google_sync" || r.origin === "meta_sync" ? r.origin : "demo",
     platformRemoved: Boolean(r.platform_removed),
   };
 }
@@ -132,14 +138,247 @@ async function noteExternalMutate(
   external: { status: string; detail: string } | null | undefined,
 ) {
   if (!external) return;
+  try {
+    const supabase = await db();
+    void Promise.resolve(
+      supabase
+        .from("agent_decisions")
+        .update({
+          external_mutate_status: external.status,
+          external_mutate_detail: external.detail,
+        } as never)
+        .eq("id", decisionId),
+    ).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+export type ApproveDecisionPatch = {
+  external: import("./google-ads").ExternalMutateResult | null;
+  decision: {
+    id: string;
+    status: AgentDecision["status"];
+    guardrailNote?: string | null;
+    externalMutateStatus?: string;
+    externalMutateDetail?: string;
+  } | null;
+  adGroup: {
+    id: string;
+    dailyBudget?: number;
+    status?: AdGroup["status"];
+    aiSuggestion?: string;
+  } | null;
+};
+
+export async function approveDecision(id: string): Promise<ApproveDecisionPatch> {
   const supabase = await db();
-  await supabase
-    .from("agent_decisions")
-    .update({
-      external_mutate_status: external.status,
-      external_mutate_detail: external.detail,
-    } as never)
-    .eq("id", decisionId);
+  const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
+  if (!data) {
+    return { external: null, decision: null, adGroup: null };
+  }
+  const decision = mapDecision(data as Row);
+  let external: import("./google-ads").ExternalMutateResult | null = null;
+  let status: AgentDecision["status"] = decision.status;
+  let guardrailNote: string | null | undefined = decision.guardrailNote ?? null;
+  let adGroupPatch: ApproveDecisionPatch["adGroup"] = null;
+
+  void recordManualAction({
+    action: "APPROVE_DECISION",
+    targetId: id,
+    rule: "MANUAL_APPROVAL",
+    detail: `人工批准决策 ${id}（${decision.actionType}）：${decision.effect}`,
+    requested: {
+      actionType: decision.actionType,
+      adGroupId: decision.adGroupId ?? null,
+      triggerSource: decision.triggerSource,
+      statusBefore: (data as Row).status,
+    },
+  });
+
+  const finish = (): ApproveDecisionPatch => {
+    if (external) void noteExternalMutate(id, external);
+    return {
+      external,
+      decision: {
+        id,
+        status,
+        guardrailNote,
+        externalMutateStatus: external?.status,
+        externalMutateDetail: external?.detail,
+      },
+      adGroup: adGroupPatch,
+    };
+  };
+
+  // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
+  const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
+  const poolEntries = await pendingAllocationsFor(id);
+  if (poolEntries.length > 0) {
+    const res = await applyReallocationDecision(id);
+    external = res.external ?? null;
+    status = res.applied > 0 ? "EXECUTED" : "REJECTED_BY_USER";
+    guardrailNote = res.notes.length ? res.notes.join(" / ") : null;
+    await supabase
+      .from("agent_decisions")
+      .update({
+        status,
+        guardrail_note: guardrailNote,
+      } as never)
+      .eq("id", id);
+    return finish();
+  }
+
+  // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
+  if (decision.triggerSource === "LLM") {
+    const gate = await preflight({
+      action: "APPROVE_LLM_ADVICE",
+      targetId: decision.adGroupId,
+      automated: false,
+    });
+    if (!gate.ok) {
+      guardrailNote = `批准被规则层拒绝（${gate.decision.rule}）：${gate.decision.detail}`;
+      await supabase
+        .from("agent_decisions")
+        .update({ guardrail_note: guardrailNote } as never)
+        .eq("id", id);
+      return finish();
+    }
+
+    if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
+      const group = await getAdGroup(decision.adGroupId);
+      const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
+      const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+      if (group) {
+        const verdict = checkBudgetChange(gate.limits, {
+          current: group.dailyBudget,
+          next: nextBudget,
+        });
+        void recordGuardrail({
+          action: "APPROVE_LLM_ADVICE",
+          targetId: group.id,
+          decision: verdict,
+          requested: { from: group.dailyBudget, to: nextBudget },
+        });
+        if (verdict.verdict === "DENY") {
+          guardrailNote = `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`;
+          await supabase
+            .from("agent_decisions")
+            .update({ guardrail_note: guardrailNote } as never)
+            .eq("id", id);
+          return finish();
+        }
+        const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+        const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+        external = await syncExternalAdGroupBudget(group.id, applied);
+        const aiSuggestion = "按 LLM 分析师建议调整，已过风控闸门";
+        await supabase
+          .from("ad_groups")
+          .update({
+            daily_budget: applied,
+            ai_suggestion: aiSuggestion,
+            updated_at: new Date().toISOString(),
+          } as never)
+          .eq("id", group.id);
+        adGroupPatch = { id: group.id, dailyBudget: applied, aiSuggestion };
+      }
+    } else if (decision.actionType === "CREATIVE_PAUSE" && decision.adGroupId) {
+      const { syncExternalAdGroupStatus } = await import("./external-ads.server");
+      external = await syncExternalAdGroupStatus(decision.adGroupId, "PAUSED");
+      const aiSuggestion = "按 LLM 分析师建议暂停，已过风控闸门";
+      await supabase
+        .from("ad_groups")
+        .update({ status: "PAUSED", ai_suggestion: aiSuggestion } as never)
+        .eq("id", decision.adGroupId);
+      adGroupPatch = { id: decision.adGroupId, status: "PAUSED", aiSuggestion };
+    }
+
+    status = "EXECUTED";
+    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+    void bumpTakeovers(1);
+    return finish();
+  }
+
+  // —— SWEEP / 事件驱动的预算调整卡（含 PID 贴 CPS） ——
+  if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
+    const [group, limits] = await Promise.all([getAdGroup(decision.adGroupId), loadLimits()]);
+    const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
+    const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+
+    if (group) {
+      const verdict = checkBudgetChange(limits, {
+        current: group.dailyBudget,
+        next: nextBudget,
+      });
+      void recordGuardrail({
+        action: "APPROVE_BUDGET_SHIFT",
+        targetId: group.id,
+        decision: verdict,
+        requested: {
+          from: group.dailyBudget,
+          to: nextBudget,
+          triggerSource: decision.triggerSource,
+          decisionId: id,
+        },
+      });
+      if (verdict.verdict === "DENY") {
+        guardrailNote = `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`;
+        await supabase
+          .from("agent_decisions")
+          .update({ guardrail_note: guardrailNote } as never)
+          .eq("id", id);
+        return finish();
+      }
+      const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+      const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+      external = await syncExternalAdGroupBudget(group.id, applied);
+      const aiSuggestion =
+        decision.triggerSource === "SWEEP"
+          ? "已按 CPS 贴标建议调整日预算（人工批准）"
+          : "预算已按建议调整";
+      await supabase
+        .from("ad_groups")
+        .update({
+          daily_budget: applied,
+          ai_suggestion: aiSuggestion,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", group.id);
+      adGroupPatch = { id: group.id, dailyBudget: applied, aiSuggestion };
+      if (verdict.verdict === "CLAMP") {
+        guardrailNote = `风控层已截断（${verdict.rule}）：${verdict.detail}`;
+        await supabase
+          .from("agent_decisions")
+          .update({ guardrail_note: guardrailNote } as never)
+          .eq("id", id);
+      }
+    }
+
+    status = "EXECUTED";
+    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+    void bumpTakeovers(1);
+    return finish();
+  }
+
+  const targetGroup = decision.adGroupId;
+  if (targetGroup && decision.actionType === "CREATIVE_PAUSE") {
+    const { syncExternalAdGroupStatus } = await import("./external-ads.server");
+    external = await syncExternalAdGroupStatus(targetGroup, "PAUSED");
+    const aiSuggestion = "低质素材已暂停，合规变体接量中";
+    await supabase
+      .from("ad_groups")
+      .update({
+        status: "PAUSED",
+        ai_suggestion: aiSuggestion,
+      } as never)
+      .eq("id", targetGroup);
+    adGroupPatch = { id: targetGroup, status: "PAUSED", aiSuggestion };
+  }
+
+  status = "EXECUTED";
+  await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+  void bumpTakeovers(1);
+  return finish();
 }
 
 /** All creative → ad group delivery links, enriched with hierarchy metadata and real lead facts. */
@@ -204,8 +443,10 @@ function mapCreative(r: Row): CreativeAsset {
     fatigueLevel: (r.fatigue_level ?? "HEALTHY") as CreativeAsset["fatigueLevel"],
     launchedAt: r.launched_at ?? undefined,
     lastScannedAt: r.last_scanned_at ?? undefined,
-    origin: r.origin === "google_sync" ? "google_sync" : "demo",
+    origin:
+      r.origin === "google_sync" || r.origin === "meta_sync" ? r.origin : "demo",
     googleResourceName: r.google_resource_name ?? null,
+    metaResourceName: r.meta_resource_name ?? null,
     platformRemoved: Boolean(r.platform_removed),
   };
 }
@@ -470,6 +711,7 @@ export async function getSnapshot(): Promise<AgentSnapshot> {
     cpsImprovementPct: Number(s.cps_improvement_pct ?? 0),
     agentOnline: s.agent_online ?? true,
     killSwitch: s.kill_switch ?? false,
+    riskPosture: deriveRiskPosture(s.risk_first ?? true, s.kill_switch ?? false),
     guardrailLimits: {
       maxBudgetDeltaPct: Number(s.max_budget_delta_pct ?? 30),
       maxDailyBudgetDeltaPct: Number(s.max_daily_budget_delta_pct ?? 50),
@@ -563,196 +805,6 @@ async function getAdGroup(id: string) {
   return mapAdGroup(row, ((parent as Row | null)?.name as string) ?? row.campaign_id, facts);
 }
 
-export async function approveDecision(id: string) {
-  const supabase = await db();
-  const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
-  if (!data) return { snapshot: await getSnapshot(), external: null };
-  const decision = mapDecision(data as Row);
-  let external: import("./google-ads").ExternalMutateResult | null = null;
-
-  await recordManualAction({
-    action: "APPROVE_DECISION",
-    targetId: id,
-    rule: "MANUAL_APPROVAL",
-    detail: `人工批准决策 ${id}（${decision.actionType}）：${decision.effect}`,
-    requested: {
-      actionType: decision.actionType,
-      adGroupId: decision.adGroupId ?? null,
-      triggerSource: decision.triggerSource,
-      statusBefore: (data as Row).status,
-    },
-  });
-
-  const finish = async () => {
-    if (external) await noteExternalMutate(id, external);
-    return { snapshot: await getSnapshot(), external };
-  };
-
-  // —— 跨广告组预算再分配卡：批准即逐笔重跑风控闸门后落库 ——
-  const { applyReallocationDecision, pendingAllocationsFor } = await import("./reallocate.server");
-  const poolEntries = await pendingAllocationsFor(id);
-  if (poolEntries.length > 0) {
-    const res = await applyReallocationDecision(id);
-    external = res.external ?? null;
-    await supabase
-      .from("agent_decisions")
-      .update({
-        status: res.applied > 0 ? "EXECUTED" : "REJECTED_BY_USER",
-        guardrail_note: res.notes.length ? res.notes.join(" / ") : null,
-      } as never)
-      .eq("id", id);
-    return finish();
-  }
-
-  // —— LLM 分析师的建议：人工点了同意也绕不过硬编码规则层 ——
-  if (decision.triggerSource === "LLM") {
-    const gate = await preflight({
-      action: "APPROVE_LLM_ADVICE",
-      targetId: decision.adGroupId,
-      automated: false,
-    });
-    if (!gate.ok) {
-      await supabase
-        .from("agent_decisions")
-        .update({
-          guardrail_note: `批准被规则层拒绝（${gate.decision.rule}）：${gate.decision.detail}`,
-        } as never)
-        .eq("id", id);
-      return finish();
-    }
-
-    if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
-      const group = await getAdGroup(decision.adGroupId);
-      // effect 形如「日预算 $1000 → $1300（+30%）」，取箭头后的目标值。
-      const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
-
-      const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
-      if (group) {
-        const verdict = checkBudgetChange(gate.limits, {
-          current: group.dailyBudget,
-          next: nextBudget,
-        });
-        await recordGuardrail({
-          action: "APPROVE_LLM_ADVICE",
-          targetId: group.id,
-          decision: verdict,
-          requested: { from: group.dailyBudget, to: nextBudget },
-        });
-        if (verdict.verdict === "DENY") {
-          await supabase
-            .from("agent_decisions")
-            .update({
-              guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
-            } as never)
-            .eq("id", id);
-          return finish();
-        }
-        const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
-        const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
-        external = await syncGoogleAdGroupBudget(group.id, applied);
-        await supabase
-          .from("ad_groups")
-          .update({
-            daily_budget: applied,
-            ai_suggestion: "按 LLM 分析师建议调整，已过风控闸门",
-            updated_at: new Date().toISOString(),
-          } as never)
-          .eq("id", group.id);
-      }
-    } else if (decision.actionType === "CREATIVE_PAUSE" && decision.adGroupId) {
-      const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
-      external = await syncGoogleAdGroupStatus(decision.adGroupId, "PAUSED");
-      await supabase
-        .from("ad_groups")
-        .update({ status: "PAUSED", ai_suggestion: "按 LLM 分析师建议暂停，已过风控闸门" } as never)
-        .eq("id", decision.adGroupId);
-    }
-
-    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
-    await bumpTakeovers(1);
-    return finish();
-  }
-
-  // —— SWEEP / 事件驱动的预算调整卡（含 PID 贴 CPS）：批准时按 effect 目标值过风控后落库 ——
-  if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
-    const group = await getAdGroup(decision.adGroupId);
-    const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
-    const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
-
-    if (group) {
-      const limits = await loadLimits();
-      const verdict = checkBudgetChange(limits, {
-        current: group.dailyBudget,
-        next: nextBudget,
-      });
-      await recordGuardrail({
-        action: "APPROVE_BUDGET_SHIFT",
-        targetId: group.id,
-        decision: verdict,
-        requested: {
-          from: group.dailyBudget,
-          to: nextBudget,
-          triggerSource: decision.triggerSource,
-          decisionId: id,
-        },
-      });
-      if (verdict.verdict === "DENY") {
-        await supabase
-          .from("agent_decisions")
-          .update({
-            guardrail_note: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}`,
-          } as never)
-          .eq("id", id);
-        return finish();
-      }
-      const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
-      const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
-      external = await syncGoogleAdGroupBudget(group.id, applied);
-      await supabase
-        .from("ad_groups")
-        .update({
-          daily_budget: applied,
-          ai_suggestion:
-            decision.triggerSource === "SWEEP"
-              ? "已按 CPS 贴标建议调整日预算（人工批准）"
-              : "预算已按建议调整",
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq("id", group.id);
-      if (verdict.verdict === "CLAMP") {
-        await supabase
-          .from("agent_decisions")
-          .update({
-            guardrail_note: `风控层已截断（${verdict.rule}）：${verdict.detail}`,
-          } as never)
-          .eq("id", id);
-      }
-    }
-
-    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
-    await bumpTakeovers(1);
-    return finish();
-  }
-
-  const targetGroup = decision.adGroupId;
-  if (targetGroup && decision.actionType === "CREATIVE_PAUSE") {
-    const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
-    external = await syncGoogleAdGroupStatus(targetGroup, "PAUSED");
-    await supabase
-      .from("ad_groups")
-      .update({
-        status: "PAUSED",
-        ai_suggestion: "低质素材已暂停，合规变体接量中",
-      } as never)
-      .eq("id", targetGroup);
-  }
-
-  await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
-  await bumpTakeovers(1);
-  return finish();
-}
-
-
 export async function rejectDecision(id: string) {
   const supabase = await db();
   const { data } = await supabase.from("agent_decisions").select("*").eq("id", id).maybeSingle();
@@ -839,31 +891,75 @@ export async function setMode(mode: ManagementMode) {
   return getSnapshot();
 }
 
-/** 全局熔断开关：开启后风控层拒绝一切自动写入。 */
-export async function setKillSwitch(on: boolean) {
+const RISK_POSTURE_DETAIL: Record<RiskPosture, string> = {
+  GUARDED: "人工切换为常规护栏：仅硬编码护栏，不主动按通过率暂停广告组。",
+  RISK_FIRST: "人工切换为风控优先：低通过率广告组将被自动暂停。",
+  KILL_SWITCH: "人工开启全局熔断，自动执行已冻结。",
+};
+
+/**
+ * 互斥风控姿态：映射到 risk_first / kill_switch 两列，避免脏组合。
+ * 切入 RISK_FIRST 时触发一次通过率扫描（与旧 setRiskFirst(true) 一致）。
+ */
+export async function setRiskPosture(posture: RiskPosture) {
   const supabase = await db();
+  const before = await getSnapshot();
+  const from = before.riskPosture;
+  const flags = flagsForRiskPosture(posture);
+
   await supabase
     .from("agent_settings")
-    .update({ kill_switch: on, updated_at: new Date().toISOString() } as never)
+    .update({
+      risk_first: flags.riskFirst,
+      kill_switch: flags.killSwitch,
+      updated_at: new Date().toISOString(),
+    } as never)
     .eq("id", "default");
-  await recordGuardrail({
-    action: "SET_KILL_SWITCH",
-    decision: {
-      verdict: on ? "DENY" : "ALLOW",
-      rule: "KILL_SWITCH",
-      detail: on ? "人工开启全局熔断，自动执行已冻结。" : "人工解除全局熔断，自动执行恢复。",
-    },
+
+  await recordManualAction({
+    action: "SET_RISK_POSTURE",
+    rule: "MANUAL_RISK_POSTURE",
+    detail: RISK_POSTURE_DETAIL[posture],
+    requested: { from, to: posture, ...flags },
   });
-  return getSnapshot();
+
+  if (posture === "KILL_SWITCH" || from === "KILL_SWITCH") {
+    await recordGuardrail({
+      action: "SET_KILL_SWITCH",
+      decision: {
+        verdict: posture === "KILL_SWITCH" ? "DENY" : "ALLOW",
+        rule: "KILL_SWITCH",
+        detail:
+          posture === "KILL_SWITCH"
+            ? "人工开启全局熔断，自动执行已冻结。"
+            : "人工解除全局熔断，自动执行恢复。",
+      },
+      requested: { from, to: posture },
+    });
+  }
+
+  if (posture !== "RISK_FIRST") {
+    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
+  }
+
+  return autoPauseRiskyGroups("EVENT");
+}
+
+/** @deprecated 请用 setRiskPosture；保留兼容布尔 API。 */
+export async function setKillSwitch(on: boolean) {
+  return (await setRiskPosture(on ? "KILL_SWITCH" : "RISK_FIRST")).snapshot;
 }
 
 /**
  * 风控兜底：授信通过率跌破阈值的广告组自动暂停。
- * 事件驱动（打开风控优先开关）与定时轮询共用同一段硬编码规则。
+ * 仅 RISK_FIRST 姿态执行；事件驱动与定时轮询共用同一段硬编码规则。
  */
 export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "EVENT") {
   const supabase = await db();
   const snapshot = await getSnapshot();
+  if (snapshot.riskPosture !== "RISK_FIRST") {
+    return { snapshot, pausedCampaigns: [] as string[] };
+  }
   const paused = snapshot.adGroups.filter(
     (g) => g.last20ApprovalRate < 0.1 && g.status === "ACTIVE",
   );
@@ -933,27 +1029,9 @@ export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "E
   return { snapshot: await getSnapshot(), pausedCampaigns: paused.map((g) => g.name) };
 }
 
+/** @deprecated 请用 setRiskPosture；保留兼容布尔 API。 */
 export async function setRiskFirst(riskFirst: boolean) {
-  const supabase = await db();
-  await supabase
-    .from("agent_settings")
-    .update({ risk_first: riskFirst, updated_at: new Date().toISOString() })
-    .eq("id", "default");
-  await recordManualAction({
-    action: "SET_RISK_FIRST",
-    rule: "MANUAL_RISK_FIRST",
-    detail: riskFirst
-      ? "人工开启风控优先：低通过率广告组将被自动暂停。"
-      : "人工关闭风控优先：不再按通过率阈值自动暂停广告组。",
-    requested: { to: riskFirst },
-  });
-
-
-  if (!riskFirst) {
-    return { snapshot: await getSnapshot(), pausedCampaigns: [] as string[] };
-  }
-
-  return autoPauseRiskyGroups("EVENT");
+  return setRiskPosture(riskFirst ? "RISK_FIRST" : "GUARDED");
 }
 
 
@@ -961,8 +1039,8 @@ export async function setRiskFirst(riskFirst: boolean) {
 export async function setAdGroupStatus(id: string, status: AdGroup["status"]) {
   const supabase = await db();
   const before = await getAdGroup(id);
-  const { syncGoogleAdGroupStatus } = await import("./google-ads.server");
-  const external = await syncGoogleAdGroupStatus(id, status);
+  const { syncExternalAdGroupStatus } = await import("./external-ads.server");
+  const external = await syncExternalAdGroupStatus(id, status);
 
   await supabase
     .from("ad_groups")
@@ -1022,8 +1100,8 @@ export async function setAdGroupBudget(id: string, dailyBudget: number) {
   }
 
   const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? dailyBudget) : dailyBudget;
-  const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
-  const external = await syncGoogleAdGroupBudget(id, applied);
+  const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+  const external = await syncExternalAdGroupBudget(id, applied);
 
   await supabase
     .from("ad_groups")
@@ -1132,8 +1210,8 @@ export async function applyAiSuggestion(id: string, triggerSource: "EVENT" | "SW
     .maybeSingle();
 
   if (mode === "FULL_AUTO") {
-    const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
-    const external = await syncGoogleAdGroupBudget(group.id, nextBudget);
+    const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+    const external = await syncExternalAdGroupBudget(group.id, nextBudget);
     if (inserted) {
       await noteExternalMutate((inserted as Row).id, external);
     }

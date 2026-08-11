@@ -78,10 +78,12 @@ export function toastForExternal(ext?: ExternalMutateResult | null): {
     return { title: "决策已批准（仅本地）", kind: "info" };
   }
   if (ext.pushed) {
-    return { title: "已推送 Google（test）", description: ext.detail, kind: "success" };
+    const platform = /Meta/i.test(ext.detail) ? "Meta" : "Google";
+    return { title: `已推送 ${platform}（test）`, description: ext.detail, kind: "success" };
   }
   if (ext.status === "FAILED") {
-    return { title: "Google 推送失败", description: ext.detail, kind: "error" };
+    const platform = /Meta/i.test(ext.detail) ? "Meta" : "Google";
+    return { title: `${platform} 推送失败`, description: ext.detail, kind: "error" };
   }
   return { title: "已批准（仅本地）", description: ext.detail, kind: "info" };
 }

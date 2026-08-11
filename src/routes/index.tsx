@@ -6,12 +6,17 @@ import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
 import {
+  BattlePlanPanel,
+  toastBattlePlanResult,
+} from "@/components/creditagent/BattlePlanPanel";
+import {
   useAgentStore,
   agentApi,
   agentSnapshotQuery,
   prefetchQueryNonBlocking,
   refreshAgentState,
 } from "@/lib/creditagent/store";
+import type { BattlePlan } from "@/lib/creditagent/battle-plan";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -74,8 +79,12 @@ function CommandCenter() {
   const loadError = useAgentStore((s) => s.error);
 
   const [advising, setAdvising] = useState(false);
+  const [planning, setPlanning] = useState(false);
+  const [approvingPlan, setApprovingPlan] = useState(false);
+  const [battlePlan, setBattlePlan] = useState<BattlePlan | null>(null);
 
   const pending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
+  const history = decisions.filter((d) => d.status !== "PENDING_APPROVAL");
   const holds = campaigns.filter((c) => c.status === "COMPLIANCE_HOLD").length;
 
   const runAdvisor = async () => {
@@ -102,6 +111,51 @@ function CommandCenter() {
     }
   };
 
+  const runBattlePlan = async () => {
+    setPlanning(true);
+    try {
+      const res = await agentApi.runBattlePlan();
+      if (res.plan) setBattlePlan(res.plan);
+      toastBattlePlanResult("generate", res);
+    } catch (e) {
+      // #region agent log
+      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
+        body: JSON.stringify({
+          sessionId: "6fd86b",
+          runId: "pre-fix",
+          hypothesisId: "E",
+          location: "index.tsx:runBattlePlan:catch",
+          message: "UI caught error",
+          data: { err: String(e instanceof Error ? e.message : e).slice(0, 240) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      toast.error("作战计划生成失败", {
+        description: String(e instanceof Error ? e.message : e).slice(0, 160) || "无法连接服务",
+      });
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const approveHighPriority = async () => {
+    if (!battlePlan?.highPriorityIds.length) return;
+    setApprovingPlan(true);
+    try {
+      const res = await agentApi.approveBattlePlanHighPriority(battlePlan.highPriorityIds);
+      toastBattlePlanResult("approve", res);
+      // 刷新计划中的状态观感：保留 plan，行上会显示已非 PENDING
+      await refreshAgentState();
+    } catch {
+      toast.error("批量审批失败");
+    } finally {
+      setApprovingPlan(false);
+    }
+  };
+
 
   return (
     <AppShell>
@@ -125,24 +179,51 @@ function CommandCenter() {
         </div>
 
         <div className="ml-auto flex flex-col items-end gap-1.5">
-          <Button
-            size="sm"
-            disabled={advising}
-            onClick={runAdvisor}
-            className="border border-neon/50 bg-neon/15 text-xs text-neon hover:bg-neon/25"
-          >
-            {advising ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Brain className="size-3.5" />
-            )}
-            运行 AI 分析师
-          </Button>
-          <p className="max-w-[220px] text-right text-[11px] leading-snug text-muted-foreground">
-            LLM 只提建议、不落地；产出全部进人工审批队列，执行权仍在硬编码风控层。
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              size="sm"
+              disabled={planning || approvingPlan}
+              onClick={() => void runBattlePlan()}
+              className="border border-neon/50 bg-neon/15 text-xs text-neon hover:bg-neon/25"
+            >
+              {planning ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Brain className="size-3.5" />
+              )}
+              生成今日作战计划
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={advising}
+              onClick={() => void runAdvisor()}
+              className="text-xs"
+            >
+              {advising ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Brain className="size-3.5" />
+              )}
+              运行 AI 分析师
+            </Button>
+          </div>
+          <p className="max-w-[280px] text-right text-[11px] leading-snug text-muted-foreground">
+            作战计划：编排已有待审（不发明动作）。分析师：追加新建议卡。执行权均在风控层。
           </p>
         </div>
       </header>
+
+      <div className="mt-4">
+        <BattlePlanPanel
+          plan={battlePlan}
+          decisions={decisions}
+          planning={planning}
+          approving={approvingPlan}
+          onGenerate={() => void runBattlePlan()}
+          onApproveHighPriority={() => void approveHighPriority()}
+        />
+      </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -182,10 +263,10 @@ function CommandCenter() {
                 实时决策推理流
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                每 15 分钟采集 Google / Meta API 与借贷 CRM 数据
+                已处理决策流水（待审批只在右侧队列，避免重复）
               </p>
             </div>
-            <span className="label-mono">{loaded ? `${decisions.length} 条决策` : "加载中"}</span>
+            <span className="label-mono">{loaded ? `${history.length} 条流水` : "加载中"}</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             {!loaded && loadError ? (
@@ -208,13 +289,17 @@ function CommandCenter() {
                   />
                 ))}
               </div>
-            ) : decisions.length === 0 ? (
+            ) : history.length === 0 ? (
               <div className="rounded-md border border-dashed border-border p-6 text-center">
-                <p className="text-xs text-muted-foreground">暂无决策记录</p>
+                <p className="text-xs text-muted-foreground">
+                  {pending.length > 0
+                    ? "暂无已处理流水；待审批请看右侧队列"
+                    : "暂无决策记录"}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {decisions.map((d) => (
+                {history.map((d) => (
                   <DecisionCard key={d.id} decision={d} />
                 ))}
               </div>
@@ -224,13 +309,16 @@ function CommandCenter() {
         </section>
 
         <section className="panel flex min-h-0 flex-col p-4">
-          <div>
-            <h2 className="text-sm font-semibold tracking-wide text-warning">
-              人工审批队列（Human-in-the-Loop）
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              变更幅度 &gt; 30% 的决策自动挂起，等待批准或人工否决
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold tracking-wide text-warning">
+                人工审批队列（Human-in-the-Loop）
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                半自动 / LLM 建议等待批决策；批准或否决后进入左侧流水
+              </p>
+            </div>
+            <span className="label-mono text-warning">{loaded ? `${pending.length} 待批` : "—"}</span>
           </div>
           <ScrollArea className="mt-4 h-[720px] pr-3">
             {pending.length === 0 ? (

@@ -54,17 +54,28 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLIANCE_HOLD: "合规拦截",
 };
 
+function isPlatformSync(origin?: string) {
+  return origin === "google_sync" || origin === "meta_sync";
+}
+
 function OriginBadge({
   origin,
   platformRemoved,
 }: {
-  origin?: "demo" | "google_sync";
+  origin?: "demo" | "google_sync" | "meta_sync";
   platformRemoved?: boolean;
 }) {
   if (origin === "google_sync") {
     return (
       <span className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-700 dark:text-sky-300">
         {platformRemoved ? "Google · 已移除" : "Google"}
+      </span>
+    );
+  }
+  if (origin === "meta_sync") {
+    return (
+      <span className="shrink-0 rounded border border-meta/40 bg-meta/12 px-1.5 py-0.5 text-[10px] text-meta">
+        {platformRemoved ? "Meta · 已移除" : "Meta"}
       </span>
     );
   }
@@ -79,6 +90,10 @@ function errMsg(e: unknown) {
   const raw = e instanceof Error ? e.message : String(e);
   if (raw.includes("COMPLIANCE_BLOCKED")) return "合规 FAILED 的素材不能设为 ACTIVE";
   if (raw.includes("BUDGET_DENIED:")) return raw.split("BUDGET_DENIED:")[1] ?? raw;
+  if (raw.includes("GOOGLE_SYNC_PARENT:")) return raw.split("GOOGLE_SYNC_PARENT:")[1] ?? raw;
+  if (raw.includes("LOCAL_CAMPAIGN_REQUIRED")) {
+    return "请选择本地演示系列（不能在平台同步系列下新建）";
+  }
   if (raw.includes("PLACEMENT_INVALID")) return "版位与渠道不匹配";
   if (raw.includes("BID_STRATEGY_INVALID")) return "出价策略与渠道不匹配";
   if (raw.includes("BID_TARGET_INVALID")) return "请填写有效的目标出价金额（须大于 0）";
@@ -103,8 +118,10 @@ export function StructureTab() {
   const selectedGroup =
     selection?.kind === "adGroup" ? adGroups.find((g) => g.id === selection.id) : null;
 
-  const selectedIsGoogleSync =
-    selectedCampaign?.origin === "google_sync" || selectedGroup?.origin === "google_sync";
+  const selectedIsPlatformSync =
+    isPlatformSync(selectedCampaign?.origin) || isPlatformSync(selectedGroup?.origin);
+
+  const [metaSyncBusy, setMetaSyncBusy] = useState(false);
 
   const syncFromGoogle = async () => {
     setSyncBusy(true);
@@ -119,6 +136,22 @@ export function StructureTab() {
       toast.error("同步失败", { description: errMsg(err) });
     } finally {
       setSyncBusy(false);
+    }
+  };
+
+  const syncFromMeta = async () => {
+    setMetaSyncBusy(true);
+    try {
+      const res = await agentApi.syncMetaStructure();
+      if (res.ok) {
+        toast.success("已从 Meta 同步结构", { description: res.message });
+      } else {
+        toast.error(res.message, { description: res.error ?? "请先在预算页完成 Meta 探活（MODE=test）" });
+      }
+    } catch (err) {
+      toast.error("Meta 同步失败", { description: errMsg(err) });
+    } finally {
+      setMetaSyncBusy(false);
     }
   };
 
@@ -140,7 +173,7 @@ export function StructureTab() {
             <p className="label-mono">structure</p>
             <h2 className="mt-1 text-sm font-semibold tracking-wide">投放结构管理</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Campaign → Ad Group → Creative · Google 结构单向同步（只读镜像）· 演示数据可本地编辑 ·
+              Campaign → Ad Group → Creative · Google / Meta 结构单向同步（只读镜像）· 演示数据可本地编辑 ·
               预算/暂停请走审批卡片或预算矩阵
             </p>
           </div>
@@ -152,6 +185,14 @@ export function StructureTab() {
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
               )}
               从 Google 同步结构
+            </Button>
+            <Button size="sm" variant="secondary" disabled={metaSyncBusy} onClick={() => void syncFromMeta()}>
+              {metaSyncBusy ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              从 Meta 同步结构
             </Button>
             <Button size="sm" onClick={() => setWizardOpen(true)}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
@@ -167,13 +208,13 @@ export function StructureTab() {
               onClick={() => setCreateGroupOpen(true)}
               disabled={
                 campaigns.length === 0 ||
-                selectedCampaign?.origin === "google_sync" ||
+                isPlatformSync(selectedCampaign?.origin) ||
                 (selectedGroup != null &&
-                  campaigns.find((c) => c.id === selectedGroup.campaignId)?.origin === "google_sync")
+                  isPlatformSync(campaigns.find((c) => c.id === selectedGroup.campaignId)?.origin))
               }
               title={
-                selectedIsGoogleSync
-                  ? "Google 同步系列请在广告后台新建子级后再点同步"
+                selectedIsPlatformSync
+                  ? "平台同步系列请在广告后台新建子级后再点同步"
                   : undefined
               }
             >
@@ -352,7 +393,7 @@ function CampaignEditor({
     campaign.googleBudgetResourceName ?? "",
   );
   const [busy, setBusy] = useState(false);
-  const fromGoogle = campaign.origin === "google_sync";
+  const fromGoogle = isPlatformSync(campaign.origin);
 
   useEffect(() => {
     setName(campaign.name);
@@ -522,7 +563,7 @@ function AdGroupEditor({
   );
   const [googleResourceName, setGoogleResourceName] = useState(group.googleResourceName ?? "");
   const [busy, setBusy] = useState(false);
-  const fromGoogle = group.origin === "google_sync";
+  const fromGoogle = isPlatformSync(group.origin);
 
   const [bindCreativeId, setBindCreativeId] = useState(creatives[0]?.id ?? "");
   const [bindShare, setBindShare] = useState("100");
@@ -1000,7 +1041,7 @@ function CreateAdGroupDialog({
 }) {
   // Local-only structure: never attach new groups under Google-synced campaigns.
   const editableCampaigns = useMemo(
-    () => campaigns.filter((c) => c.origin !== "google_sync"),
+    () => campaigns.filter((c) => !isPlatformSync(c.origin)),
     [campaigns],
   );
   const [campaignId, setCampaignId] = useState(
@@ -1049,7 +1090,7 @@ function CreateAdGroupDialog({
                 return;
               }
               if (!campaignId || editableCampaigns.every((c) => c.id !== campaignId)) {
-                toast.error("请选择本地演示系列（不能在 Google 同步系列下新建）");
+                toast.error("请选择本地演示系列（不能在平台同步系列下新建）");
                 setBusy(false);
                 return;
               }
@@ -1097,14 +1138,14 @@ function CreateAdGroupDialog({
               <SelectContent>
                 {editableCampaigns.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.channel} · {c.name}
+                    本地 · {c.channel} · {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {editableCampaigns.length === 0 && (
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Google 同步系列不能在 Agent 下新建广告组；请先新建本地演示系列，或在广告后台建组后同步。
+                平台同步系列不能在 Agent 下新建广告组；请先新建本地演示系列，或在广告后台建组后同步。
               </p>
             )}
           </Field>
@@ -1204,16 +1245,22 @@ function StructureWizard({
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
 
+  // 向导与「新建广告组」一致：只能挂到本地演示系列，不能挂到 Google 同步系列。
+  const localCampaigns = useMemo(
+    () => campaigns.filter((c) => !isPlatformSync(c.origin)),
+    [campaigns],
+  );
+
   // Step 1
-  const [useExistingCampaign, setUseExistingCampaign] = useState(campaigns.length > 0);
-  const [campaignId, setCampaignId] = useState(campaigns[0]?.id ?? "");
+  const [useExistingCampaign, setUseExistingCampaign] = useState(localCampaigns.length > 0);
+  const [campaignId, setCampaignId] = useState(localCampaigns[0]?.id ?? "");
   const [campName, setCampName] = useState("");
   const [channel, setChannel] = useState<Channel>("Google");
 
   // Step 2
   const resolvedChannel =
     useExistingCampaign
-      ? (campaigns.find((c) => c.id === campaignId)?.channel ?? "Google")
+      ? (localCampaigns.find((c) => c.id === campaignId)?.channel ?? "Google")
       : channel;
   const [groupName, setGroupName] = useState("");
   const [placement, setPlacement] = useState(placementsFor(resolvedChannel)[0]);
@@ -1236,8 +1283,9 @@ function StructureWizard({
   useEffect(() => {
     if (!open) return;
     setStep(1);
-    setUseExistingCampaign(campaigns.length > 0);
-    setCampaignId(campaigns[0]?.id ?? "");
+    const preferExisting = localCampaigns.length > 0;
+    setUseExistingCampaign(preferExisting);
+    setCampaignId(localCampaigns[0]?.id ?? "");
     setCampName("");
     setGroupName("");
     setAudience("");
@@ -1245,7 +1293,7 @@ function StructureWizard({
     setFinalCampaignId(null);
     setCreativeMode(creatives.length > 0 ? "pick" : "create");
     setCreativeId(creatives[0]?.id ?? "");
-  }, [open, campaigns, creatives]);
+  }, [open, localCampaigns, creatives]);
 
   useEffect(() => {
     setPlacement(placementsFor(resolvedChannel)[0]);
@@ -1263,6 +1311,8 @@ function StructureWizard({
         status: "ACTIVE",
       });
       cid = camp.id;
+    } else if (!localCampaigns.some((c) => c.id === cid)) {
+      throw new Error("LOCAL_CAMPAIGN_REQUIRED");
     }
     if (bidStrategyNeedsTarget(bidStrategy) && !(Number(bidTarget) > 0)) {
       throw new Error("BID_TARGET_INVALID");
@@ -1288,7 +1338,8 @@ function StructureWizard({
         <DialogHeader>
           <DialogTitle>新建投放结构向导</DialogTitle>
           <DialogDescription>
-            步骤 {step}/4 · 系列 → 广告组 → 挂素材 → 确认（仅写本地库）
+            步骤 {step}/4 · 系列 → 广告组 → 挂素材 → 确认（仅写本地库；真实 Google
+            结构请在广告后台创建后同步）
           </DialogDescription>
         </DialogHeader>
 
@@ -1299,10 +1350,15 @@ function StructureWizard({
                 type="button"
                 size="sm"
                 variant={useExistingCampaign ? "default" : "outline"}
-                disabled={campaigns.length === 0}
+                disabled={localCampaigns.length === 0}
+                title={
+                  localCampaigns.length === 0
+                    ? "没有可挂载的本地系列；请新建系列，或到 Google 后台建完后同步"
+                    : undefined
+                }
                 onClick={() => setUseExistingCampaign(true)}
               >
-                使用已有系列
+                使用已有本地系列
               </Button>
               <Button
                 type="button"
@@ -1313,16 +1369,22 @@ function StructureWizard({
                 新建系列
               </Button>
             </div>
+            {localCampaigns.length === 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                当前只有 Google 同步系列或尚无系列。向导只能新建本地演示结构；Google
+                账户里的系列/广告组请在广告后台创建后点「从 Google 同步结构」。
+              </p>
+            )}
             {useExistingCampaign ? (
-              <Field label="广告系列">
+              <Field label="本地广告系列">
                 <Select value={campaignId} onValueChange={setCampaignId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="选择本地系列" />
                   </SelectTrigger>
                   <SelectContent>
-                    {campaigns.map((c) => (
+                    {localCampaigns.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.channel} · {c.name}
+                        本地 · {c.channel} · {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1344,6 +1406,9 @@ function StructureWizard({
                     </SelectContent>
                   </Select>
                 </Field>
+                <p className="text-[11px] text-muted-foreground">
+                  新建系列仅存于 Agent 本地，不会在 Google Ads 账户中创建。
+                </p>
               </>
             )}
             <Button
@@ -1517,7 +1582,7 @@ function StructureWizard({
               <p>
                 <span className="text-muted-foreground">系列：</span>
                 {useExistingCampaign
-                  ? campaigns.find((c) => c.id === campaignId)?.name
+                  ? localCampaigns.find((c) => c.id === campaignId)?.name
                   : campName}{" "}
                 · {resolvedChannel}
               </p>
@@ -1537,7 +1602,7 @@ function StructureWizard({
                 {share}%
               </p>
               <p className="text-muted-foreground">
-                同步到 Google / Meta：暂不可用（待 LIVE Adapter）
+                仅写入本地库，不会在 Google / Meta 广告账户创建系列或广告组
               </p>
             </div>
             <div className="flex gap-2">

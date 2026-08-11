@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:google-ads": "tsx scripts/google-ads-smoke.mts"
+    "test:google-ads": "tsx scripts/google-ads-smoke.mts",
+    "test:meta-ads": "tsx scripts/meta-ads-smoke.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

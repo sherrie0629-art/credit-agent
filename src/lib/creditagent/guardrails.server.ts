@@ -54,15 +54,22 @@ export async function recordGuardrail(input: {
   decision: GuardrailDecision;
   requested?: Record<string, unknown>;
 }) {
-  const supabase = await db();
-  await supabase.from("guardrail_events").insert({
-    action: input.action,
-    target_id: input.targetId ?? "",
-    rule: input.decision.rule,
-    verdict: input.decision.verdict,
-    detail: input.decision.detail,
-    requested: input.requested ?? {},
-  } as never);
+  try {
+    const supabase = await db();
+    // Audit must not block critical mutate / approve responses.
+    void Promise.resolve(
+      supabase.from("guardrail_events").insert({
+        action: input.action,
+        target_id: input.targetId ?? "",
+        rule: input.decision.rule,
+        verdict: input.decision.verdict,
+        detail: input.decision.detail,
+        requested: input.requested ?? {},
+      } as never),
+    ).catch(() => {});
+  } catch {
+    /* ignore — audit must never fail the caller */
+  }
 }
 
 /**

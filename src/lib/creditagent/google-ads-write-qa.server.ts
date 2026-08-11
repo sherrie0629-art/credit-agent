@@ -68,7 +68,7 @@ export async function seedGoogleAdsWriteTestDecisions(): Promise<GoogleAdsWriteQ
     warnings.push("GOOGLE_ADS_MODE 不是 test：批准后不会推送 Google（仅本地/跳过）");
   }
   if (limits.killSwitch) {
-    warnings.push("Kill Switch 已开启：批准也不会调用 Google Ads API");
+    warnings.push("风控姿态为全局熔断：批准也不会调用 Google Ads API");
   }
 
   const { data: groups, error: gErr } = await supabase

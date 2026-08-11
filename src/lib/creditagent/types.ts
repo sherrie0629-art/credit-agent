@@ -89,8 +89,10 @@ export interface AdGroup {
   aiSuggestion: string;
   /** Google Ads ad_group resource name when bound for test API. */
   googleResourceName?: string | null;
-  /** demo = local mock; google_sync = pulled from Google (structure read-only). */
-  origin?: "demo" | "google_sync";
+  /** Meta Ad Set id — budget/status push target. */
+  metaResourceName?: string | null;
+  /** demo = local mock; google_sync / meta_sync = platform mirror (structure read-only). */
+  origin?: "demo" | "google_sync" | "meta_sync";
   platformRemoved?: boolean;
 }
 
@@ -138,8 +140,10 @@ export interface Campaign {
   /** Google Ads campaign / campaign_budget resource names when bound. */
   googleResourceName?: string | null;
   googleBudgetResourceName?: string | null;
-  /** demo = local mock; google_sync = pulled from Google (structure read-only). */
-  origin?: "demo" | "google_sync";
+  /** Meta Campaign id when bound. */
+  metaResourceName?: string | null;
+  /** demo = local mock; google_sync / meta_sync = platform mirror (structure read-only). */
+  origin?: "demo" | "google_sync" | "meta_sync";
   platformRemoved?: boolean;
 }
 
@@ -170,13 +174,42 @@ export interface CreativeAsset {
   lastScannedAt?: string;
   /** Real downstream performance; undefined when the creative has no leads yet. */
   backend?: CreativeBackendFacts;
-  origin?: "demo" | "google_sync";
+  origin?: "demo" | "google_sync" | "meta_sync";
   googleResourceName?: string | null;
+  metaResourceName?: string | null;
   platformRemoved?: boolean;
 }
 
 
 export type ManagementMode = "FULL_AUTO" | "SEMI_AUTO";
+
+/**
+ * 风控姿态（互斥三态）：合并原 risk_first + kill_switch。
+ * 硬编码护栏阈值始终生效，与姿态无关。
+ * 产品 UI 只暴露熔断开关；日常默认 RISK_FIRST。GUARDED 仅兼容旧 API / 脏数据。
+ */
+export type RiskPosture = "GUARDED" | "RISK_FIRST" | "KILL_SWITCH";
+
+/** 脏组合 (risk_first=true, kill_switch=true) 归一为熔断。 */
+export function deriveRiskPosture(riskFirst: boolean, killSwitch: boolean): RiskPosture {
+  if (killSwitch) return "KILL_SWITCH";
+  if (riskFirst) return "RISK_FIRST";
+  return "GUARDED";
+}
+
+export function flagsForRiskPosture(posture: RiskPosture): {
+  riskFirst: boolean;
+  killSwitch: boolean;
+} {
+  switch (posture) {
+    case "KILL_SWITCH":
+      return { riskFirst: false, killSwitch: true };
+    case "RISK_FIRST":
+      return { riskFirst: true, killSwitch: false };
+    case "GUARDED":
+      return { riskFirst: false, killSwitch: false };
+  }
+}
 
 export interface FunnelStage {
   stage: string;
@@ -266,6 +299,8 @@ export interface AgentSnapshot {
   agentOnline: boolean;
   /** 全局熔断开关：开启后所有自动写入被风控层拒绝。 */
   killSwitch: boolean;
+  /** 由 riskFirst / killSwitch 推导的互斥风控姿态。 */
+  riskPosture: RiskPosture;
   guardrailLimits: {
     maxBudgetDeltaPct: number;
     maxDailyBudgetDeltaPct: number;

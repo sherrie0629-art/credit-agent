@@ -1,11 +1,12 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 
-import { Pause, Play, Sparkles } from "lucide-react";
+import { ChevronDown, Pause, Play, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { ChannelBadge } from "@/components/creditagent/badges";
 import { GoogleAdsConnectionPanel } from "@/components/creditagent/GoogleAdsConnectionPanel";
+import { MetaAdsConnectionPanel } from "@/components/creditagent/MetaAdsConnectionPanel";
 import { StructureTab } from "@/components/creditagent/structure/StructureTab";
 import { toastForExternal } from "@/lib/creditagent/google-ads";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -22,11 +28,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { agentApi, useAgentStore, agentSnapshotQuery, prefetchQueryNonBlocking } from "@/lib/creditagent/store";
-import type { AdGroup } from "@/lib/creditagent/types";
+import type { AdGroup, BudgetPoolEntry } from "@/lib/creditagent/types";
 import { cn } from "@/lib/utils";
 
 const TABS = ["budget", "structure"] as const;
 type TabKey = (typeof TABS)[number];
+
 
 const POOL_REASON_LABEL: Record<string, string> = {
   RISK_PAUSE: "风控暂停释放",
@@ -37,124 +44,287 @@ const POOL_REASON_LABEL: Record<string, string> = {
   EXPIRED: "过期回收",
 };
 
-/**
- * 跨广告组预算再分配：被暂停 / 低胜率广告组释放的预算进入当日待分配池，
- * 由硬编码打分（授信通过率 + CPS + 消耗节奏）转移到高胜率广告组，每笔均留归因。
- */
-function BudgetPoolPanel() {
-  const pool = useAgentStore((s) => s.budgetPool);
-  const [running, setRunning] = useState(false);
+function poolStatusLine(pool: {
+  balance: number;
+  reserved: number;
+  day: string;
+}): string {
+  if (pool.reserved > 0 && pool.balance <= 0) {
+    return `已有 $${pool.reserved.toLocaleString()} 待审批冻结 · 去指挥中心队列确认`;
+  }
+  if (pool.balance > 0) {
+    return `待再分配 $${pool.balance.toLocaleString()} · 可拨给高胜率组`;
+  }
+  return "今日暂无可再分配预算";
+}
 
-  const releases = pool.entries.filter((e) => e.direction === "RELEASE" && e.status === "APPLIED");
-  const allocations = pool.entries.filter((e) => e.direction === "ALLOCATE");
+function timelineEntries(entries: BudgetPoolEntry[]) {
+  return [...entries]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+    .slice(0, 10);
+}
+
+/**
+ * 当日闲置预算：空池收成窄条；有余额/待批时展开并高亮。
+ */
+function BudgetPoolPanel({ compactEmpty = true }: { compactEmpty?: boolean }) {
+  const pool = useAgentStore((s) => s.budgetPool);
+  const mode = useAgentStore((s) => s.mode);
+  const [running, setRunning] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [flowOpen, setFlowOpen] = useState(true);
+  const [emptyExpanded, setEmptyExpanded] = useState(false);
+
+  const timeline = useMemo(() => timelineEntries(pool.entries), [pool.entries]);
+  const hasBalance = pool.balance > 0;
+  const hasReserved = pool.reserved > 0;
+  const isActive = hasBalance || hasReserved;
+  const showFull = isActive || !compactEmpty || emptyExpanded;
+
+  const runAllocate = async () => {
+    setRunning(true);
+    try {
+      const res = await agentApi.runReallocation();
+      if (res.skipped === "EMPTY_POOL") {
+        toast("池里没有可分配余额");
+      } else if (res.skipped === "NO_ELIGIBLE_RECIPIENT") {
+        toast.warning("没有合格的高胜率组可承接", {
+          description: "资金留在池中，当日未用将过期回收。",
+        });
+      } else if (res.autoExecuted) {
+        toast.success(`已拨出 $${res.allocated.toLocaleString()}`, {
+          description: `落到 ${res.allocations.length} 个广告组`,
+        });
+      } else {
+        toast.success(`已生成审批卡 · $${res.allocated.toLocaleString()}`, {
+          description: "半自动：请到人工审批队列确认后再改预算",
+        });
+      }
+    } catch (e) {
+      toast.error("再分配失败", { description: String(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  if (!showFull) {
+    return (
+      <section className="mt-4 rounded-md border border-dashed border-border/80 bg-background/30 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="label-mono">budget pool · {pool.day || "—"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">今日暂无闲置预算可拨</p>
+          </div>
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => setEmptyExpanded(true)}
+          >
+            查看说明与流水
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="panel mt-4 p-5">
+    <section
+      id="budget-pool"
+      className={cn(
+        "panel mt-4 scroll-mt-4 p-5",
+        isActive && "border-neon/40 ring-1 ring-neon/20",
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="label-mono">budget pool · {pool.day || "—"}</p>
-          <h2 className="mt-2 text-sm font-semibold tracking-wide">跨广告组预算再分配</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            暂停或低胜率广告组释放的预算先入池，再按硬编码评分（授信通过率 0.6 / CPS 0.4）转移到
-            高胜率广告组 · 承接门槛：投放中 / 学习期 · 通过率 ≥ 22% · CPS ≤ 账户基准的 1.1× · 今日消耗率 ≥ 60%
+          <h2 className="mt-2 text-sm font-semibold tracking-wide">当日闲置预算</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{poolStatusLine(pool)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            停组释放的预算，按通过率与 CPS 自动拨给合格组
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={running || pool.balance <= 0}
-          onClick={async () => {
-            setRunning(true);
-            try {
-              const res = await agentApi.runReallocation();
-              if (res.skipped === "EMPTY_POOL") {
-                toast("待分配池为空，无需再分配");
-              } else if (res.skipped === "NO_ELIGIBLE_RECIPIENT") {
-                toast.warning("无合格承接广告组", {
-                  description: "资金留在池中，当日未使用将过期回收。",
-                });
-              } else {
-                toast.success(
-                  res.autoExecuted
-                    ? `已转移 $${res.allocated.toLocaleString()} 至 ${res.allocations.length} 个广告组`
-                    : `已生成再分配审批卡：$${res.allocated.toLocaleString()} 待人工确认`,
-                );
-              }
-            } catch (e) {
-              toast.error("再分配失败", { description: String(e) });
-            } finally {
-              setRunning(false);
-            }
-          }}
-        >
-          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-          {running ? "分配中…" : "执行预算再分配"}
-        </Button>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "可分配余额", value: pool.balance, accent: true },
-          { label: "今日释放入池", value: pool.released },
-          { label: "已生效分配", value: pool.allocated },
-          { label: "待审批冻结", value: pool.reserved },
-        ].map((s) => (
-          <div key={s.label} className="rounded-md border border-border bg-background/50 p-3">
-            <p className="label-mono">{s.label}</p>
-            <p className={cn("mt-1 font-mono text-lg", s.accent && "neon-text")}>
-              ${s.value.toLocaleString()}
+        {hasBalance && (
+          <div className="flex flex-col items-end gap-1">
+            <Button size="sm" variant="outline" disabled={running} onClick={() => void runAllocate()}>
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              {running ? "拨付中…" : "拨给高胜率组"}
+            </Button>
+            <p className="max-w-[220px] text-right text-[10px] text-muted-foreground">
+              {mode === "FULL_AUTO"
+                ? "全自动：护栏通过后直接改预算"
+                : "半自动：出方案等人批"}
             </p>
           </div>
-        ))}
+        )}
       </div>
 
-      {pool.entries.length > 0 && (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div>
-            <p className="label-mono">资金来源（释放）</p>
-            <ul className="mt-2 space-y-1.5">
-              {releases.slice(0, 6).map((e) => (
-                <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
-                  <span className="min-w-0 truncate text-muted-foreground">
-                    {e.adGroupName ?? "—"} · {POOL_REASON_LABEL[e.reason] ?? e.reason}
-                  </span>
-                  <span className="shrink-0 font-mono text-destructive">
-                    −${e.amount.toLocaleString()}
-                  </span>
-                </li>
-              ))}
-              {releases.length === 0 && (
-                <li className="text-xs text-muted-foreground">今日暂无释放记录。</li>
-              )}
-            </ul>
-          </div>
-          <div>
-            <p className="label-mono">资金去向（分配）</p>
-            <ul className="mt-2 space-y-1.5">
-              {allocations.slice(0, 6).map((e) => (
-                <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
-                  <span className="min-w-0 truncate text-muted-foreground">
-                    {e.adGroupName ?? "过期回收"}
-                    {e.status === "PENDING" && (
-                      <span className="ml-1.5 text-neon">待审批</span>
-                    )}
-                    {e.status === "REVERTED" && (
-                      <span className="ml-1.5 text-destructive">已撤销</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 font-mono text-neon">
-                    +${e.amount.toLocaleString()}
-                  </span>
-                </li>
-              ))}
-              {allocations.length === 0 && (
-                <li className="text-xs text-muted-foreground">今日暂无分配记录。</li>
-              )}
-            </ul>
-          </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="label-mono">可分配余额</p>
+          <p className="mt-1 font-mono text-lg neon-text">${pool.balance.toLocaleString()}</p>
         </div>
+        <div className="rounded-md border border-border bg-background/50 p-3">
+          <p className="label-mono">待审批冻结</p>
+          <p className="mt-1 font-mono text-lg">${pool.reserved.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <Collapsible open={rulesOpen} onOpenChange={setRulesOpen} className="mt-3">
+        <CollapsibleTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 transition-transform", rulesOpen && "rotate-180")}
+          />
+          钱会拨给谁？
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 space-y-2 text-[11px] leading-relaxed text-muted-foreground">
+          <p>
+            系统自动挑选合格广告组（不是人工打分，也不是 AI 随意决定）。优先补给授信质量更好、放款成本更可控、且今天预算花得动的组。当日拨不完的余额会作废，不留到明天。定时巡检也会自动尝试拨付；这里是池里有钱时立刻出一版方案。
+          </p>
+          <Collapsible>
+            <CollapsibleTrigger className="text-[10px] text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline">
+              技术细则
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground/80">
+              仅投放中或学习期可承接 · 近端授信通过率 ≥ 22% · CPS ≤ 账户基准的 1.1× ·
+              今日消耗率 ≥ 60%。多组同时合格时，按「通过率优先、成本其次」的固定规则排序分配。
+            </CollapsibleContent>
+          </Collapsible>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Collapsible
+        open={flowOpen}
+        onOpenChange={setFlowOpen}
+        className="mt-3 border-t border-border pt-3"
+      >
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left">
+          <span className="label-mono">
+            流水
+            {pool.entries.length > 0 ? ` · ${pool.entries.length} 笔` : ""}
+            {pool.released > 0 || pool.allocated > 0
+              ? ` · 释放 $${pool.released.toLocaleString()} / 已拨 $${pool.allocated.toLocaleString()}`
+              : ""}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+              flowOpen && "rotate-180",
+            )}
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2">
+          {timeline.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              还没有释放记录；风控停组或降预算后会出现在这里。
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {timeline.map((e) => {
+                const isRelease = e.direction === "RELEASE";
+                return (
+                  <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="min-w-0 truncate text-muted-foreground">
+                      {isRelease ? "−" : "+"}{" "}
+                      {isRelease
+                        ? (POOL_REASON_LABEL[e.reason] ?? e.reason)
+                        : e.reason === "EXPIRED"
+                          ? "过期回收"
+                          : "拨给高胜率组"}
+                      {" · "}
+                      {e.adGroupName ?? "—"}
+                      {e.status === "PENDING" && (
+                        <span className="ml-1.5 text-neon">待批</span>
+                      )}
+                      {e.status === "REVERTED" && (
+                        <span className="ml-1.5 text-destructive">已撤销</span>
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 font-mono",
+                        isRelease ? "text-destructive" : "text-neon",
+                      )}
+                    >
+                      {isRelease ? "−" : "+"}${e.amount.toLocaleString()}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {!isActive && compactEmpty && emptyExpanded && (
+        <button
+          type="button"
+          className="mt-3 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          onClick={() => setEmptyExpanded(false)}
+        >
+          收起
+        </button>
       )}
     </section>
+  );
+}
+
+/** 矩阵上方的行动条：仅有闲钱或待批时出现。 */
+function BudgetPoolCallout() {
+  const pool = useAgentStore((s) => s.budgetPool);
+  const mode = useAgentStore((s) => s.mode);
+  const [running, setRunning] = useState(false);
+  if (pool.balance <= 0 && pool.reserved <= 0) return null;
+
+  const scrollToPool = () => {
+    document.getElementById("budget-pool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-neon/40 bg-neon/5 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-foreground">{poolStatusLine(pool)}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {pool.balance > 0
+            ? mode === "FULL_AUTO"
+              ? "可直接拨付，或先查看下方闲置预算详情"
+              : "可出方案进审批，或先查看下方闲置预算详情"
+            : "请到指挥中心审批队列处理冻结金额"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {pool.balance > 0 && (
+          <Button
+            size="sm"
+            disabled={running}
+            onClick={async () => {
+              setRunning(true);
+              try {
+                const res = await agentApi.runReallocation();
+                if (res.skipped === "EMPTY_POOL") toast("池里没有可分配余额");
+                else if (res.skipped === "NO_ELIGIBLE_RECIPIENT") {
+                  toast.warning("没有合格的高胜率组可承接");
+                } else if (res.autoExecuted) {
+                  toast.success(`已拨出 $${res.allocated.toLocaleString()}`);
+                } else {
+                  toast.success(`已生成审批卡 · $${res.allocated.toLocaleString()}`);
+                }
+              } catch (e) {
+                toast.error("再分配失败", { description: String(e) });
+              } finally {
+                setRunning(false);
+              }
+            }}
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            {running ? "拨付中…" : "拨给高胜率组"}
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={scrollToPool}>
+          查看详情
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -310,8 +480,7 @@ function BudgetTab() {
   const campaigns = useAgentStore((s) => s.campaigns);
   const adGroups = useAgentStore((s) => s.adGroups);
   const mode = useAgentStore((s) => s.mode);
-  const riskFirst = useAgentStore((s) => s.riskFirst);
-  const killSwitch = useAgentStore((s) => s.killSwitch);
+  const riskPosture = useAgentStore((s) => s.riskPosture);
   const limits = useAgentStore((s) => s.guardrailLimits);
 
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -322,23 +491,44 @@ function BudgetTab() {
   const blendedCps =
     totalSpent / Math.max(1, adGroups.reduce((s, g) => s + g.approvedLoans, 0));
 
+  const killSwitchOn = riskPosture === "KILL_SWITCH";
+
+  const setKillSwitch = async (on: boolean) => {
+    if (on === killSwitchOn) return;
+    const res = await agentApi.setRiskPosture(on ? "KILL_SWITCH" : "RISK_FIRST");
+    if (on) {
+      toast.error("全局熔断已开启", {
+        description: "所有 Agent 自动写入被拒绝，仅保留人工操作。",
+      });
+    } else if (res.pausedCampaigns.length) {
+      toast.warning("已恢复风控优先", {
+        description: `自动暂停：${res.pausedCampaigns.join("、")}`,
+      });
+    } else {
+      toast.success("全局熔断已解除", { description: "已恢复风控优先（含通过率自动停组）。" });
+    }
+  };
+
   return (
     <>
       <section className="panel p-5">
         <p className="text-xs text-muted-foreground">
-          托管模式、熔断与预算矩阵。创建系列/广告组请切到「投放结构」。
+          托管模式、全局熔断与预算矩阵。创建系列/广告组请切到「投放结构」。
         </p>
 
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <GoogleAdsConnectionPanel />
+          <MetaAdsConnectionPanel />
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-md border border-border bg-background/50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label className="text-xs">托管模式</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {mode === "FULL_AUTO"
-                    ? "全自动：护栏通过后，对已绑定的 Google 测试资源尝试推送；未绑定或 MODE=off 时仅本地。"
+                    ? "全自动：护栏通过后，对已绑定的 Google / Meta 测试资源尝试推送；未绑定或 MODE=off 时仅本地。"
                     : "半自动：Agent 拟定计划后推送审批卡片，人工确认后执行。"}
                 </p>
               </div>
@@ -370,96 +560,54 @@ function BudgetTab() {
 
             </div>
           </div>
-
-          <div className="rounded-md border border-border bg-background/50 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <Label className="text-xs">风控优先模式</Label>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  连续 20 个 Lead 授信通过率 &lt; 10% 时，Agent 自动暂停该广告组。
-                </p>
-              </div>
-              <Switch
-                checked={riskFirst}
-                onCheckedChange={async (v) => {
-                  const res = await agentApi.setRiskFirst(v);
-                  if (v && res.pausedCampaigns.length) {
-                    toast.warning("风控优先已触发自动暂停", {
-                      description: res.pausedCampaigns.join("、"),
-                    });
-                  } else {
-                    toast(`风控优先模式 ${v ? "已开启" : "已关闭"}`);
-                  }
-                }}
-              />
-            </div>
-          </div>
         </div>
 
         <div
           className={cn(
             "mt-4 rounded-md border p-4 transition-colors",
-            killSwitch ? "border-destructive/60 bg-destructive/10" : "border-border bg-background/50",
+            killSwitchOn
+              ? "border-destructive/60 bg-destructive/10"
+              : "border-border bg-background/50",
           )}
         >
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0">
-              <Label className="text-xs">
-                风控规则层 · 全局熔断
-                {killSwitch && <span className="ml-2 text-destructive">已冻结自动执行</span>}
-              </Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                API 执行前的最后一关，规则全部硬编码，不经过大模型：单次预算变动 ≤{" "}
-                {limits.maxBudgetDeltaPct}% · 单日累计 ≤ {limits.maxDailyBudgetDeltaPct}% ·
-                广告组日预算 ≤ ${limits.maxAdGroupDailyBudget.toLocaleString()} · 每小时自动动作 ≤{" "}
-                {limits.maxActionsPerHour} 条。触发即拒绝或截断，并降级为人工审批。
-              </p>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Label className="text-xs">
+                  全局熔断
+                  {killSwitchOn && (
+                    <span className="ml-2 text-destructive">已冻结自动执行</span>
+                  )}
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {killSwitchOn
+                    ? "紧急开关：冻结一切 Agent 自动写入；审批也不会推送外部平台，仅保留人工操作。"
+                    : "日常默认风控优先：近 20 条 Lead 授信通过率 < 10% 时自动暂停该广告组。需要止血时再开熔断。"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "text-[11px] transition-colors",
+                    killSwitchOn ? "text-destructive" : "text-muted-foreground",
+                  )}
+                >
+                  熔断
+                </span>
+                <Switch checked={killSwitchOn} onCheckedChange={(v) => void setKillSwitch(v)} />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "text-[11px] transition-colors",
-                  killSwitch ? "text-destructive" : "text-muted-foreground",
-                )}
-              >
-                熔断
-              </span>
-              <Switch
-                checked={killSwitch}
-                onCheckedChange={async (v) => {
-                  await agentApi.setKillSwitch(v);
-                  if (v) {
-                    toast.error("全局熔断已开启", {
-                      description: "所有 Agent 自动写入被拒绝，仅保留人工操作。",
-                    });
-                  } else {
-                    toast.success("全局熔断已解除", { description: "自动执行恢复。" });
-                  }
-                }}
-              />
-            </div>
+            <p className="text-[11px] text-muted-foreground">
+              硬编码护栏始终生效：单次预算变动 ≤ {limits.maxBudgetDeltaPct}% · 单日累计 ≤{" "}
+              {limits.maxDailyBudgetDeltaPct}% · 广告组日预算 ≤ $
+              {limits.maxAdGroupDailyBudget.toLocaleString()} · 每小时自动动作 ≤{" "}
+              {limits.maxActionsPerHour} 条。触发即拒绝或截断，并降级为人工审批。
+            </p>
           </div>
         </div>
       </section>
 
-      <BudgetPoolPanel />
-
-
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "今日预算总额", value: `$${totalBudget.toLocaleString()}` },
-          { label: "今日已花费", value: `$${totalSpent.toLocaleString()}` },
-          { label: "30 天放款金额", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
-          { label: "综合放款成本 CPS", value: `$${blendedCps.toFixed(2)}` },
-        ].map((s) => (
-          <div key={s.label} className="panel p-4">
-            <p className="label-mono">{s.label}</p>
-            <p className="mt-2 font-mono text-xl neon-text">{s.value}</p>
-          </div>
-        ))}
-      </div>
+      <BudgetPoolCallout />
 
       <section className="panel mt-4 overflow-hidden">
         <div className="border-b border-border p-4">
@@ -469,6 +617,19 @@ function BudgetTab() {
           <p className="mt-1 text-xs text-muted-foreground">
             广告系列为渠道级归集，广告组承载版位、受众与出价策略 · 点击预算可手动接管
           </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "今日预算总额", value: `$${totalBudget.toLocaleString()}` },
+              { label: "今日已花费", value: `$${totalSpent.toLocaleString()}` },
+              { label: "30 天放款金额", value: `$${(totalDisbursed / 1000).toFixed(0)}k` },
+              { label: "综合放款成本 CPS", value: `$${blendedCps.toFixed(2)}` },
+            ].map((s) => (
+              <div key={s.label} className="rounded-md border border-border bg-background/50 p-3">
+                <p className="label-mono">{s.label}</p>
+                <p className="mt-1 font-mono text-lg neon-text">{s.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -629,6 +790,8 @@ function BudgetTab() {
           </Table>
         </div>
       </section>
+
+      <BudgetPoolPanel />
     </>
   );
 }

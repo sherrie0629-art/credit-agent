@@ -240,9 +240,85 @@ export const mockMetaAdapter: ConversionAdapter = {
   },
 };
 
+/** Live Meta Conversions API — posts to Graph with META_ACCESS_TOKEN / META_CAPI_ACCESS_TOKEN. */
+export const liveMetaCapiAdapter: ConversionAdapter = {
+  platform: "meta",
+  buildPayload(item, setting) {
+    return mockMetaAdapter.buildPayload(item, setting);
+  },
+  async upload(items, setting) {
+    const token = (
+      process.env.META_CAPI_ACCESS_TOKEN ||
+      process.env.META_ACCESS_TOKEN ||
+      ""
+    ).trim();
+    const dataset = setting.destinationId.trim();
+    if (!token || !dataset) {
+      return items.map((item) => ({
+        uploadId: item.uploadId,
+        accepted: false,
+        errorCode: "ADAPTER_DISABLED",
+        matchQuality: 0,
+        request: this.buildPayload(item, setting),
+        response: { error: "缺少 META_ACCESS_TOKEN（或 META_CAPI_ACCESS_TOKEN）或 destinationId" },
+      }));
+    }
+
+    const version = (process.env.META_GRAPH_VERSION || "v21.0").trim() || "v21.0";
+    const results: AdapterResult[] = [];
+    for (const item of items) {
+      const request = this.buildPayload(item, setting) as {
+        endpoint: string;
+        data: unknown[];
+      };
+      const body = JSON.stringify({ data: request.data, access_token: token });
+      try {
+        const url = `https://graph.facebook.com/${version}/${dataset}/events`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        const text = await res.text();
+        let response: unknown = text;
+        try {
+          response = JSON.parse(text);
+        } catch {
+          /* keep text */
+        }
+        const ok = res.status >= 200 && res.status < 300 && !(response as { error?: unknown })?.error;
+        results.push({
+          uploadId: item.uploadId,
+          accepted: ok,
+          errorCode: ok ? undefined : "LIVE_REJECTED",
+          matchQuality: ok ? 0.8 : 0,
+          request: { ...request, endpoint: url },
+          response,
+        });
+      } catch (e) {
+        results.push({
+          uploadId: item.uploadId,
+          accepted: false,
+          errorCode: "LIVE_NETWORK",
+          matchQuality: 0,
+          request,
+          response: { error: e instanceof Error ? e.message : String(e) },
+        });
+      }
+    }
+    return results;
+  },
+};
+
 function getAdapter(setting: ConversionSetting): ConversionAdapter | null {
-  if (setting.mode !== "MOCK") return null; // LIVE adapters land here once ad accounts are connected
-  return setting.platform === "google" ? mockGoogleAdapter : mockMetaAdapter;
+  if (setting.mode === "MOCK") {
+    return setting.platform === "google" ? mockGoogleAdapter : mockMetaAdapter;
+  }
+  if (setting.mode === "LIVE" && setting.platform === "meta") {
+    return liveMetaCapiAdapter;
+  }
+  // Google LIVE OCI not wired yet
+  return null;
 }
 
 /* ------------------------------------------------------------------ *

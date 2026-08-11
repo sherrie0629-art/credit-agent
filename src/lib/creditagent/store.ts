@@ -11,13 +11,14 @@ import {
   rollbackDecisionFn,
   setAdGroupBudgetFn,
   setAdGroupStatusFn,
-  setKillSwitchFn,
   setModeFn,
-
-
-  setRiskFirstFn,
+  setRiskPostureFn,
 } from "./agent.functions";
 import { runAdvisorFn } from "./advisor.functions";
+import {
+  runBattlePlanFn,
+  approveBattlePlanHighPriorityFn,
+} from "./battle-plan.functions";
 import { runReallocationFn } from "./reallocate.functions";
 
 import {
@@ -33,6 +34,12 @@ import {
   syncGoogleStructureFn,
 } from "./google-ads.functions";
 import {
+  bindMetaAdGroupFn,
+  bindMetaCampaignFn,
+  seedMetaAdsWriteTestDecisionsFn,
+  syncMetaStructureFn,
+} from "./meta-ads.functions";
+import {
   createAdGroupFn,
   createCampaignFn,
   createCreativeFn,
@@ -41,7 +48,8 @@ import {
   updatePlacementStatusFn,
   upsertPlacementFn,
 } from "./structure.functions";
-import type { AgentSnapshot, Campaign, Channel, ManagementMode } from "./types";
+import type { AgentSnapshot, Campaign, Channel, ManagementMode, RiskPosture } from "./types";
+import { deriveRiskPosture, flagsForRiskPosture } from "./types";
 
 // Client-side cache of the real backend state. Every mutation goes through a
 // server function that writes to the database and returns the fresh snapshot.
@@ -63,6 +71,7 @@ const EMPTY: State = {
   cpsImprovementPct: 0,
   agentOnline: true,
   killSwitch: false,
+  riskPosture: "RISK_FIRST",
   guardrailLimits: {
     maxBudgetDeltaPct: 30,
     maxDailyBudgetDeltaPct: 50,
@@ -110,7 +119,9 @@ function subscribe(listener: () => void) {
 }
 
 function applySnapshot(snapshot: AgentSnapshot) {
-  set({ ...snapshot, loaded: true, loading: false, error: null });
+  const riskPosture =
+    snapshot.riskPosture ?? deriveRiskPosture(snapshot.riskFirst, snapshot.killSwitch);
+  set({ ...snapshot, riskPosture, loaded: true, loading: false, error: null });
 }
 
 export function useAgentStore<T>(selector: (s: State) => T): T {
@@ -220,7 +231,40 @@ function optimistic(patch: Partial<State>) {
 export const agentApi = {
   async approveDecision(id: string) {
     const res = await approveDecisionFn({ data: { id } });
-    applySnapshot(res.snapshot);
+    // Local patch first — avoid waiting on full get_agent_snapshot.
+    if (res.decision) {
+      set({
+        decisions: state.decisions.map((d) =>
+          d.id === res.decision!.id
+            ? {
+                ...d,
+                status: res.decision!.status,
+                guardrailNote: res.decision!.guardrailNote ?? d.guardrailNote,
+                externalMutateStatus: res.decision!.externalMutateStatus ?? d.externalMutateStatus,
+                externalMutateDetail: res.decision!.externalMutateDetail ?? d.externalMutateDetail,
+              }
+            : d,
+        ),
+      });
+    }
+    if (res.adGroup) {
+      set({
+        adGroups: state.adGroups.map((g) =>
+          g.id === res.adGroup!.id
+            ? {
+                ...g,
+                dailyBudget: res.adGroup!.dailyBudget ?? g.dailyBudget,
+                status: res.adGroup!.status ?? g.status,
+                aiSuggestion: res.adGroup!.aiSuggestion ?? g.aiSuggestion,
+              }
+            : g,
+        ),
+      });
+    }
+    // Background reconcile with full snapshot (non-blocking).
+    void fetchSnapshotWithRetry()
+      .then((snapshot) => applySnapshot(snapshot))
+      .catch((err) => console.warn("[agent] background snapshot after approve failed", err));
     return res.external ?? null;
   },
 
@@ -240,15 +284,19 @@ export const agentApi = {
   },
 
   async setRiskFirst(riskFirst: boolean) {
-    optimistic({ riskFirst });
-    const res = await setRiskFirstFn({ data: { riskFirst } });
-    applySnapshot(res.snapshot);
-    return { pausedCampaigns: res.pausedCampaigns };
+    return agentApi.setRiskPosture(riskFirst ? "RISK_FIRST" : "GUARDED");
   },
 
   async setKillSwitch(on: boolean) {
-    optimistic({ killSwitch: on });
-    applySnapshot(await setKillSwitchFn({ data: { on } }));
+    await agentApi.setRiskPosture(on ? "KILL_SWITCH" : "RISK_FIRST");
+  },
+
+  async setRiskPosture(posture: RiskPosture) {
+    const flags = flagsForRiskPosture(posture);
+    optimistic({ riskPosture: posture, ...flags });
+    const res = await setRiskPostureFn({ data: { posture } });
+    applySnapshot(res.snapshot);
+    return { pausedCampaigns: res.pausedCampaigns };
   },
 
 
@@ -300,6 +348,57 @@ export const agentApi = {
 
   async runAdvisor() {
     const res = await runAdvisorFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async runBattlePlan() {
+    try {
+      const res = await runBattlePlanFn();
+      // #region agent log
+      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
+        body: JSON.stringify({
+          sessionId: "6fd86b",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "store.ts:runBattlePlan:ok",
+          message: "server fn returned",
+          data: {
+            ok: res.ok,
+            hasPlan: Boolean(res.plan),
+            skipped: res.skipped ?? null,
+            err: res.error?.slice(0, 120) ?? null,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      applySnapshot(res.snapshot);
+      return res;
+    } catch (e) {
+      // #region agent log
+      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
+        body: JSON.stringify({
+          sessionId: "6fd86b",
+          runId: "pre-fix",
+          hypothesisId: "A",
+          location: "store.ts:runBattlePlan:catch",
+          message: "server fn threw",
+          data: { err: String(e instanceof Error ? e.message : e).slice(0, 240) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      throw e;
+    }
+  },
+
+  async approveBattlePlanHighPriority(decisionIds: string[]) {
+    const res = await approveBattlePlanHighPriorityFn({ data: { decisionIds } });
     applySnapshot(res.snapshot);
     return res;
   },
@@ -400,6 +499,30 @@ export const agentApi = {
   /** Seed PENDING cards that exercise Google Ads budget/status mutate on approve. */
   async seedGoogleAdsWriteTestDecisions() {
     const res = await seedGoogleAdsWriteTestDecisionsFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async bindMetaCampaign(campaignId: string, metaResourceName: string | null) {
+    const res = await bindMetaCampaignFn({ data: { campaignId, metaResourceName } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async bindMetaAdGroup(adGroupId: string, metaResourceName: string | null) {
+    const res = await bindMetaAdGroupFn({ data: { adGroupId, metaResourceName } });
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async syncMetaStructure() {
+    const res = await syncMetaStructureFn();
+    applySnapshot(res.snapshot);
+    return res;
+  },
+
+  async seedMetaAdsWriteTestDecisions() {
+    const res = await seedMetaAdsWriteTestDecisionsFn();
     applySnapshot(res.snapshot);
     return res;
   },

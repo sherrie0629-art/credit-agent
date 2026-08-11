@@ -37,6 +37,7 @@ export function buildAdvisorContext(snapshot: AgentSnapshot) {
     account: {
       targetCps: 19,
       mode: snapshot.mode,
+      riskPosture: snapshot.riskPosture,
       killSwitch: snapshot.killSwitch,
       limits: snapshot.guardrailLimits,
     },
@@ -93,29 +94,14 @@ function systemPrompt() {
 {"summary":"一句话全局诊断","suggestions":[{"adGroupId":"","action":"","budgetDeltaPct":0,"rationale":"","metric":"","currentValue":0,"thresholdValue":0,"confidence":0.7}]}`;
 }
 
-function parseJson(text: string): any {
-  const cleaned = text
-    .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/```$/g, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const m = cleaned.match(/\{[\s\S]*\}/);
-    if (!m) return {};
-    try {
-      return JSON.parse(m[0]);
-    } catch {
-      return {};
-    }
-  }
-}
-
 /**
  * 调用 Lovable AI Gateway 的 Responses API。
  * 推理模型单次可跑数分钟，必须流式，否则会撞请求超时；这里在服务端消费完整流。
  */
-async function callAdvisorModel(context: unknown): Promise<{ text: string }> {
+export async function callLovableModel(
+  instructions: string,
+  input: unknown,
+): Promise<{ text: string }> {
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("MISSING_KEY");
 
@@ -129,8 +115,8 @@ async function callAdvisorModel(context: unknown): Promise<{ text: string }> {
     body: JSON.stringify({
       model: ADVISOR_MODEL,
       stream: true,
-      instructions: systemPrompt(),
-      input: JSON.stringify(context),
+      instructions,
+      input: typeof input === "string" ? input : JSON.stringify(input),
       reasoning: { effort: "medium", summary: "auto" },
     }),
   });
@@ -175,6 +161,28 @@ async function callAdvisorModel(context: unknown): Promise<{ text: string }> {
   return { text: text || completedText };
 }
 
+async function callAdvisorModel(context: unknown): Promise<{ text: string }> {
+  return callLovableModel(systemPrompt(), context);
+}
+
+export function parseAdvisorJson(text: string): any {
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/```$/g, "");
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (!m) return {};
+    try {
+      return JSON.parse(m[0]);
+    } catch {
+      return {};
+    }
+  }
+}
+
 interface AdvisorRunResult {
   ok: boolean;
   created: number;
@@ -214,7 +222,7 @@ export async function runPlannerAdvisor(
   try {
     const out = await callAdvisorModel(context);
     rawText = out.text;
-    raw = parseJson(rawText);
+    raw = parseAdvisorJson(rawText);
   } catch (e) {
     const message = String(e instanceof Error ? e.message : e).slice(0, 500);
     await supabase.from("advisor_runs").insert({
@@ -288,7 +296,7 @@ function buildDecisionRow(
       notes.push("预判：该建议在当前风控限额内，批准后可执行。");
     }
   } else {
-    notes.push("预判：非预算类动作，批准时仍需过全局熔断与频次闸门。");
+    notes.push("预判：非预算类动作，批准时仍需过风控姿态熔断与频次闸门。");
   }
   if (pendingGroups.has(s.adGroupId)) {
     notes.push("与规则层建议冲突：该广告组已有待审批的规则决策，两条并列，请人工裁决。");

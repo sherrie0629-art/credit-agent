@@ -86,7 +86,7 @@ RPC：`syncGoogleStructureFn` → `src/lib/creditagent/google-ads-sync.server.ts
 2. 成功后再写 Supabase  
 3. Ads 失败 → 整笔失败，本地不假成功  
 
-Kill Switch 开启时不打 API（仅本地，文案标明）。
+Kill Switch（风控姿态 · 全局熔断）开启时不打 API（仅本地，文案标明）。
 
 **不做**：从 Agent 创建系列/组/广告并推回 Google；Meta 结构同步；花费指标全量 pull。
 
@@ -108,7 +108,7 @@ Kill Switch 开启时不打 API（仅本地，文案标明）。
 
 补充：
 
-1. 打开 Kill Switch 后再批一张应 `SKIPPED_KILL_SWITCH` / 不打 API。  
+1. 将风控姿态切到「全局熔断」后再批一张应 `SKIPPED_KILL_SWITCH` / 不打 API。  
 2. `MODE=off` 时批准预算类仅本地跳过推送。  
 3. 在 Google 测试户 UI 核对预算与状态；决策行看 `external_mutate_*`。
 
@@ -120,4 +120,4 @@ Kill Switch 开启时不打 API（仅本地，文案标明）。
 4. Google 改名后再同步 → Agent 名称更新；删组后再同步 → 标记已移除。  
 5. 对同步来的组：结构页**不能**直改预算/暂停；经审批卡片或预算矩阵改 → 测试户可见；在 Agent **新建**演示结构 → 只存本地。  
 6. 未对上号批准 → 明确错误，不 toast「已推送 Google」。  
-7. 按上文「写入路径点击验收」点生成并批准 A–E（及 Kill Switch / MODE=off 补充项）。  
+7. 按上文「写入路径点击验收」点生成并批准 A–E（及全局熔断 / MODE=off 补充项）。  

@@ -15,7 +15,7 @@ import { Loader2 } from "lucide-react";
 
 import { fetchOpsAnalyticsFn } from "@/lib/creditagent/report.functions";
 import { TARGET_CPS, formatDelta, pctDelta, type WeekKey } from "@/lib/creditagent/report";
-import type { PeriodFacts } from "@/lib/creditagent/report";
+import type { PeriodFacts, DecisionBriefItem, OpsDiagnosticItem } from "@/lib/creditagent/report";
 import type {
   ChannelBreakdownRow,
   ChannelTrendPoint,
@@ -42,6 +42,8 @@ export function OpsAnalyticsTab({
   const [period, setPeriod] = useState<PeriodFacts | null>(null);
   const [prior, setPrior] = useState<PeriodFacts | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
+  const [decisionBrief, setDecisionBrief] = useState<DecisionBriefItem[]>([]);
+  const [opsDiagnostics, setOpsDiagnostics] = useState<OpsDiagnosticItem[]>([]);
   const [feedback, setFeedback] = useState<FeedbackHealth[]>(feedbackFallback);
   const [funnel, setFunnel] = useState<FunnelStageRow[]>(funnelFallback);
   const [channelTrend, setChannelTrend] = useState<ChannelTrendPoint[]>(trendFallback);
@@ -57,7 +59,9 @@ export function OpsAnalyticsTab({
         if (cancelled) return;
         setPeriod(res.period);
         setPrior(res.prior);
-        setInsights(res.insights);
+        setInsights(res.insights ?? []);
+        setDecisionBrief(res.decisionBrief ?? []);
+        setOpsDiagnostics(res.opsDiagnostics ?? []);
         setFeedback(res.feedbackHealth);
         setFunnel(res.funnel);
         setChannelTrend(res.channelTrend);
@@ -165,18 +169,79 @@ export function OpsAnalyticsTab({
         </section>
       )}
 
-      {insights.length > 0 && (
-        <section className="panel space-y-2 p-4">
-          <h2 className="text-sm font-semibold tracking-wide">规则洞察</h2>
-          {insights.map((line) => (
-            <p
-              key={line}
-              className="rounded-md border border-border bg-background/50 px-3 py-2 text-xs text-muted-foreground"
-            >
-              {line}
-            </p>
-          ))}
-        </section>
+      {(decisionBrief.length > 0 || opsDiagnostics.length > 0 || insights.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {decisionBrief.length > 0 ? (
+            <section className="panel space-y-3 p-4">
+              <div>
+                <h2 className="text-sm font-semibold tracking-wide">经营简报</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  给 CEO / COO：结论 → 为何重要 → 动作 → 利害（不复读上方 KPI）
+                </p>
+              </div>
+                  {decisionBrief.map((item) => (
+                <article
+                  key={item.id}
+                  className="rounded-md border border-border bg-background/50 px-3 py-2.5 space-y-1.5"
+                >
+                  <p className="text-xs font-medium text-foreground leading-snug">{item.conclusion}</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <span className="text-muted-foreground/80">为何重要 · </span>
+                    {item.why}
+                  </p>
+                  <p className="text-[11px] text-foreground/90 leading-relaxed">
+                    <span className="text-neon/90">建议 · </span>
+                    {item.action}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <span className="text-muted-foreground/80">利害 · </span>
+                    {item.stakes}
+                  </p>
+                  {item.confidence === "low" && item.confidenceNote && (
+                    <p className="text-[10px] text-amber-200/70">{item.confidenceNote}</p>
+                  )}
+                </article>
+              ))}
+            </section>
+          ) : insights.length > 0 ? (
+            <section className="panel space-y-2 p-4">
+              <h2 className="text-sm font-semibold tracking-wide">经营简报</h2>
+              {insights.map((line) => (
+                <p
+                  key={line}
+                  className="rounded-md border border-border bg-background/50 px-3 py-2 text-xs text-muted-foreground"
+                >
+                  {line}
+                </p>
+              ))}
+            </section>
+          ) : null}
+
+          {opsDiagnostics.length > 0 && (
+            <section className="panel space-y-3 p-4">
+              <div>
+                <h2 className="text-sm font-semibold tracking-wide">运营诊断</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  给投放同学：回传口径、组集中度、渠道差等排障线索
+                </p>
+              </div>
+              {opsDiagnostics.map((d) => (
+                <div
+                  key={d.id}
+                  className={cn(
+                    "rounded-md border px-3 py-2",
+                    d.severity === "critical" && "border-destructive/40 bg-destructive/10",
+                    d.severity === "warn" && "border-amber-500/30 bg-amber-500/5",
+                    d.severity === "info" && "border-border bg-background/50",
+                  )}
+                >
+                  <p className="text-xs font-medium text-foreground">{d.title}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">{d.detail}</p>
+                </div>
+              ))}
+            </section>
+          )}
+        </div>
       )}
 
       <FeedbackHealthStrip feedback={feedback} />

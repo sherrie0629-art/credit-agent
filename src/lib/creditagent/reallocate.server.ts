@@ -377,7 +377,7 @@ export async function applyReallocationDecision(decisionId: string) {
   let applied = 0;
   let denied = 0;
   let external: import("./google-ads").ExternalMutateResult | null = null;
-  const { syncGoogleAdGroupBudget } = await import("./google-ads.server");
+  const { syncExternalAdGroupBudget } = await import("./external-ads.server");
 
   for (const e of entries) {
     const { data } = await supabase
@@ -408,7 +408,7 @@ export async function applyReallocationDecision(decisionId: string) {
 
     const target = verdict.verdict === "CLAMP" ? (verdict.value ?? next) : next;
     if (e.adGroupId) {
-      const ext = await syncGoogleAdGroupBudget(e.adGroupId, target);
+      const ext = await syncExternalAdGroupBudget(e.adGroupId, target);
       if (ext.pushed || !external) external = ext;
       if (!ext.pushed && ext.status !== "SKIPPED_OFF" && ext.status !== "SKIPPED_NON_GOOGLE" && ext.status !== "SKIPPED_KILL_SWITCH") {
         notes.push(`${e.adGroupName}：${ext.detail}`);

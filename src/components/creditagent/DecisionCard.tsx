@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronRight, Check, Undo2, X, CornerDownRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronRight, Check, Undo2, X, CornerDownRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -32,18 +32,38 @@ export function DecisionCard({
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState<"approve" | "reject" | "rollback" | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const trigger = decision.dataMetricsTrigger;
 
+  useEffect(() => {
+    if (!busy || busyKind !== "approve") {
+      setElapsedSec(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const tick = () => setElapsedSec(Math.round((Date.now() - startedAt) / 1000));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [busy, busyKind]);
+
   const act = async (kind: "approve" | "reject" | "rollback") => {
+    if (busy) return;
     setBusy(true);
+    setBusyKind(kind);
+    let loadingToastId: string | number | undefined;
     try {
       if (kind === "approve") {
+        loadingToastId = toast.loading("正在推送 Google…", {
+          description: decision.effect,
+        });
         const external = await agentApi.approveDecision(decision.id);
         const t = toastForExternal(external);
         const description = [decision.effect, t.description].filter(Boolean).join(" · ");
-        if (t.kind === "error") toast.error(t.title, { description });
-        else if (t.kind === "success") toast.success(t.title, { description });
-        else toast(t.title, { description });
+        if (t.kind === "error") toast.error(t.title, { id: loadingToastId, description });
+        else if (t.kind === "success") toast.success(t.title, { id: loadingToastId, description });
+        else toast(t.title, { id: loadingToastId, description });
       } else if (kind === "reject") {
         await agentApi.rejectDecision(decision.id);
         toast("决策已被人工否决", { description: "Agent 将在下一轮采集重新评估" });
@@ -53,21 +73,29 @@ export function DecisionCard({
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("GOOGLE_ADS_UNBOUND") || msg.includes("Google Ads")) {
-        toast.error("未推送 Google", { description: msg.replace(/^GOOGLE_ADS_UNBOUND:/, "") });
+      const opts = loadingToastId !== undefined ? { id: loadingToastId, description: msg } : { description: msg };
+      if (msg.includes("GOOGLE_ADS_UNBOUND") || msg.includes("Google Ads") || msg.includes("Google 未响应")) {
+        toast.error("未推送 Google", {
+          ...opts,
+          description: msg.replace(/^GOOGLE_ADS_UNBOUND:/, ""),
+        });
       } else {
-        toast.error("操作失败", { description: msg });
+        toast.error("操作失败", opts);
       }
     } finally {
       setBusy(false);
+      setBusyKind(null);
     }
   };
+
+  const approving = busy && busyKind === "approve";
 
   return (
     <article
       className={cn(
-        "panel scanline relative p-4",
+        "panel scanline relative p-4 transition-opacity",
         decision.status === "PENDING_APPROVAL" && "border-warning/40",
+        approving && "pointer-events-none opacity-70",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -92,6 +120,11 @@ export function DecisionCard({
               ? "定时巡检兜底"
               : "事件驱动"}
         </span>
+        {approving && (
+          <span className="rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-700 dark:text-sky-300">
+            执行中 · {elapsedSec}s
+          </span>
+        )}
 
         <span className="ml-auto font-mono text-[11px] text-muted-foreground">
           {new Date(decision.timestamp).toLocaleTimeString("en-GB", {
@@ -124,6 +157,13 @@ export function DecisionCard({
       </p>
       <p className="mt-1 font-mono text-xs text-neon">{decision.effect}</p>
 
+      {approving && (
+        <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          正在推送 Google… {elapsedSec}s（跨境 API，通常数秒）
+        </p>
+      )}
+
       {decision.triggerSource === "LLM" && (
         <p className="mt-2 rounded-md border border-neon/40 bg-neon/8 p-2 text-[11px] text-neon">
           本条为 LLM 分析师提出的<strong>未经验证假设</strong>，不会自动执行；即使人工批准，仍需通过硬编码风控规则层。
@@ -141,8 +181,6 @@ export function DecisionCard({
           Google Ads：{decision.externalMutateStatus ?? "—"} · {decision.externalMutateDetail}
         </p>
       )}
-
-
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-border bg-background/50 p-2.5">
@@ -198,7 +236,6 @@ export function DecisionCard({
                 <CornerDownRight className="size-3" /> 回滚快照：{decision.rollbackTo}
               </li>
             )}
-
           </ol>
         </CollapsibleContent>
       </Collapsible>
@@ -211,15 +248,20 @@ export function DecisionCard({
               <Button
                 size="sm"
                 disabled={busy}
-                onClick={() => act("approve")}
+                onClick={() => void act("approve")}
                 className="border border-success/50 bg-success/15 text-xs text-success hover:bg-success/25"
               >
-                <Check className="size-3.5" /> 批准执行
+                {approving ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Check className="size-3.5" />
+                )}{" "}
+                {approving ? `正在推送 Google… ${elapsedSec}s` : "批准执行"}
               </Button>
               <Button
                 size="sm"
                 disabled={busy}
-                onClick={() => act("reject")}
+                onClick={() => void act("reject")}
                 className="border border-warning/50 bg-warning/15 text-xs text-warning hover:bg-warning/25"
               >
                 <X className="size-3.5" /> 人工否决
@@ -231,13 +273,12 @@ export function DecisionCard({
               size="sm"
               variant="secondary"
               disabled={busy}
-              onClick={() => act("rollback")}
+              onClick={() => void act("rollback")}
               className="text-xs"
             >
               <Undo2 className="size-3.5" /> 一键回滚
             </Button>
           )}
-
         </div>
       </div>
     </article>

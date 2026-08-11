@@ -145,12 +145,52 @@ export function ExecWeeklyReport({
           </header>
 
           <section>
-            <h3 className="text-sm font-semibold">结论</h3>
-            <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-muted-foreground print:text-neutral-700">
-              {report.bullets.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ol>
+            <h3 className="text-sm font-semibold">经营简报</h3>
+            <p className="mt-1 text-[11px] text-muted-foreground print:text-neutral-500">
+              结论 → 为何重要 → 建议动作 → 利害（不复读下方 KPI 卡）
+            </p>
+            {report.decisionBrief?.length ? (
+              <div className="mt-3 space-y-3">
+                {report.decisionBrief.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="rounded-md border border-border p-3 print:border-neutral-300"
+                  >
+                    <p className="text-sm font-medium text-foreground print:text-black">
+                      <span className="font-mono text-xs text-muted-foreground print:text-neutral-500 mr-2">
+                        {idx + 1}.
+                      </span>
+                      {item.conclusion}
+                    </p>
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground print:text-neutral-700">
+                      <li>
+                        <span className="font-medium text-foreground/80 print:text-neutral-800">为何重要：</span>
+                        {item.why}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground/80 print:text-neutral-800">建议：</span>
+                        {item.action}
+                      </li>
+                      <li>
+                        <span className="font-medium text-foreground/80 print:text-neutral-800">利害：</span>
+                        {item.stakes}
+                      </li>
+                    </ul>
+                    {item.confidence === "low" && item.confidenceNote && (
+                      <p className="mt-1.5 text-[10px] text-amber-700/90 print:text-neutral-600">
+                        {item.confidenceNote}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-muted-foreground print:text-neutral-700">
+                {report.bullets.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ol>
+            )}
           </section>
 
           <section>

@@ -28,6 +28,8 @@ export type Database = {
           daily_budget: number
           google_resource_name: string | null
           google_sync_at: string | null
+          meta_resource_name: string | null
+          meta_sync_at: string | null
           id: string
           impressions: number
           name: string
@@ -341,6 +343,8 @@ export type Database = {
           google_budget_resource_name: string | null
           google_resource_name: string | null
           google_sync_at: string | null
+          meta_resource_name: string | null
+          meta_sync_at: string | null
           id: string
           impressions: number
           last20_approval_rate: number
@@ -572,6 +576,8 @@ export type Database = {
           fatigue_score: number
           google_resource_name: string | null
           google_sync_at: string | null
+          meta_resource_name: string | null
+          meta_sync_at: string | null
           headline: string
           id: string
           image_url: string | null
@@ -823,6 +829,45 @@ export type Database = {
         Relationships: []
       }
       google_structure_sync_runs: {
+        Row: {
+          ad_groups_upserted: number
+          campaigns_upserted: number
+          creatives_upserted: number
+          detail: Json
+          error: string | null
+          finished_at: string | null
+          id: number
+          marked_removed: number
+          ok: boolean
+          started_at: string
+        }
+        Insert: {
+          ad_groups_upserted?: number
+          campaigns_upserted?: number
+          creatives_upserted?: number
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: never
+          marked_removed?: number
+          ok?: boolean
+          started_at?: string
+        }
+        Update: {
+          ad_groups_upserted?: number
+          campaigns_upserted?: number
+          creatives_upserted?: number
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          id?: never
+          marked_removed?: number
+          ok?: boolean
+          started_at?: string
+        }
+        Relationships: []
+      }
+      meta_structure_sync_runs: {
         Row: {
           ad_groups_upserted: number
           campaigns_upserted: number
