@@ -1,25 +1,29 @@
-# Google Ads 显示「未连接」的原因与处理
+# Google Ads 两端并存：本地 .env + 云端 Secrets（一次配置，永不切换）
 
-## 原因（已核实）
+## 为什么现在显示「未连接」
 
-探活读取的是**服务端环境变量**（`process.env.GOOGLE_ADS_*`，故意不带 `VITE_` 前缀）。当前云端项目的密钥列表里只有 `LOVABLE_API_KEY`，五个 Google Ads 变量一个都没有配置，所以：
+探活读的是服务端环境变量 `process.env.GOOGLE_ADS_*`（故意不带 `VITE_`）。云端密钥列表里目前只有 `LOVABLE_API_KEY`，五个 Google Ads 变量一个都没有，所以 `GOOGLE_ADS_MODE` 取默认值 `off`，并列出缺失项。你配的是本机 `.env`，那份文件只对 `npm run dev` 生效，不会同步到 Lovable Cloud。
 
-- `GOOGLE_ADS_MODE` 读不到 → 默认 `off` → 面板显示「未连接」
-- 同时列出缺失项：DEVELOPER_TOKEN / CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN / CUSTOMER_ID
+不是 API 故障，也不是代理问题——只是云端这一侧还没放钥匙。
 
-也就是说这不是 API 或代理故障，就是**云端预览环境里根本没放这几把钥匙**。你此前配置的是本地 `.env`，那份文件只对本机 `npm run dev` 生效，不会同步到 Lovable Cloud。
+## 选哪种方案：两边各配一次，代码不做任何环境判断
 
-（`GOOGLE_ADS_LOGIN_CUSTOMER_ID` 没出现在缺失列表里，说明它不是必填项，只在使用测试 MCC 时需要。）
+推荐做法是「同名变量、两处各存一份」，配完之后来回切换零操作：
 
-## 处理方案
+| | Cursor 本地 | Lovable 云端 |
+|---|---|---|
+| 变量来源 | 项目根 `.env`（已 gitignore） | Cloud Secrets |
+| 谁来配 | 你（已完成） | 我发安全表单，你填一次 |
+| 生效方式 | `npm run dev` 自动加载 | 预览/发布运行时注入 |
+| 代理 | 需要 `GOOGLE_ADS_PROXY` | **不要设**，云端直连 |
 
-两条路，按你的验收场景二选一：
+代码侧无需改动：`getGoogleAdsEnvStatus()` 只认 `process.env`，谁给值就用谁的。所以在 Cursor 跑就读 `.env`，在 Lovable 跑就读 Cloud Secrets，不存在「切换」这个动作，也不需要注释/改开关。
 
-**A. 只在本地联调（不改云端）**
-在项目根 `.env` 补齐这些变量并重启 `npm run dev`，探活即显示真实状态。本地已经是只读模式，探活/查询没问题，结构同步写库需要 service role，仍建议到云端做。
+这比另外两种做法都稳：
+- 只配本地 → 云端预览永远 Off，结构同步（要写库、需 service role）做不了；
+- 只配云端 → 本地探活永远 Off，Cursor 里没法联调。
 
-**B. 让云端预览也能连 Google Ads（推荐，配合结构同步）**
-把下列变量作为云端密钥写入，然后重新点「探活」：
+## 需要你填的云端变量
 
 - `GOOGLE_ADS_MODE` = `test`
 - `GOOGLE_ADS_DEVELOPER_TOKEN`
@@ -27,16 +31,16 @@
 - `GOOGLE_ADS_CLIENT_SECRET`
 - `GOOGLE_ADS_REFRESH_TOKEN`
 - `GOOGLE_ADS_CUSTOMER_ID`（测试广告主 CID，无横杠）
-- 可选：`GOOGLE_ADS_LOGIN_CUSTOMER_ID`（测试 MCC）
+- 可选：`GOOGLE_ADS_LOGIN_CUSTOMER_ID`（测试 MCC；当前未列为缺失，说明非必填）
 
-我会通过安全表单请求这些值（值不会进代码库、不会出现在聊天里）。
+值通过安全表单提交，不进代码库、不出现在聊天里。填完点「探活」即可看到 Test·已连接。
 
-## 技术说明
+## 我会做的事
 
-- 云端 Worker 运行时**不需要也不能用** `GOOGLE_ADS_PROXY`：SOCKS 代理只是为了绕开本机网络限制，云端直连 `googleads.googleapis.com`。所以云端不要设置该变量。
-- 现有代码无需改动，`getGoogleAdsEnvStatus()` 会自动在变量齐备后返回 `configured: true`。
-- 若你希望云端保持关闭、只做本地验收，也可以把 `GOOGLE_ADS_MODE` 留空/设为 `off`，面板显示「未连接」属预期行为，不算故障。
+1. 发起密钥填写表单（上述 6~7 项）。
+2. 在 `.env.example` 和 `README.md` 的本地调试段落里补一段「双环境说明」：同名变量本地/云端各一份，云端不要配 `GOOGLE_ADS_PROXY`，本地写入类操作仍是只读模式。
+3. 不改任何业务代码。
 
-## 待确认
+## 一点提醒
 
-按 A 还是 B 走？选 B 我下一步就发起密钥填写表单。
+云端 Worker 运行时不能用 SOCKS 代理，`socks-proxy-agent` 那条分支只在本地生效；若误把 `GOOGLE_ADS_PROXY` 配到云端，探活会超时报错。密钥更新后，预览立即生效，正式站需要重新发布一次。
