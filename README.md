@@ -39,3 +39,18 @@ npm run dev
 
 publishable key 是公开密钥，放本地没有安全风险；service role key 永远不要加 `VITE_` 前缀，
 也不要提交到仓库。
+
+### 双环境配置（本地 / 云端各存一份，切换零操作）
+
+Google Ads 等服务端变量（`GOOGLE_ADS_*`）在两处各配置一次即可，之后在 Cursor 与
+Lovable 之间来回切换不需要任何改动——代码只读 `process.env`，谁给值就用谁的：
+
+| | Cursor 本地 | Lovable 云端 |
+| --- | --- | --- |
+| 变量来源 | 项目根 `.env`（不提交仓库） | Cloud Secrets |
+| 生效方式 | `npm run dev` 自动加载 | 预览 / 发布运行时注入 |
+| `GOOGLE_ADS_PROXY` | 需要（SOCKS 代理） | **不要配置**，云端直连，配了会超时 |
+
+注意：云端密钥更新后预览立即生效，正式站需要重新发布一次。本地始终是只读模式，
+结构同步等写入操作请在云端预览中验证。
+
