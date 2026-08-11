@@ -118,21 +118,6 @@ function CommandCenter() {
       if (res.plan) setBattlePlan(res.plan);
       toastBattlePlanResult("generate", res);
     } catch (e) {
-      // #region agent log
-      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-        body: JSON.stringify({
-          sessionId: "6fd86b",
-          runId: "pre-fix",
-          hypothesisId: "E",
-          location: "index.tsx:runBattlePlan:catch",
-          message: "UI caught error",
-          data: { err: String(e instanceof Error ? e.message : e).slice(0, 240) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       toast.error("作战计划生成失败", {
         description: String(e instanceof Error ? e.message : e).slice(0, 160) || "无法连接服务",
       });

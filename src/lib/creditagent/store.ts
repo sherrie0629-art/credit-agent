@@ -353,48 +353,9 @@ export const agentApi = {
   },
 
   async runBattlePlan() {
-    try {
-      const res = await runBattlePlanFn();
-      // #region agent log
-      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-        body: JSON.stringify({
-          sessionId: "6fd86b",
-          runId: "pre-fix",
-          hypothesisId: "B",
-          location: "store.ts:runBattlePlan:ok",
-          message: "server fn returned",
-          data: {
-            ok: res.ok,
-            hasPlan: Boolean(res.plan),
-            skipped: res.skipped ?? null,
-            err: res.error?.slice(0, 120) ?? null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      applySnapshot(res.snapshot);
-      return res;
-    } catch (e) {
-      // #region agent log
-      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-        body: JSON.stringify({
-          sessionId: "6fd86b",
-          runId: "pre-fix",
-          hypothesisId: "A",
-          location: "store.ts:runBattlePlan:catch",
-          message: "server fn threw",
-          data: { err: String(e instanceof Error ? e.message : e).slice(0, 240) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      throw e;
-    }
+    const res = await runBattlePlanFn();
+    applySnapshot(res.snapshot);
+    return res;
   },
 
   async approveBattlePlanHighPriority(decisionIds: string[]) {

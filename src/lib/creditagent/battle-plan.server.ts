@@ -10,8 +10,9 @@ import {
 } from "./battle-plan";
 import type { AgentDecision } from "./types";
 
-async function db() {
-  const { getAdminClient } = await import("./read-client.server");
+async function tryAdminDb() {
+  const { hasServiceRole, getAdminClient } = await import("./read-client.server");
+  if (!hasServiceRole()) return null;
   return getAdminClient();
 }
 
@@ -87,61 +88,9 @@ export type BattlePlanRunResult = {
 };
 
 export async function runBattlePlan(): Promise<BattlePlanRunResult> {
-  // #region agent log
-  fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-    body: JSON.stringify({
-      sessionId: "6fd86b",
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "battle-plan.server.ts:runBattlePlan:entry",
-      message: "runBattlePlan entered",
-      data: { hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
-
-  let supabase: Awaited<ReturnType<typeof db>> | null = null;
-  try {
-    supabase = await db();
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "A",
-        location: "battle-plan.server.ts:runBattlePlan:dbOk",
-        message: "admin db acquired",
-        data: {},
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  } catch (e) {
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "A",
-        location: "battle-plan.server.ts:runBattlePlan:dbFail",
-        message: "admin db failed",
-        data: { err: String(e instanceof Error ? e.message : e).slice(0, 200) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    throw e;
-  }
+  const supabase = await tryAdminDb();
 
   const limits = await loadLimits();
   if (limits.killSwitch) {
@@ -150,46 +99,7 @@ export async function runBattlePlan(): Promise<BattlePlanRunResult> {
     return { ok: true, plan: empty, skipped: "KILL_SWITCH" };
   }
 
-  let snapshot;
-  try {
-    snapshot = await getSnapshot();
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "D",
-        location: "battle-plan.server.ts:runBattlePlan:snapshot",
-        message: "snapshot loaded",
-        data: {
-          pending: snapshot.decisions.filter((d) => d.status === "PENDING_APPROVAL").length,
-          adGroups: snapshot.adGroups.length,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  } catch (e) {
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "D",
-        location: "battle-plan.server.ts:runBattlePlan:snapshotFail",
-        message: "getSnapshot failed",
-        data: { err: String(e instanceof Error ? e.message : e).slice(0, 200) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    throw e;
-  }
-
+  const snapshot = await getSnapshot();
   const candidates = collectBattlePlanCandidates(snapshot.decisions, snapshot.adGroups);
 
   if (candidates.length === 0) {
@@ -201,21 +111,6 @@ export async function runBattlePlan(): Promise<BattlePlanRunResult> {
   let droppedCount = 0;
 
   try {
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "C",
-        location: "battle-plan.server.ts:runBattlePlan:llmStart",
-        message: "calling lovable model",
-        data: { candidates: candidates.length, hasLovableKey: Boolean(process.env.LOVABLE_API_KEY) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const out = await callLovableModel(battlePlanSystemPrompt(), {
       account: {
         targetCps: 19,
@@ -233,21 +128,6 @@ export async function runBattlePlan(): Promise<BattlePlanRunResult> {
     droppedCount = dropped.length;
   } catch (e) {
     const message = String(e instanceof Error ? e.message : e).slice(0, 300);
-    // #region agent log
-    fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-      body: JSON.stringify({
-        sessionId: "6fd86b",
-        runId: "pre-fix",
-        hypothesisId: "C",
-        location: "battle-plan.server.ts:runBattlePlan:llmFail",
-        message: "llm failed, heuristic fallback",
-        data: { err: message.slice(0, 160) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     plan = heuristicBattlePlan(candidates);
     plan.summary = `${plan.summary}（AI 编排失败已回退：${message.slice(0, 80)}）`;
     if (supabase) {
@@ -280,27 +160,6 @@ export async function runBattlePlan(): Promise<BattlePlanRunResult> {
       dropped: [] as never,
     } as never);
   }
-
-  // #region agent log
-  fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-    body: JSON.stringify({
-      sessionId: "6fd86b",
-      runId: "pre-fix",
-      hypothesisId: "E",
-      location: "battle-plan.server.ts:runBattlePlan:ok",
-      message: "plan ready",
-      data: {
-        source: plan.source,
-        high: plan.highPriorityIds.length,
-        candidates: plan.candidateCount,
-        droppedCount,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return { ok: true, plan, dropped: droppedCount };
 }
