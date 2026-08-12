@@ -1,3 +1,8 @@
+/**
+ * @deprecated Product path removed (option 2): AI 参谋 = propose-only via advisor.
+ * Orchestration / P0 ranking / one-click high-priority approve are no longer exposed in UI or store.
+ * Kept for rollback; delete in a follow-up cleanup PR.
+ */
 // 日作战计划：纯函数（零网络 · 可单测）。
 // LLM 只对「已有待审决策」排序/去重叙事，不得发明新动作或新 decisionId。
 

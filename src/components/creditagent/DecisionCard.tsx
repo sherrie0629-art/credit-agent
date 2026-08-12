@@ -115,7 +115,7 @@ export function DecisionCard({
           )}
         >
           {decision.triggerSource === "LLM"
-            ? "LLM 分析师建议"
+            ? "AI 参谋建议"
             : decision.triggerSource === "SWEEP"
               ? "定时巡检兜底"
               : "事件驱动"}
@@ -166,7 +166,7 @@ export function DecisionCard({
 
       {decision.triggerSource === "LLM" && (
         <p className="mt-2 rounded-md border border-neon/40 bg-neon/8 p-2 text-[11px] text-neon">
-          本条为 LLM 分析师提出的<strong>未经验证假设</strong>，不会自动执行；即使人工批准，仍需通过硬编码风控规则层。
+          本条为 AI 参谋提出的<strong>未经验证假设</strong>，不会自动执行；即使人工批准，仍需通过硬编码风控规则层。
         </p>
       )}
 

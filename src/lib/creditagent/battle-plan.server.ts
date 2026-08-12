@@ -1,3 +1,7 @@
+/**
+ * @deprecated Product path removed (option 2): AI 参谋 = propose-only via advisor.
+ * Not wired from Command Center or store. Kept for rollback; delete in a follow-up cleanup PR.
+ */
 // 日作战计划服务端：收集待审候选 → LLM 编排（失败则启发式）→ 一键批高优先级仍走 approveDecision。
 import { ADVISOR_MODEL, callLovableModel, parseAdvisorJson } from "./advisor.server";
 import { approveDecision, getSnapshot } from "./agent.server";

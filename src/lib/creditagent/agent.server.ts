@@ -271,7 +271,7 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
         const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
         const { syncExternalAdGroupBudget } = await import("./external-ads.server");
         external = await syncExternalAdGroupBudget(group.id, applied);
-        const aiSuggestion = "按 LLM 分析师建议调整，已过风控闸门";
+        const aiSuggestion = "按 AI 参谋建议调整，已过风控闸门";
         await supabase
           .from("ad_groups")
           .update({
@@ -285,7 +285,7 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
     } else if (decision.actionType === "CREATIVE_PAUSE" && decision.adGroupId) {
       const { syncExternalAdGroupStatus } = await import("./external-ads.server");
       external = await syncExternalAdGroupStatus(decision.adGroupId, "PAUSED");
-      const aiSuggestion = "按 LLM 分析师建议暂停，已过风控闸门";
+      const aiSuggestion = "按 AI 参谋建议暂停，已过风控闸门";
       await supabase
         .from("ad_groups")
         .update({ status: "PAUSED", ai_suggestion: aiSuggestion } as never)

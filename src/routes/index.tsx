@@ -1,22 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Gauge, Zap, ShieldAlert, Brain, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Bot, Gauge, Zap, ShieldAlert, Brain } from "lucide-react";
 import { AppShell } from "@/components/creditagent/AppShell";
 import { DecisionCard } from "@/components/creditagent/DecisionCard";
 import {
-  BattlePlanPanel,
-  toastBattlePlanResult,
-} from "@/components/creditagent/BattlePlanPanel";
-import {
   useAgentStore,
-  agentApi,
   agentSnapshotQuery,
   prefetchQueryNonBlocking,
   refreshAgentState,
 } from "@/lib/creditagent/store";
-import type { BattlePlan } from "@/lib/creditagent/battle-plan";
+import {
+  ADVISOR_INTERVAL_HOURS,
+  formatAdvisorScheduleLabel,
+  type AdvisorScheduleStatus,
+} from "@/lib/creditagent/advisor";
+import { fetchAdvisorScheduleFn } from "@/lib/creditagent/advisor.functions";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -77,70 +75,40 @@ function CommandCenter() {
   const campaigns = useAgentStore((s) => s.campaigns);
   const loaded = useAgentStore((s) => s.loaded);
   const loadError = useAgentStore((s) => s.error);
+  const killSwitch = useAgentStore((s) => s.killSwitch);
 
-  const [advising, setAdvising] = useState(false);
-  const [planning, setPlanning] = useState(false);
-  const [approvingPlan, setApprovingPlan] = useState(false);
-  const [battlePlan, setBattlePlan] = useState<BattlePlan | null>(null);
+  const [advisorSchedule, setAdvisorSchedule] = useState<AdvisorScheduleStatus | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const pending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
   const history = decisions.filter((d) => d.status !== "PENDING_APPROVAL");
   const holds = campaigns.filter((c) => c.status === "COMPLIANCE_HOLD").length;
 
-  const runAdvisor = async () => {
-    setAdvising(true);
-    try {
-      const res = await agentApi.runAdvisor();
-      if (res.skipped === "KILL_SWITCH") {
-        toast.warning("全局熔断开启中", { description: "分析师已跳过本轮运行" });
-      } else if (!res.ok) {
-        toast.error("分析师运行失败", { description: res.error ?? "请稍后重试" });
-      } else if (res.created === 0) {
-        toast("分析师未提出新建议", {
-          description: res.summary || `净化层丢弃 ${res.dropped} 条不合规输出`,
-        });
-      } else {
-        toast.success(`分析师提出 ${res.created} 条建议`, {
-          description: "已进入人工审批队列，不会自动执行",
-        });
-      }
-    } catch {
-      toast.error("分析师运行失败", { description: "无法连接 AI 网关" });
-    } finally {
-      setAdvising(false);
-    }
-  };
-
-  const runBattlePlan = async () => {
-    setPlanning(true);
-    try {
-      const res = await agentApi.runBattlePlan();
-      if (res.plan) setBattlePlan(res.plan);
-      toastBattlePlanResult("generate", res);
-    } catch (e) {
-      toast.error("作战计划生成失败", {
-        description: String(e instanceof Error ? e.message : e).slice(0, 160) || "无法连接服务",
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAdvisorScheduleFn()
+      .then((s) => {
+        if (!cancelled) setAdvisorSchedule(s);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAdvisorSchedule({
+            readable: false,
+            intervalHours: ADVISOR_INTERVAL_HOURS,
+            lastRunAt: null,
+            killSwitch,
+          });
+        }
       });
-    } finally {
-      setPlanning(false);
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [killSwitch]);
 
-  const approveHighPriority = async () => {
-    if (!battlePlan?.highPriorityIds.length) return;
-    setApprovingPlan(true);
-    try {
-      const res = await agentApi.approveBattlePlanHighPriority(battlePlan.highPriorityIds);
-      toastBattlePlanResult("approve", res);
-      // 刷新计划中的状态观感：保留 plan，行上会显示已非 PENDING
-      await refreshAgentState();
-    } catch {
-      toast.error("批量审批失败");
-    } finally {
-      setApprovingPlan(false);
-    }
-  };
-
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <AppShell>
@@ -164,51 +132,24 @@ function CommandCenter() {
         </div>
 
         <div className="ml-auto flex flex-col items-end gap-1.5">
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              size="sm"
-              disabled={planning || approvingPlan}
-              onClick={() => void runBattlePlan()}
-              className="border border-neon/50 bg-neon/15 text-xs text-neon hover:bg-neon/25"
-            >
-              {planning ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Brain className="size-3.5" />
-              )}
-              生成今日作战计划
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={advising}
-              onClick={() => void runAdvisor()}
-              className="text-xs"
-            >
-              {advising ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Brain className="size-3.5" />
-              )}
-              运行 AI 分析师
-            </Button>
+          <div className="flex max-w-[300px] items-start gap-2 rounded-md border border-border/80 bg-background/40 px-3 py-2 text-right">
+            <Brain className="mt-0.5 size-3.5 shrink-0 text-neon" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-xs font-medium leading-snug text-foreground">
+                {advisorSchedule
+                  ? formatAdvisorScheduleLabel(
+                      { ...advisorSchedule, killSwitch: advisorSchedule.killSwitch || killSwitch },
+                      nowMs,
+                    )
+                  : "AI 参谋日程加载中…"}
+              </p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                规则扫仓约 15 分钟；参谋提案约每 3 小时，建议进入右侧待审队列，不直接改预算。
+              </p>
+            </div>
           </div>
-          <p className="max-w-[280px] text-right text-[11px] leading-snug text-muted-foreground">
-            作战计划：编排已有待审（不发明动作）。分析师：追加新建议卡。执行权均在风控层。
-          </p>
         </div>
       </header>
-
-      <div className="mt-4">
-        <BattlePlanPanel
-          plan={battlePlan}
-          decisions={decisions}
-          planning={planning}
-          approving={approvingPlan}
-          onGenerate={() => void runBattlePlan()}
-          onApproveHighPriority={() => void approveHighPriority()}
-        />
-      </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -290,7 +231,6 @@ function CommandCenter() {
               </div>
             )}
           </ScrollArea>
-
         </section>
 
         <section className="panel flex min-h-0 flex-col p-4">
@@ -300,7 +240,7 @@ function CommandCenter() {
                 人工审批队列（Human-in-the-Loop）
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                半自动 / LLM 建议等待批决策；批准或否决后进入左侧流水
+                规则与 AI 参谋建议等待审批；批准或否决后进入左侧流水
               </p>
             </div>
             <span className="label-mono text-warning">{loaded ? `${pending.length} 待批` : "—"}</span>
@@ -312,7 +252,6 @@ function CommandCenter() {
                   队列已清空 —— 所有决策均已处理
                 </p>
               </div>
-
             ) : (
               <div className="space-y-3">
                 {pending.map((d) => (

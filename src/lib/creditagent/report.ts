@@ -419,7 +419,7 @@ export function buildAnalyticsBrief(input: {
     decisionBrief.push({
       id: "pending-queue",
       conclusion: `Agent 已备好 ${pendingCount} 张待审决策，经营动作卡在审批，不在「缺分析」。`,
-      why: "规则/PID/再分配/分析师建议只进队列；不批准就不会改预算或暂停。",
+      why: "规则/PID/再分配/AI 参谋建议只进队列；不批准就不会改预算或暂停。",
       action: "打开决策指挥中心，按「暂停/降预算 → 再分配拨付」顺序批完高优先级卡。",
       stakes:
         pendingActionable > 0

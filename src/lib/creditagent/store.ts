@@ -15,10 +15,6 @@ import {
   setRiskPostureFn,
 } from "./agent.functions";
 import { runAdvisorFn } from "./advisor.functions";
-import {
-  runBattlePlanFn,
-  approveBattlePlanHighPriorityFn,
-} from "./battle-plan.functions";
 import { runReallocationFn } from "./reallocate.functions";
 
 import {
@@ -348,18 +344,6 @@ export const agentApi = {
 
   async runAdvisor() {
     const res = await runAdvisorFn();
-    applySnapshot(res.snapshot);
-    return res;
-  },
-
-  async runBattlePlan() {
-    const res = await runBattlePlanFn();
-    applySnapshot(res.snapshot);
-    return res;
-  },
-
-  async approveBattlePlanHighPriority(decisionIds: string[]) {
-    const res = await approveBattlePlanHighPriorityFn({ data: { decisionIds } });
     applySnapshot(res.snapshot);
     return res;
   },

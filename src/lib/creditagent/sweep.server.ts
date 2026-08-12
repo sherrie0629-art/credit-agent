@@ -1,5 +1,5 @@
 // 定时轮询兜底轨：与事件驱动构成双轨，事件漏了由 15 分钟一次的巡检补上。
-// 止损与执行全部走硬编码规则；LLM 分析师每 6 小时才跑一次，且只产出待审批建议。
+// 止损与执行全部走硬编码规则；LLM 参谋提案每 3 小时才跑一次，且只产出待审批建议。
 import { autoPauseRiskyGroups, getSnapshot } from "./agent.server";
 import { ADVISOR_MIN_INTERVAL_MS, lastAdvisorRunAt, runPlannerAdvisor } from "./advisor.server";
 import { scanFatigue, settleExperiment } from "./creative.server";
@@ -135,7 +135,7 @@ export async function runAgentSweep() {
     detail.reallocationError = String(e);
   }
 
-  // 7) LLM 分析师（降频，每 6 小时一次）——只产出待审批建议，不改任何投放状态
+  // 7) LLM 参谋提案（降频，每 3 小时一次）——只产出待审批建议，不改任何投放状态
   let advisorCreated = 0;
   try {
     const last = await lastAdvisorRunAt();

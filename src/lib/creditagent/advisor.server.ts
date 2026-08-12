@@ -15,8 +15,8 @@ import { loadLimits } from "./guardrails.server";
 import { getSnapshot } from "./agent.server";
 
 export const ADVISOR_MODEL = "openai/gpt-5.6-sol";
-/** 定时轨的降频间隔：规则扫描 15 分钟一次，分析师 6 小时一次。 */
-export const ADVISOR_MIN_INTERVAL_MS = 6 * 3600_000;
+/** 定时轨的降频间隔：规则扫描 15 分钟一次，参谋提案 3 小时一次。 */
+export const ADVISOR_MIN_INTERVAL_MS = 3 * 3600_000;
 
 type Row = Record<string, any>;
 
@@ -321,10 +321,10 @@ function buildDecisionRow(
     trigger_source: "LLM",
     guardrail_note: notes.join(" "),
     reasoning_chain: [
-      summary ? `全局诊断：${summary}` : "LLM 分析师读取当前快照做跨广告组比较。",
+      summary ? `全局诊断：${summary}` : "AI 参谋读取当前快照做跨广告组比较。",
       `广告组「${g.name}」：日预算 $${g.dailyBudget}、CPL $${g.cpl.toFixed(2)}、CPS $${g.cps.toFixed(2)}、近 20 条线索通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}%。`,
-      `分析师理由：${s.rationale}`,
-      "本条由 LLM 分析师提出，未经执行；执行权仍在硬编码风控规则层。",
+      `参谋理由：${s.rationale}`,
+      "本条由 AI 参谋提出，未经执行；执行权仍在硬编码风控规则层。",
       ...notes,
     ],
     trigger_metric: s.metric,
@@ -336,15 +336,43 @@ function buildDecisionRow(
   };
 }
 
-/** 上一次分析师运行时间，供定时轨做 6 小时幂等。 */
+/** 上一次参谋提案时间，供定时轨做 3 小时幂等（不含作战计划等其它 trigger）。 */
 export async function lastAdvisorRunAt(): Promise<number | null> {
   const supabase = await db();
   const { data } = await supabase
     .from("advisor_runs")
     .select("started_at")
+    .in("trigger_source", ["SWEEP", "MANUAL"])
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   const r = (data ?? null) as Row | null;
   return r ? new Date(r.started_at as string).getTime() : null;
+}
+
+/** 指挥中心状态文案用：下次自动分析倒计时。 */
+export async function getAdvisorScheduleStatus(): Promise<{
+  readable: boolean;
+  intervalHours: number;
+  lastRunAt: string | null;
+  killSwitch: boolean;
+}> {
+  const intervalHours = ADVISOR_MIN_INTERVAL_MS / 3_600_000;
+  const { hasServiceRole } = await import("./read-client.server");
+  if (!hasServiceRole()) {
+    return {
+      readable: false,
+      intervalHours,
+      lastRunAt: null,
+      killSwitch: false,
+    };
+  }
+  const limits = await loadLimits();
+  const lastMs = await lastAdvisorRunAt();
+  return {
+    readable: true,
+    intervalHours,
+    lastRunAt: lastMs != null ? new Date(lastMs).toISOString() : null,
+    killSwitch: limits.killSwitch,
+  };
 }
