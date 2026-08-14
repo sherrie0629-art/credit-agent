@@ -686,6 +686,15 @@ export function CreativeLibraryTab({
                           </div>
                         )}
 
+                        {vid?.status === "COMPLETED" && vid.videoUrl && (
+                          <video
+                            src={vid.videoUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="mt-2 aspect-[9/16] w-full rounded bg-black object-cover"
+                          />
+                        )}
 
                         <p className="mt-2 text-[11px] text-neon">{v.angle}</p>
                         <p className="mt-1 text-xs font-medium">{v.headline}</p>
@@ -706,6 +715,30 @@ export function CreativeLibraryTab({
                             )}
                             {stage[v.id] ?? (img ? "重新生成主视觉" : "生成主视觉")}
                           </button>
+
+                          <button
+                            onClick={() =>
+                              handleVideo(v.id, `${v.angle}. ${v.headline}. ${v.bodyText}`)
+                            }
+                            disabled={
+                              videoBusy || v.status === "BLOCKED" || v.complianceStatus === "FAILED"
+                            }
+                            title={
+                              v.complianceStatus === "FAILED"
+                                ? "合规未通过的变体不可生成视频"
+                                : "生成 8 秒竖版短视频（Reels / Shorts）"
+                            }
+                            className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                          >
+                            {videoBusy ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <VideoIcon className="size-3" />
+                            )}
+                            {videoStage[v.id] ??
+                              (vid?.status === "COMPLETED" ? "重新生成短视频" : "生成短视频")}
+                          </button>
+
 
                           <button
                             onClick={() =>
