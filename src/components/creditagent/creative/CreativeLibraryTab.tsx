@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -10,7 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingDown,
+  Video as VideoIcon,
 } from "lucide-react";
+
 import { CreateCreativeForm } from "@/components/creditagent/structure/CreateCreativeForm";
 import {
   Dialog,
@@ -98,6 +100,18 @@ export function CreativeLibraryTab({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
+
+  type VideoJob = {
+    targetId: string;
+    jobId: string;
+    status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+    videoUrl?: string;
+    error?: string;
+  };
+  const [videos, setVideos] = useState<Record<string, VideoJob>>({});
+  const [videoStage, setVideoStage] = useState<Record<string, string>>({});
+  const pollers = useRef<Record<string, number>>({});
+
 
 
   const placementsByCreative = useMemo(() => {
@@ -213,7 +227,86 @@ export function CreativeLibraryTab({
     }
   }
 
+  /** 首屏拉一次已有视频任务；有进行中的就继续轮询。 */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/creative-video-status");
+        if (!res.ok) return;
+        const data = (await res.json()) as { jobs?: VideoJob[] };
+        if (!alive || !data.jobs) return;
+        const map: Record<string, VideoJob> = {};
+        for (const j of data.jobs) map[j.targetId] = j;
+        setVideos(map);
+        for (const j of data.jobs) {
+          if (j.status === "QUEUED" || j.status === "RUNNING") pollVideo(j.targetId, j.jobId);
+        }
+      } catch {
+        /* 视频是增值能力，拉取失败不影响素材库 */
+      }
+    })();
+    return () => {
+      alive = false;
+      for (const id of Object.values(pollers.current)) window.clearInterval(id);
+      pollers.current = {};
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  function pollVideo(targetId: string, jobId: string) {
+    if (pollers.current[targetId]) return;
+    const startedAt = Date.now();
+    const run = async () => {
+      const s = Math.round((Date.now() - startedAt) / 1000);
+      setVideoStage((p) => ({ ...p, [targetId]: `AI 正在生成视频… ${s}s（通常 1-3 分钟）` }));
+      try {
+        const res = await fetch(`/api/creative-video-status?jobId=${encodeURIComponent(jobId)}`);
+        if (!res.ok) return;
+        const job = (await res.json()) as VideoJob & { error?: string };
+        if (!job.status) return;
+        setVideos((v) => ({ ...v, [targetId]: { ...job, targetId, jobId } }));
+        if (job.status === "COMPLETED" || job.status === "FAILED") {
+          window.clearInterval(pollers.current[targetId]!);
+          delete pollers.current[targetId];
+          setVideoStage((p) => {
+            const next = { ...p };
+            delete next[targetId];
+            return next;
+          });
+          if (job.status === "COMPLETED") toast.success("短视频已生成");
+          else toast.error(job.error ?? "视频生成失败");
+        }
+      } catch {
+        /* 下一轮重试 */
+      }
+    };
+    void run();
+    pollers.current[targetId] = window.setInterval(run, 8000);
+  }
+
+  async function handleVideo(targetId: string, prompt: string) {
+    setVideoStage((p) => ({ ...p, [targetId]: "任务提交中…" }));
+    try {
+      const res = await fetch("/api/generate-creative-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId: targetId, prompt }),
+      });
+      const job = (await res.json()) as VideoJob & { error?: string };
+      if (!res.ok || !job.jobId) throw new Error(job.error ?? "视频生成请求失败");
+      setVideos((v) => ({ ...v, [targetId]: { ...job, targetId } }));
+      toast.info("视频任务已提交，生成约需 1-3 分钟");
+      pollVideo(targetId, job.jobId);
+    } catch (err) {
+      setVideoStage((p) => {
+        const next = { ...p };
+        delete next[targetId];
+        return next;
+      });
+      toast.error(err instanceof Error ? err.message : "视频生成失败");
+    }
+  }
 
 
   async function handleLaunch(creativeId: string) {
@@ -536,6 +629,12 @@ export function CreativeLibraryTab({
                   {own.map((v) => {
                     const p = preview[v.id];
                     const img = p?.src ?? v.imageUrl;
+                    const vid = videos[v.id];
+                    const videoBusy =
+                      Boolean(videoStage[v.id]) ||
+                      vid?.status === "RUNNING" ||
+                      vid?.status === "QUEUED";
+
                     return (
                       <div key={v.id} className="rounded border border-border bg-background/50 p-3">
                         <div className="flex items-center gap-2">
@@ -593,6 +692,15 @@ export function CreativeLibraryTab({
                           </div>
                         )}
 
+                        {vid?.status === "COMPLETED" && vid.videoUrl && (
+                          <video
+                            src={vid.videoUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="mt-2 aspect-[9/16] w-full rounded bg-black object-cover"
+                          />
+                        )}
 
                         <p className="mt-2 text-[11px] text-neon">{v.angle}</p>
                         <p className="mt-1 text-xs font-medium">{v.headline}</p>
@@ -613,6 +721,30 @@ export function CreativeLibraryTab({
                             )}
                             {stage[v.id] ?? (img ? "重新生成主视觉" : "生成主视觉")}
                           </button>
+
+                          <button
+                            onClick={() =>
+                              handleVideo(v.id, `${v.angle}. ${v.headline}. ${v.bodyText}`)
+                            }
+                            disabled={
+                              videoBusy || v.status === "BLOCKED" || v.complianceStatus === "FAILED"
+                            }
+                            title={
+                              v.complianceStatus === "FAILED"
+                                ? "合规未通过的变体不可生成视频"
+                                : "生成 8 秒竖版短视频（Reels / Shorts）"
+                            }
+                            className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                          >
+                            {videoBusy ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <VideoIcon className="size-3" />
+                            )}
+                            {videoStage[v.id] ??
+                              (vid?.status === "COMPLETED" ? "重新生成短视频" : "生成短视频")}
+                          </button>
+
 
                           <button
                             onClick={() =>

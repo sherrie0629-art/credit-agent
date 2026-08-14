@@ -798,6 +798,51 @@ export type Database = {
           },
         ]
       }
+      creative_videos: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_id: string
+          prompt: string
+          seconds: string
+          size: string
+          status: string
+          target_id: string
+          target_kind: string
+          video_url: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_id: string
+          prompt?: string
+          seconds?: string
+          size?: string
+          status?: string
+          target_id: string
+          target_kind?: string
+          video_url?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_id?: string
+          prompt?: string
+          seconds?: string
+          size?: string
+          status?: string
+          target_id?: string
+          target_kind?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       funnel_stages: {
         Row: {
           id: number

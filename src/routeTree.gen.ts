@@ -17,11 +17,14 @@ import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
+import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
+import { Route as ApiCreativeVideoStatusRouteImport } from './routes/api/creative-video-status'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
 import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicCreativeVideoSplatRouteImport } from './routes/api/public/creative-video/$'
 import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -64,12 +67,23 @@ const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
   path: '/api/save-creative-image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateCreativeVideoRoute =
+  ApiGenerateCreativeVideoRouteImport.update({
+    id: '/api/generate-creative-video',
+    path: '/api/generate-creative-video',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGenerateCreativeImageRoute =
   ApiGenerateCreativeImageRouteImport.update({
     id: '/api/generate-creative-image',
     path: '/api/generate-creative-image',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCreativeVideoStatusRoute = ApiCreativeVideoStatusRouteImport.update({
+  id: '/api/creative-video-status',
+  path: '/api/creative-video-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLoanEventsRoute = ApiPublicLoanEventsRouteImport.update({
   id: '/api/public/loan-events',
   path: '/api/public/loan-events',
@@ -91,6 +105,12 @@ const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
   path: '/api/public/cron/agent-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCreativeVideoSplatRoute =
+  ApiPublicCreativeVideoSplatRouteImport.update({
+    id: '/api/public/creative-video/$',
+    path: '/api/public/creative-video/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCreativeImageSplatRoute =
   ApiPublicCreativeImageSplatRouteImport.update({
     id: '/api/public/creative-image/$',
@@ -106,11 +126,14 @@ export interface FileRoutesByFullPath {
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
+  '/api/public/creative-video/$': typeof ApiPublicCreativeVideoSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -122,11 +145,14 @@ export interface FileRoutesByTo {
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
+  '/api/public/creative-video/$': typeof ApiPublicCreativeVideoSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -139,11 +165,14 @@ export interface FileRoutesById {
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
+  '/api/public/creative-video/$': typeof ApiPublicCreativeVideoSplatRoute
   '/api/public/cron/agent-sweep': typeof ApiPublicCronAgentSweepRoute
   '/api/public/cron/upload-conversions': typeof ApiPublicCronUploadConversionsRoute
 }
@@ -157,11 +186,14 @@ export interface FileRouteTypes {
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
+    | '/api/creative-video-status'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
+    | '/api/public/creative-video/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesByTo: FileRoutesByTo
@@ -173,11 +205,14 @@ export interface FileRouteTypes {
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
+    | '/api/creative-video-status'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
+    | '/api/public/creative-video/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   id:
@@ -189,11 +224,14 @@ export interface FileRouteTypes {
     | '/creative'
     | '/lp'
     | '/sitemap.xml'
+    | '/api/creative-video-status'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
+    | '/api/public/creative-video/$'
     | '/api/public/cron/agent-sweep'
     | '/api/public/cron/upload-conversions'
   fileRoutesById: FileRoutesById
@@ -206,11 +244,14 @@ export interface RootRouteChildren {
   CreativeRoute: typeof CreativeRoute
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiCreativeVideoStatusRoute: typeof ApiCreativeVideoStatusRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
+  ApiGenerateCreativeVideoRoute: typeof ApiGenerateCreativeVideoRoute
   ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
   ApiPublicCreativeImageSplatRoute: typeof ApiPublicCreativeImageSplatRoute
+  ApiPublicCreativeVideoSplatRoute: typeof ApiPublicCreativeVideoSplatRoute
   ApiPublicCronAgentSweepRoute: typeof ApiPublicCronAgentSweepRoute
   ApiPublicCronUploadConversionsRoute: typeof ApiPublicCronUploadConversionsRoute
 }
@@ -273,11 +314,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSaveCreativeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate-creative-video': {
+      id: '/api/generate-creative-video'
+      path: '/api/generate-creative-video'
+      fullPath: '/api/generate-creative-video'
+      preLoaderRoute: typeof ApiGenerateCreativeVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generate-creative-image': {
       id: '/api/generate-creative-image'
       path: '/api/generate-creative-image'
       fullPath: '/api/generate-creative-image'
       preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/creative-video-status': {
+      id: '/api/creative-video-status'
+      path: '/api/creative-video-status'
+      fullPath: '/api/creative-video-status'
+      preLoaderRoute: typeof ApiCreativeVideoStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/loan-events': {
@@ -308,6 +363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronAgentSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/creative-video/$': {
+      id: '/api/public/creative-video/$'
+      path: '/api/public/creative-video/$'
+      fullPath: '/api/public/creative-video/$'
+      preLoaderRoute: typeof ApiPublicCreativeVideoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/creative-image/$': {
       id: '/api/public/creative-image/$'
       path: '/api/public/creative-image/$'
@@ -326,11 +388,14 @@ const rootRouteChildren: RootRouteChildren = {
   CreativeRoute: CreativeRoute,
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiCreativeVideoStatusRoute: ApiCreativeVideoStatusRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
+  ApiGenerateCreativeVideoRoute: ApiGenerateCreativeVideoRoute,
   ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
   ApiPublicCreativeImageSplatRoute: ApiPublicCreativeImageSplatRoute,
+  ApiPublicCreativeVideoSplatRoute: ApiPublicCreativeVideoSplatRoute,
   ApiPublicCronAgentSweepRoute: ApiPublicCronAgentSweepRoute,
   ApiPublicCronUploadConversionsRoute: ApiPublicCronUploadConversionsRoute,
 }

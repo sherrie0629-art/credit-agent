@@ -234,7 +234,8 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
     await markRemoved("ad_groups", seenAdGroupIds);
     await markRemoved("creative_assets", seenCreativeIds);
 
-    await supabase.from("meta_structure_sync_runs").insert({
+    // 生成的数据库类型还没包含这张审计表，先做一次窄化。
+    await (supabase as any).from("meta_structure_sync_runs").insert({
       started_at: syncAt,
       finished_at: new Date().toISOString(),
       ok: true,
@@ -267,7 +268,7 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     try {
-      await supabase.from("meta_structure_sync_runs").insert({
+      await (supabase as any).from("meta_structure_sync_runs").insert({
         finished_at: new Date().toISOString(),
         ok: false,
         error,
