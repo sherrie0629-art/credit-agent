@@ -629,6 +629,12 @@ export function CreativeLibraryTab({
                   {own.map((v) => {
                     const p = preview[v.id];
                     const img = p?.src ?? v.imageUrl;
+                    const vid = videos[v.id];
+                    const videoBusy =
+                      Boolean(videoStage[v.id]) ||
+                      vid?.status === "RUNNING" ||
+                      vid?.status === "QUEUED";
+
                     return (
                       <div key={v.id} className="rounded border border-border bg-background/50 p-3">
                         <div className="flex items-center gap-2">
