@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -10,7 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingDown,
+  Video as VideoIcon,
 } from "lucide-react";
+
 import { CreateCreativeForm } from "@/components/creditagent/structure/CreateCreativeForm";
 import {
   Dialog,
