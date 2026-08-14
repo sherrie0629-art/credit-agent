@@ -17,6 +17,7 @@ import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
+import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
@@ -64,6 +65,12 @@ const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
   path: '/api/save-creative-image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateCreativeVideoRoute =
+  ApiGenerateCreativeVideoRouteImport.update({
+    id: '/api/generate-creative-video',
+    path: '/api/generate-creative-video',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGenerateCreativeImageRoute =
   ApiGenerateCreativeImageRouteImport.update({
     id: '/api/generate-creative-image',
@@ -107,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
@@ -140,6 +149,7 @@ export interface FileRoutesById {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
+  '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
@@ -174,6 +185,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
@@ -190,6 +202,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/generate-creative-image'
+    | '/api/generate-creative-video'
     | '/api/save-creative-image'
     | '/api/public/leads'
     | '/api/public/loan-events'
@@ -207,6 +220,7 @@ export interface RootRouteChildren {
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
+  ApiGenerateCreativeVideoRoute: typeof ApiGenerateCreativeVideoRoute
   ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
@@ -273,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSaveCreativeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate-creative-video': {
+      id: '/api/generate-creative-video'
+      path: '/api/generate-creative-video'
+      fullPath: '/api/generate-creative-video'
+      preLoaderRoute: typeof ApiGenerateCreativeVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generate-creative-image': {
       id: '/api/generate-creative-image'
       path: '/api/generate-creative-image'
@@ -327,6 +348,7 @@ const rootRouteChildren: RootRouteChildren = {
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
+  ApiGenerateCreativeVideoRoute: ApiGenerateCreativeVideoRoute,
   ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
