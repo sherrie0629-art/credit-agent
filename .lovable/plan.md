@@ -1,47 +1,53 @@
-# 批准执行为什么这么慢（以及怎么改）
+# 素材中心：从主视觉生成短视频
 
-## 点一次「批准执行」后端做了什么（已核实代码路径）
+在现有「变体 → 主视觉」链路上，加一条「主视觉 → 8 秒竖版短视频」能力，供 Reels / Shorts 投放使用。
 
-顺序全是串行 await：
+## 用户看到的效果
 
-1. 读这条决策行（`agent_decisions` 单条查询）
-2. 写一条人工审批审计（`guardrail_events` insert）
-3. 查是否属于「跨广告组再分配」卡（`pendingAllocationsFor`）
-4. 读广告组、读风控限额（`agent_settings`）
-5. 写一条风控判定审计（`guardrail_events` insert）
-6. 调 Google Ads：先换 access token（OAuth token 端点，缓存过期就重新换），再读广告组行、读父系列行，然后 `googleAds:mutate` 改 CampaignBudget —— 走 REST，本地还要经 SOCKS 代理，跨境往返本身就是秒级
-7. 再写一条「已推送 Google」审计
-8. 回写 `ad_groups.daily_budget`、回写 `agent_decisions.status/guardrail_note`、写 `external_mutate_*`
-9. **最后重新拉一次全量快照** `get_agent_snapshot()`（决策 100 条 + 所有系列/组/素材/指标/视图）再返回
+- 素材卡片上，已有主视觉的变体多出一个「生成视频」按钮（没有主视觉时置灰，提示先出图）。
+- 点击后卡片进入进度状态：提交中 → 生成中（约 1-3 分钟，带计时和进度百分比）→ 保存中 → 完成。期间可以离开页面，回来继续看到状态。
+- 完成后卡片内嵌一个竖版播放器，可播放、下载，也可「重新生成」。
+- 视频与图片变体同流程：文案合规判定沿用变体本身的合规状态，合规 FAILED 的变体不允许生成视频；生成结果作为该变体的附加资产参与实验/审批展示。
 
-大头是第 6 步（跨境 API，尤其 token 刷新那次）和第 9 步（整站快照）。前端 `DecisionCard` 在这期间只是把按钮 disable，没有任何进度文案，所以看起来像卡死。
+## 生成规格
 
-## 改造方案
+- 模型：`google/veo-3.1-lite`（图生视频，最省的一档）
+- 尺寸 `720x1280`（竖版 9:16），时长 `8` 秒，带音轨
+- 提示词由变体的 headline / bodyText / angle 组合，加一段固定的信贷广告风格约束（真实感、暖光、可信、无文字叠加、无 logo）
+- 起始帧：直接取该变体已存的主视觉字节，转成 base64 data URL 传给网关
 
-### 1. 前端立刻给反馈（体感收益最大）
+## 成本与防滥用（重要）
 
-- 按钮进入 loading 态：显示转圈 + 「正在推送 Google…」，并按秒数递增（复用素材中心「AI 正在出图…Ns」那套计时）。
-- 点下即出一条 loading toast，成功/失败时用 `toast.success/error` 就地替换，不再是长时间静默。
-- 卡片本身立即置灰并打上「执行中」状态标记，避免重复点击。
+视频生成比出图贵约两个数量级，所以：
 
-### 2. 把非关键路径挪出等待
+- 只在用户显式点击时触发，绝不在页面加载、扫仓、Advisor 里自动跑
+- 同一项目同时只允许 1 个生成任务在跑，第二次点击排队并提示
+- 同一变体 24 小时内最多重生成 3 次
+- 失败（含内容安全拦截）不自动重试，把网关的原因原样展示
 
-- 三处审计写入（人工审批、风控判定、Google 推送）改为**不阻塞返回**：写库失败已经是吞掉的，不需要串行等待。
-- 步骤 4 的「读限额」与步骤 3 的「查再分配」并行取，不必一前一后。
+## 数据与存储
 
-### 3. 返回值瘦身：不要在批准里重拉全量快照
+新增一张 `creative_videos` 表（含 RLS 与 GRANT，写入只给 service_role，读走现有只读 RPC 口径）：
 
-- `approveDecision` 改为只返回**受影响的最小增量**：这条决策的新状态 / guardrail_note / external_mutate_*，以及被改的那个广告组的新预算。
-- 前端 store 收到后本地打补丁（素材中心「本地 patch」已有先例），再在后台静默刷新一次完整快照。
-- 这样返回时间少掉一整次 `get_agent_snapshot()`。
+- `id`、`variant_id`、`job_id`、`status`（QUEUED/RUNNING/COMPLETED/FAILED）、`video_url`、`error_message`、`prompt`、`seconds`、`size`、`created_at`、`completed_at`
 
-### 4. Google 调用加超时与状态提示
+视频文件存进新的私有存储桶 `creative-videos`，路径 `variants/{variantId}/{jobId}.mp4`，通过与图片一致的公开读取路由代理输出（沿用 `/api/public/creative-video/$`），数据库只存短路径 —— 网关的下载地址约 1 小时过期，绝不入库。
 
-- 给 Ads REST 调用加显式超时（如 20s）并在超时时给出明确文案「Google 未响应，本地未改动」，而不是无限期挂着。
-- token 缓存已存在，保留；只在过期时才刷新。
+## 技术改动点
 
-## 技术细节
+- 迁移：`creative_videos` 表 + 存储桶 + RLS/GRANT
+- `src/routes/api/generate-creative-video.ts`：POST 创建任务（读主视觉字节 → base64 → 调 `/v1/videos`），写库返回 `jobId`
+- `src/routes/api/creative-video-status.ts`：GET 轮询网关任务；`completed` 时下载 MP4 → 上传存储桶 → 幂等写库，返回代理 URL
+- `src/routes/api/public/creative-video/$.ts`：视频读取路由（Range 支持，长缓存）
+- `src/lib/creditagent/video-storage.server.ts`：上传/读取/路径解析，参照 `image-storage.server.ts`
+- `src/lib/creditagent/creative.server.ts` / `creative.functions.ts` / `store.ts`：快照带上每个变体的视频状态与 URL；生成完成后局部 patch，不重拉全量快照
+- `src/components/creditagent/creative/CreativeLibraryTab.tsx`：按钮、分阶段进度、播放器、限流提示
 
-- 涉及文件：`src/lib/creditagent/agent.server.ts`（approveDecision 返回结构）、`src/lib/creditagent/agent.functions.ts`、`src/lib/creditagent/store.ts`（增量 patch + 后台刷新）、`src/components/creditagent/DecisionCard.tsx`（loading/计时/toast）、`src/lib/creditagent/google-ads.server.ts`（超时）。
-- 不改任何风控判定阈值、不改推送成功与否的判定顺序：**仍然先 Google 成功、再写本地**，失败整笔失败。
-- 审计条数与内容不变，只是不再阻塞响应。
+## 不做的事
+
+- 不做文生视频入口（本轮只做图生视频）
+- 不做视频自动推送到 Google / Meta（沿用现有「平台建结构，Agent 只推预算与启停」的约定）
+
+## 顺带修一个已有的报错
+
+当前构建有两处 TS 报错：`meta-ads-sync.server.ts` 写 `meta_structure_sync_runs` 时报表名不存在。迁移里这张表已经建好，是自动生成的数据库类型文件还没刷新导致的。实施时会一并让类型对齐（刷新类型或在该处做一次窄化处理），与视频功能无关但会顺手修掉。
