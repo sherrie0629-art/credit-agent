@@ -101,6 +101,18 @@ export function CreativeLibraryTab({
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
 
+  type VideoJob = {
+    targetId: string;
+    jobId: string;
+    status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+    videoUrl?: string;
+    error?: string;
+  };
+  const [videos, setVideos] = useState<Record<string, VideoJob>>({});
+  const [videoStage, setVideoStage] = useState<Record<string, string>>({});
+  const pollers = useRef<Record<string, number>>({});
+
+
 
   const placementsByCreative = useMemo(() => {
     const map = new Map<string, CreativePlacement[]>();
