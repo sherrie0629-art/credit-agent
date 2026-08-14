@@ -268,7 +268,7 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     try {
-      await supabase.from("meta_structure_sync_runs").insert({
+      await (supabase as any).from("meta_structure_sync_runs").insert({
         finished_at: new Date().toISOString(),
         ok: false,
         error,
