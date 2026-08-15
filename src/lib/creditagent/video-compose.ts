@@ -3,10 +3,14 @@
 // 字幕用 canvas 渲染成透明 PNG 再 overlay，这样不需要额外打包中文字体。
 
 import type { CaptionLine } from "./video-caption.server";
+import wasmAsset from "../../../public/wasm/ffmpeg-core.wasm.asset.json";
 
-const CORE_BASES = [
-  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd",
-  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd",
+const LOCAL_WASM_URL = (wasmAsset as { url: string }).url;
+
+// 必须是 ESM 构建：ffmpeg.load() 对 core 走 dynamic import()，UMD 无法被浏览器 import。
+const CORE_CDN_BASES = [
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm",
+  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm",
 ];
 const W = 720;
 const H = 1280;
@@ -71,22 +75,33 @@ export async function composeVideo({
   ]);
 
   const ffmpeg = new FFmpeg();
-  // unpkg 偶发不可用，失败后退到 jsdelivr。
+
+  // 优先同源托管的 ESM core（wasm 走大文件资源托管），其次 CDN 的 ESM 构建。
+  const sources: { label: string; core: string; wasm: string }[] = [
+    { label: "same-origin", core: "/wasm/ffmpeg-core.js", wasm: LOCAL_WASM_URL },
+    ...CORE_CDN_BASES.map((base) => ({
+      label: base,
+      core: `${base}/ffmpeg-core.js`,
+      wasm: `${base}/ffmpeg-core.wasm`,
+    })),
+  ];
+
   let loaded = false;
-  let loadError = "";
-  for (const base of CORE_BASES) {
+  const loadErrors: string[] = [];
+  for (const src of sources) {
     try {
+      const { core, wasm } = src;
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+        coreURL: await toBlobURL(core, "text/javascript"),
+        wasmURL: await toBlobURL(wasm, "application/wasm"),
       });
       loaded = true;
       break;
     } catch (e) {
-      loadError = `${base}: ${e instanceof Error ? e.message : String(e)}`;
+      loadErrors.push(`${src.label}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  if (!loaded) throw new Error(`合成引擎加载失败：${loadError}`);
+  if (!loaded) throw new Error(`合成引擎加载失败：${loadErrors.join(" | ")}`);
 
   onStage?.("DOWNLOADING");
   for (let i = 0; i < segmentUrls.length; i++) {
