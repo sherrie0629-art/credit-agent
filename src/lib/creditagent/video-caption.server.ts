@@ -39,13 +39,21 @@ function linesInWindow(captions: CaptionLine[], from: number, to: number) {
   return captions.filter((c) => c.start < to && c.end > from).map((c) => c.text);
 }
 
+/** 两段共用：强制同一人、同一服装、同一场景（再配合图生视频参考帧）。 */
+const CHARACTER_LOCK =
+  "CHARACTER LOCK: Exactly one on-camera adult. Identical face, age, skin tone, hair, outfit, accessories, and body type in both shots. Same room, furniture, window light, and camera distance. Do not recast, re-dress, or relocate between segments. The reference image is the ground-truth look—match it.";
+
 function sceneWithSpeech(visual: string, spoken: string[], segmentLabel: "0-8s" | "8-16s") {
   const beats = spoken.map((line, i) => `${i + 1}. "${line}"`).join(" ");
   const softEnd =
     segmentLabel === "0-8s"
       ? "Finish the last spoken line by ~6.8s, then hold a calm continuous visual beat with no new dialogue for the final second so the shot can dissolve into the next."
       : "Finish the last spoken line by ~6.8s, then hold a soft CTA pose looking toward camera with no new dialogue for the final second—no abrupt cut mid-motion.";
-  return `${visual} During this ${segmentLabel} shot the on-camera person speaks clear, natural American English at a calm ad pace, saying ONLY these lines in order without rushing or overlapping: ${beats} Match lip movement to the words. ${softEnd} No other language. No on-screen text, no logos.`;
+  const continuity =
+    segmentLabel === "0-8s"
+      ? "Open by animating the reference still into natural motion; keep wardrobe and face locked."
+      : "Continue the same continuous take from the reference frame (end of the previous shot)—same person and clothes, mood resolving toward CTA.";
+  return `${CHARACTER_LOCK} ${continuity} ${visual} During this ${segmentLabel} shot the on-camera person speaks clear, natural American English at a calm ad pace, saying ONLY these lines in order without rushing or overlapping: ${beats} Match lip movement to the words. ${softEnd} No other language. No on-screen text, no logos.`;
 }
 
 /** 模板兜底：痛点 → 卖点 → CTA；口播与字幕同一套英文。 */
@@ -89,7 +97,7 @@ Hard rules:
 5. 3–11s: benefits / trust (limits, speed, licensed lender). 11–16s: clear CTA.
 6. 4–6 captions covering 0–16s with no gaps longer than 0.4s between adjacent lines.
 7. No banned claims: "100% approval", "no credit check", "guaranteed", "no income proof", etc.
-8. scenes[0] and scenes[1] are English visual directions for two 8s shots (same person, place, lighting). Each scene MUST list the exact English lines the talent speaks in that shot, in order, matching the captions that fall in that half (0–8s vs 8–16s). Natural conversational pace so speech fills the caption windows. Finish speech by ~6.8s of each shot and hold a calm visual beat for the last second (no mid-sentence cut).
+8. scenes[0] and scenes[1] are English visual directions for two 8s shots of ONE continuous ad. Hard character lock: same single adult, identical face/hair/clothes/accessories, same room and lighting. Segment 2 continues the action from segment 1 (not a new cast or wardrobe). Each scene MUST list the exact English lines the talent speaks in that shot, in order, matching the captions that fall in that half (0–8s vs 8–16s). Natural conversational pace so speech fills the caption windows. Finish speech by ~6.8s of each shot and hold a calm visual beat for the last second (no mid-sentence cut).
 
 Return JSON only:
 {"captions":[{"start":0,"end":3,"text":"..."}],"scenes":["...","..."]}`;

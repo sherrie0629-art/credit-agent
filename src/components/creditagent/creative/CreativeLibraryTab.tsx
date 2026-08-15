@@ -105,7 +105,7 @@ export function CreativeLibraryTab({
     targetId: string;
     jobId: string;
     status: "QUEUED" | "RUNNING" | "COMPOSING" | "COMPLETED" | "FAILED";
-    stage?: "SCRIPTING" | "SEGMENT_1" | "SEGMENT_2" | "COMPOSING" | "DONE";
+    stage?: "SCRIPTING" | "SEGMENT_1" | "BRIDGE" | "SEGMENT_2" | "COMPOSING" | "DONE";
     segments?: { index: number; status: string; url?: string }[];
     captions?: { start: number; end: number; text: string }[];
     videoUrl?: string;
@@ -116,6 +116,43 @@ export function CreativeLibraryTab({
   const [videoStage, setVideoStage] = useState<Record<string, string>>({});
   const pollers = useRef<Record<string, number>>({});
   const composing = useRef<Record<string, boolean>>({});
+  const bridging = useRef<Record<string, boolean>>({});
+
+  /** 从第 1 段末尾抽一帧（720×1280），作第 2 段图生起始帧以锁定角色。 */
+  async function extractLastFrame(videoUrl: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.src = videoUrl;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("无法读取第 1 段视频"));
+    });
+    const target = Math.max(0, (video.duration || 0) - 0.08);
+    await new Promise<void>((resolve, reject) => {
+      video.onseeked = () => resolve();
+      video.onerror = () => reject(new Error("定位末帧失败"));
+      video.currentTime = target;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 1280;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法创建画布");
+    const vw = video.videoWidth || 720;
+    const vh = video.videoHeight || 1280;
+    const scale = Math.max(720 / vw, 1280 / vh);
+    const dw = vw * scale;
+    const dh = vh * scale;
+    ctx.drawImage(video, (720 - dw) / 2, (1280 - dh) / 2, dw, dh);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.92),
+    );
+    if (!blob) throw new Error("末帧编码失败");
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), contentType: "image/jpeg" };
+  }
 
 
 
@@ -246,7 +283,8 @@ export function CreativeLibraryTab({
         for (const j of data.jobs) map[j.targetId] = j;
         setVideos(map);
         for (const j of data.jobs) {
-          if (j.status === "QUEUED" || j.status === "RUNNING") pollVideo(j.targetId, j.jobId);
+          if (j.stage === "BRIDGE") void runBridge(j);
+          else if (j.status === "QUEUED" || j.status === "RUNNING") pollVideo(j.targetId, j.jobId);
           if (j.status === "COMPOSING") void runCompose(j);
         }
       } catch {
@@ -260,6 +298,54 @@ export function CreativeLibraryTab({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** 第 1 段完成后抽末帧，提交第 2 段图生以锁定角色。 */
+  async function runBridge(job: VideoJob) {
+    const targetId = job.targetId;
+    if (bridging.current[targetId]) return;
+    bridging.current[targetId] = true;
+    try {
+      const seg1 = (job.segments ?? []).find((s) => s.index === 1 && s.url);
+      if (!seg1?.url) throw new Error("第 1 段视频缺失，无法续拍");
+      setVideoStage((p) => ({ ...p, [targetId]: "锁定角色：抽取第 1 段末帧…" }));
+      const frame = await extractLastFrame(seg1.url);
+      setVideoStage((p) => ({ ...p, [targetId]: "提交第 2 段（角色锁定续拍）…" }));
+      const res = await fetch(
+        `/api/continue-creative-video?jobId=${encodeURIComponent(job.jobId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "x-image-type": frame.contentType,
+          },
+          body: frame.bytes as unknown as BodyInit,
+        },
+      );
+      const next = (await res.json()) as VideoJob & { error?: string };
+      if (!res.ok) throw new Error(next.error ?? "续拍提交失败");
+      setVideos((v) => ({ ...v, [targetId]: { ...next, targetId } }));
+      pollVideo(targetId, job.jobId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "角色锁定续拍失败";
+      void fetch("/api/fail-creative-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.jobId, message }),
+      }).catch(() => {});
+      setVideos((v) => ({
+        ...v,
+        [targetId]: { ...(v[targetId] ?? job), targetId, status: "FAILED", error: message },
+      }));
+      toast.error(message);
+      setVideoStage((p) => {
+        const next = { ...p };
+        delete next[targetId];
+        return next;
+      });
+    } finally {
+      bridging.current[targetId] = false;
+    }
+  }
 
   /** 两段都出片后，在浏览器里拼接 + 烧字幕，再把成片回传落库。 */
   async function runCompose(job: VideoJob) {
@@ -338,9 +424,17 @@ export function CreativeLibraryTab({
           ...p,
           [targetId]:
             job.stage === "SEGMENT_2"
-              ? `生成第 2 段（共 2 段）… ${s}s`
-              : `生成第 1 段（共 2 段）… ${s}s`,
+              ? `生成第 2 段（角色锁定）… ${s}s`
+              : job.stage === "BRIDGE"
+                ? `锁定角色中… ${s}s`
+                : `生成第 1 段（主视觉锁定）… ${s}s`,
         }));
+        if (job.stage === "BRIDGE") {
+          window.clearInterval(pollers.current[targetId]!);
+          delete pollers.current[targetId];
+          void runBridge({ ...job, targetId, jobId });
+          return;
+        }
         if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "COMPOSING") {
           window.clearInterval(pollers.current[targetId]!);
           delete pollers.current[targetId];
@@ -376,7 +470,7 @@ export function CreativeLibraryTab({
       const job = (await res.json()) as VideoJob & { error?: string };
       if (!res.ok || !job.jobId) throw new Error(job.error ?? "视频生成请求失败");
       setVideos((v) => ({ ...v, [targetId]: { ...job, targetId } }));
-      toast.info("视频任务已提交：两段 8 秒串行生成，约需 3-6 分钟");
+      toast.info("视频任务已提交：主视觉锁定角色，两段续拍约需 3-6 分钟");
       pollVideo(targetId, job.jobId);
     } catch (err) {
       setVideoStage((p) => {
@@ -829,12 +923,17 @@ export function CreativeLibraryTab({
                               handleVideo(v.id, `${v.angle}. ${v.headline}. ${v.bodyText}`)
                             }
                             disabled={
-                              videoBusy || v.status === "BLOCKED" || v.complianceStatus === "FAILED"
+                              videoBusy ||
+                              v.status === "BLOCKED" ||
+                              v.complianceStatus === "FAILED" ||
+                              !img
                             }
                             title={
                               v.complianceStatus === "FAILED"
                                 ? "合规未通过的变体不可生成视频"
-                                : "生成 16 秒竖版短视频（两段 8 秒拼接，英文字幕对齐口播）"
+                                : !img
+                                  ? "请先生成主视觉，用于锁定短视频角色外貌"
+                                  : "生成 16 秒竖版短视频（主视觉锁定角色，两段 8 秒续拍拼接）"
                             }
                             className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                           >

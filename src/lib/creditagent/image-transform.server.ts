@@ -122,3 +122,56 @@ export async function resizeForDisplay(
     return { bytes, contentType: "image/png" };
   }
 }
+
+/**
+ * 图生视频用：把参考图 cover 裁切到精确分辨率（如 720×1280）。
+ * 仅支持 PNG；其它格式返回 null，调用方改传原图 data URL。
+ */
+export function fitToExactSize(
+  bytes: Uint8Array,
+  targetW: number,
+  targetH: number,
+): { bytes: Uint8Array; contentType: "image/png" } | null {
+  try {
+    const src = toRgba(bytes);
+    if (!src) return null;
+    const scale = Math.max(targetW / src.width, targetH / src.height);
+    const coverW = Math.max(targetW, Math.round(src.width * scale));
+    const coverH = Math.max(targetH, Math.round(src.height * scale));
+    const cover = resampleNearest(src, coverW, coverH);
+    const x0 = Math.max(0, Math.floor((cover.width - targetW) / 2));
+    const y0 = Math.max(0, Math.floor((cover.height - targetH) / 2));
+    const out = new Uint8Array(targetW * targetH * 4);
+    for (let y = 0; y < targetH; y++) {
+      for (let x = 0; x < targetW; x++) {
+        const s = ((y0 + y) * cover.width + (x0 + x)) * 4;
+        const d = (y * targetW + x) * 4;
+        out[d] = cover.data[s]!;
+        out[d + 1] = cover.data[s + 1]!;
+        out[d + 2] = cover.data[s + 2]!;
+        out[d + 3] = cover.data[s + 3]!;
+      }
+    }
+    return { bytes: encode({ data: out, width: targetW, height: targetH }), contentType: "image/png" };
+  } catch (err) {
+    console.error("[creative-image] fitToExactSize failed", err);
+    return null;
+  }
+}
+
+function resampleNearest(src: Raster, w: number, h: number): Raster {
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(src.height - 1, Math.floor((y * src.height) / h));
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(src.width - 1, Math.floor((x * src.width) / w));
+      const s = (sy * src.width + sx) * 4;
+      const d = (y * w + x) * 4;
+      out[d] = src.data[s]!;
+      out[d + 1] = src.data[s + 1]!;
+      out[d + 2] = src.data[s + 2]!;
+      out[d + 3] = src.data[s + 3]!;
+    }
+  }
+  return { data: out, width: w, height: h };
+}
