@@ -1,7 +1,7 @@
 // 短视频脚本层：把素材文案改写成「黄金前 3 秒」结构的字幕 + 两段分镜提示词。
 // 输出严格结构化，LLM 不可用或不合规时回退模板，保证视频链路不被阻断。
 
-import { scanCompliance } from "./compliance";
+import { BANNED_PHRASES } from "./compliance";
 
 export interface CaptionLine {
   /** 秒 */
