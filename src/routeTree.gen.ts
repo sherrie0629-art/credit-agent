@@ -20,7 +20,6 @@ import { Route as ApiCreativeVideoStatusRouteImport } from './routes/api/creativ
 import { Route as ApiFailCreativeVideoRouteImport } from './routes/api/fail-creative-video'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
 import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
-import { Route as ApiProbeCreativeVideoRouteImport } from './routes/api/probe-creative-video'
 import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
 import { Route as ApiSaveCreativeVideoRouteImport } from './routes/api/save-creative-video'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
@@ -87,11 +86,6 @@ const ApiGenerateCreativeVideoRoute =
     path: '/api/generate-creative-video',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiProbeCreativeVideoRoute = ApiProbeCreativeVideoRouteImport.update({
-  id: '/api/probe-creative-video',
-  path: '/api/probe-creative-video',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
   id: '/api/save-creative-image',
   path: '/api/save-creative-image',
@@ -148,7 +142,6 @@ export interface FileRoutesByFullPath {
   '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
-  '/api/probe-creative-video': typeof ApiProbeCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -170,7 +163,6 @@ export interface FileRoutesByTo {
   '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
-  '/api/probe-creative-video': typeof ApiProbeCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -193,7 +185,6 @@ export interface FileRoutesById {
   '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
-  '/api/probe-creative-video': typeof ApiProbeCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
   '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
@@ -217,7 +208,6 @@ export interface FileRouteTypes {
     | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
-    | '/api/probe-creative-video'
     | '/api/save-creative-image'
     | '/api/save-creative-video'
     | '/api/public/leads'
@@ -239,7 +229,6 @@ export interface FileRouteTypes {
     | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
-    | '/api/probe-creative-video'
     | '/api/save-creative-image'
     | '/api/save-creative-video'
     | '/api/public/leads'
@@ -261,7 +250,6 @@ export interface FileRouteTypes {
     | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
-    | '/api/probe-creative-video'
     | '/api/save-creative-image'
     | '/api/save-creative-video'
     | '/api/public/leads'
@@ -284,7 +272,6 @@ export interface RootRouteChildren {
   ApiFailCreativeVideoRoute: typeof ApiFailCreativeVideoRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiGenerateCreativeVideoRoute: typeof ApiGenerateCreativeVideoRoute
-  ApiProbeCreativeVideoRoute: typeof ApiProbeCreativeVideoRoute
   ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
   ApiSaveCreativeVideoRoute: typeof ApiSaveCreativeVideoRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
@@ -374,13 +361,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateCreativeVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/probe-creative-video': {
-      id: '/api/probe-creative-video'
-      path: '/api/probe-creative-video'
-      fullPath: '/api/probe-creative-video'
-      preLoaderRoute: typeof ApiProbeCreativeVideoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/save-creative-image': {
       id: '/api/save-creative-image'
       path: '/api/save-creative-image'
@@ -452,7 +432,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFailCreativeVideoRoute: ApiFailCreativeVideoRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiGenerateCreativeVideoRoute: ApiGenerateCreativeVideoRoute,
-  ApiProbeCreativeVideoRoute: ApiProbeCreativeVideoRoute,
   ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,
   ApiSaveCreativeVideoRoute: ApiSaveCreativeVideoRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,

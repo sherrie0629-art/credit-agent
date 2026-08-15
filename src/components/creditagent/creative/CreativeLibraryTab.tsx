@@ -782,101 +782,22 @@ export function CreativeLibraryTab({
                             playsInline
                             preload="metadata"
                             className="mt-2 aspect-[9/16] w-full rounded bg-black object-cover"
-                            onLoadedData={() => {
-                              // #region agent log
-                              fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  "X-Debug-Session-Id": "6fd86b",
-                                },
-                                body: JSON.stringify({
-                                  sessionId: "6fd86b",
-                                  runId: "playback-pre",
-                                  hypothesisId: "C",
-                                  location: "CreativeLibraryTab.tsx:video",
-                                  message: "video loadeddata",
-                                  data: { jobId: vid.jobId, videoUrl: vid.videoUrl },
-                                  timestamp: Date.now(),
-                                }),
-                              }).catch(() => {});
-                              // #endregion
-                            }}
                             onError={(ev) => {
                               void (async () => {
                                 const el = ev.currentTarget;
-                                const mediaCode = el.error?.code ?? null;
-                                const mediaMessage = el.error?.message ?? null;
-                                let clientStatus: number | null = null;
-                                let clientBytes: number | null = null;
-                                let clientType: string | null = null;
-                                let clientMagic: string | null = null;
-                                let clientError: string | null = null;
-                                let buf: Uint8Array | null = null;
+                                if (el.dataset.blobFallback) return;
                                 try {
                                   const res = await fetch(vid.videoUrl!);
-                                  clientStatus = res.status;
-                                  clientType = res.headers.get("content-type");
-                                  buf = new Uint8Array(await res.arrayBuffer());
-                                  clientBytes = buf.byteLength;
-                                  clientMagic = Array.from(buf.slice(0, 12))
-                                    .map((b) => b.toString(16).padStart(2, "0"))
-                                    .join("");
-                                } catch (e) {
-                                  clientError = e instanceof Error ? e.message : String(e);
-                                }
-                                // #region agent log
-                                fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                    "X-Debug-Session-Id": "6fd86b",
-                                  },
-                                  body: JSON.stringify({
-                                    sessionId: "6fd86b",
-                                    runId: "playback-post-fix",
-                                    hypothesisId: "D",
-                                    location: "CreativeLibraryTab.tsx:video-onError",
-                                    message: "video element error",
-                                    data: {
-                                      jobId: vid.jobId,
-                                      videoUrl: vid.videoUrl,
-                                      mediaCode,
-                                      mediaMessage,
-                                      clientStatus,
-                                      clientBytes,
-                                      clientType,
-                                      clientMagic,
-                                      clientError,
-                                      blobFallback: el.dataset.blobFallback ?? "0",
-                                    },
-                                    timestamp: Date.now(),
-                                  }),
-                                }).catch(() => {});
-                                // #endregion
-                                await fetch("/api/probe-creative-video", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    jobId: vid.jobId,
-                                    clientStatus,
-                                    clientBytes,
-                                    clientType,
-                                    clientMagic,
-                                    clientError:
-                                      clientError ??
-                                      `mediaCode=${mediaCode}; mediaMessage=${mediaMessage ?? ""}`,
-                                  }),
-                                }).catch(() => {});
-
-                                // 回退：整包拉成 blob URL（不依赖 Range），用于验证「文件可播、直链不可播」。
-                                if (!el.dataset.blobFallback && buf && buf.byteLength > 0) {
+                                  if (!res.ok) return;
+                                  const buf = new Uint8Array(await res.arrayBuffer());
+                                  if (buf.byteLength === 0) return;
                                   el.dataset.blobFallback = "1";
-                                  const url = URL.createObjectURL(
+                                  el.src = URL.createObjectURL(
                                     new Blob([buf], { type: "video/mp4" }),
                                   );
-                                  el.src = url;
                                   el.load();
+                                } catch {
+                                  /* 保持原生错误态 */
                                 }
                               })();
                             }}

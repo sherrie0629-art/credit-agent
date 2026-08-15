@@ -21,44 +21,14 @@ export const Route = createFileRoute("/api/public/creative-video/$")({
 
         const { readStoredVideo } = await import("@/lib/creditagent/video-storage.server");
         const video = await readStoredVideo(splat);
-
-        // #region agent log
-        const magic = video
-          ? Array.from(video.bytes.slice(0, 12))
-              .map((b) => b.toString(16).padStart(2, "0"))
-              .join("")
-          : null;
-        const rangeHdr = request.headers.get("Range");
-        fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
-          body: JSON.stringify({
-            sessionId: "6fd86b",
-            runId: "playback-post-fix",
-            hypothesisId: "D",
-            location: "creative-video/$.ts:GET",
-            message: video ? "public video served" : "public video not found",
-            data: {
-              splat,
-              found: Boolean(video),
-              bytes: video?.bytes.byteLength ?? 0,
-              contentType: video?.contentType ?? null,
-              magic,
-              range: rangeHdr,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
-
         if (!video) return new Response("Not found", { status: 404 });
 
         const bytes = video.bytes;
         const total = bytes.byteLength;
         const contentType = video.contentType || "video/mp4";
-        const range = parseRange(rangeHdr, total);
+        const range = parseRange(request.headers.get("Range"), total);
 
-        // <video> 依赖 Range/206；只回 200 整包时，部分预览 WebView 会直接 MEDIA_ERR。
+        // <video> 依赖 Range/206；部分预览 WebView 对整包 200 不友好。
         if (range) {
           const { start, end } = range;
           const slice = bytes.slice(start, end + 1);
