@@ -20,6 +20,7 @@ import { Route as ApiSaveCreativeVideoRouteImport } from './routes/api/save-crea
 import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
 import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
+import { Route as ApiFailCreativeVideoRouteImport } from './routes/api/fail-creative-video'
 import { Route as ApiCreativeVideoStatusRouteImport } from './routes/api/creative-video-status'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
 import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
@@ -85,6 +86,11 @@ const ApiGenerateCreativeImageRoute =
     path: '/api/generate-creative-image',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiFailCreativeVideoRoute = ApiFailCreativeVideoRouteImport.update({
+  id: '/api/fail-creative-video',
+  path: '/api/fail-creative-video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCreativeVideoStatusRoute = ApiCreativeVideoStatusRouteImport.update({
   id: '/api/creative-video-status',
   path: '/api/creative-video-status',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
+  '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
+  '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/lp': typeof LpRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
+  '/api/fail-creative-video': typeof ApiFailCreativeVideoRoute
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/creative-video-status'
+    | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/creative-video-status'
+    | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/lp'
     | '/sitemap.xml'
     | '/api/creative-video-status'
+    | '/api/fail-creative-video'
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   LpRoute: typeof LpRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiCreativeVideoStatusRoute: typeof ApiCreativeVideoStatusRoute
+  ApiFailCreativeVideoRoute: typeof ApiFailCreativeVideoRoute
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiGenerateCreativeVideoRoute: typeof ApiGenerateCreativeVideoRoute
   ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
@@ -348,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/fail-creative-video': {
+      id: '/api/fail-creative-video'
+      path: '/api/fail-creative-video'
+      fullPath: '/api/fail-creative-video'
+      preLoaderRoute: typeof ApiFailCreativeVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/creative-video-status': {
       id: '/api/creative-video-status'
       path: '/api/creative-video-status'
@@ -409,6 +429,7 @@ const rootRouteChildren: RootRouteChildren = {
   LpRoute: LpRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiCreativeVideoStatusRoute: ApiCreativeVideoStatusRoute,
+  ApiFailCreativeVideoRoute: ApiFailCreativeVideoRoute,
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiGenerateCreativeVideoRoute: ApiGenerateCreativeVideoRoute,
   ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,

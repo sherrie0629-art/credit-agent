@@ -4,7 +4,10 @@
 
 import type { CaptionLine } from "./video-caption.server";
 
-const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+const CORE_BASES = [
+  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd",
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd",
+];
 const W = 720;
 const H = 1280;
 
