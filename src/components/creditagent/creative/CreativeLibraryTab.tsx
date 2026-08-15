@@ -802,18 +802,22 @@ export function CreativeLibraryTab({
                               }).catch(() => {});
                               // #endregion
                             }}
-                            onError={() => {
+                            onError={(ev) => {
                               void (async () => {
+                                const el = ev.currentTarget;
+                                const mediaCode = el.error?.code ?? null;
+                                const mediaMessage = el.error?.message ?? null;
                                 let clientStatus: number | null = null;
                                 let clientBytes: number | null = null;
                                 let clientType: string | null = null;
                                 let clientMagic: string | null = null;
                                 let clientError: string | null = null;
+                                let buf: Uint8Array | null = null;
                                 try {
                                   const res = await fetch(vid.videoUrl!);
                                   clientStatus = res.status;
                                   clientType = res.headers.get("content-type");
-                                  const buf = new Uint8Array(await res.arrayBuffer());
+                                  buf = new Uint8Array(await res.arrayBuffer());
                                   clientBytes = buf.byteLength;
                                   clientMagic = Array.from(buf.slice(0, 12))
                                     .map((b) => b.toString(16).padStart(2, "0"))
@@ -830,18 +834,21 @@ export function CreativeLibraryTab({
                                   },
                                   body: JSON.stringify({
                                     sessionId: "6fd86b",
-                                    runId: "playback-pre",
-                                    hypothesisId: "A-E",
+                                    runId: "playback-post-fix",
+                                    hypothesisId: "D",
                                     location: "CreativeLibraryTab.tsx:video-onError",
                                     message: "video element error",
                                     data: {
                                       jobId: vid.jobId,
                                       videoUrl: vid.videoUrl,
+                                      mediaCode,
+                                      mediaMessage,
                                       clientStatus,
                                       clientBytes,
                                       clientType,
                                       clientMagic,
                                       clientError,
+                                      blobFallback: el.dataset.blobFallback ?? "0",
                                     },
                                     timestamp: Date.now(),
                                   }),
@@ -856,9 +863,21 @@ export function CreativeLibraryTab({
                                     clientBytes,
                                     clientType,
                                     clientMagic,
-                                    clientError,
+                                    clientError:
+                                      clientError ??
+                                      `mediaCode=${mediaCode}; mediaMessage=${mediaMessage ?? ""}`,
                                   }),
                                 }).catch(() => {});
+
+                                // 回退：整包拉成 blob URL（不依赖 Range），用于验证「文件可播、直链不可播」。
+                                if (!el.dataset.blobFallback && buf && buf.byteLength > 0) {
+                                  el.dataset.blobFallback = "1";
+                                  const url = URL.createObjectURL(
+                                    new Blob([buf], { type: "video/mp4" }),
+                                  );
+                                  el.src = url;
+                                  el.load();
+                                }
                               })();
                             }}
                           />

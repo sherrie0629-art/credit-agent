@@ -147,7 +147,22 @@ export async function composeVideo({
 
     const args = ["-y", ...inputs, "-filter_complex", filter, "-map", "[vout]"];
     if (withAudio) args.push("-map", "[aout]", "-c:a", "aac", "-b:a", "128k");
-    args.push("-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p");
+    args.push(
+      "-c:v",
+      "libx264",
+      "-preset",
+      "ultrafast",
+      "-crf",
+      "26",
+      "-pix_fmt",
+      "yuv420p",
+      "-profile:v",
+      "baseline",
+      "-level",
+      "3.1",
+      "-movflags",
+      "+faststart",
+    );
     args.push("out.mp4");
     return args;
   };
