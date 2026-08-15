@@ -800,6 +800,7 @@ export type Database = {
       }
       creative_videos: {
         Row: {
+          captions: Json
           completed_at: string | null
           created_at: string
           error_message: string | null
@@ -807,13 +808,16 @@ export type Database = {
           job_id: string
           prompt: string
           seconds: string
+          segments: Json
           size: string
+          stage: string
           status: string
           target_id: string
           target_kind: string
           video_url: string | null
         }
         Insert: {
+          captions?: Json
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
@@ -821,13 +825,16 @@ export type Database = {
           job_id: string
           prompt?: string
           seconds?: string
+          segments?: Json
           size?: string
+          stage?: string
           status?: string
           target_id: string
           target_kind?: string
           video_url?: string | null
         }
         Update: {
+          captions?: Json
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
@@ -835,7 +842,9 @@ export type Database = {
           job_id?: string
           prompt?: string
           seconds?: string
+          segments?: Json
           size?: string
+          stage?: string
           status?: string
           target_id?: string
           target_kind?: string
