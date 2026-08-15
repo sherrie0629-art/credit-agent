@@ -4,7 +4,10 @@
 
 import type { CaptionLine } from "./video-caption.server";
 
-const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+const CORE_BASES = [
+  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd",
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd",
+];
 const W = 720;
 const H = 1280;
 
@@ -68,21 +71,44 @@ export async function composeVideo({
   ]);
 
   const ffmpeg = new FFmpeg();
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-  });
+  // unpkg 偶发不可用，失败后退到 jsdelivr。
+  let loaded = false;
+  let loadError = "";
+  for (const base of CORE_BASES) {
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+      });
+      loaded = true;
+      break;
+    } catch (e) {
+      loadError = `${base}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  if (!loaded) throw new Error(`合成引擎加载失败：${loadError}`);
 
   onStage?.("DOWNLOADING");
   for (let i = 0; i < segmentUrls.length; i++) {
-    const res = await fetch(segmentUrls[i]!);
-    if (!res.ok) throw new Error("分段视频下载失败");
+    let res: Response;
+    try {
+      res = await fetch(segmentUrls[i]!);
+    } catch (e) {
+      throw new Error(
+        `分段视频下载失败（段${i + 1} ${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
+    if (!res.ok) throw new Error(`分段视频下载失败（段${i + 1} HTTP ${res.status}）`);
     await ffmpeg.writeFile(`seg${i + 1}.mp4`, new Uint8Array(await res.arrayBuffer()));
   }
 
   onStage?.("RENDERING");
   for (let i = 0; i < captions.length; i++) {
-    await ffmpeg.writeFile(`cap${i}.png`, await captionPng(captions[i]!.text));
+    try {
+      await ffmpeg.writeFile(`cap${i}.png`, await captionPng(captions[i]!.text));
+    } catch (e) {
+      throw new Error(`字幕渲染失败：${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   const inputs: string[] = [];
@@ -114,13 +140,27 @@ export async function composeVideo({
   onStage?.("ENCODING");
   try {
     await ffmpeg.exec(build(true));
-  } catch {
+  } catch (audioErr) {
     // 某些分段可能没有音轨，退化成无声成片而不是整体失败。
-    await ffmpeg.exec(build(false));
+    try {
+      await ffmpeg.exec(build(false));
+    } catch (e) {
+      throw new Error(
+        `视频编码失败：${e instanceof Error ? e.message : String(e)}（含音轨尝试：${
+          audioErr instanceof Error ? audioErr.message : String(audioErr)
+        }）`,
+      );
+    }
   }
 
-  const out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
+  let out: Uint8Array;
+  try {
+    out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
+  } catch (e) {
+    ffmpeg.terminate();
+    throw new Error(`视频编码失败：${e instanceof Error ? e.message : String(e)}`);
+  }
   ffmpeg.terminate();
-  if (!out || out.byteLength === 0) throw new Error("视频合成失败");
+  if (!out || out.byteLength === 0) throw new Error("视频编码失败：输出为空");
   return out;
 }

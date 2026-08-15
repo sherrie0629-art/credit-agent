@@ -299,7 +299,18 @@ export function CreativeLibraryTab({
       setVideos((v) => ({ ...v, [targetId]: { ...saved, targetId } }));
       toast.success("16 秒带字幕短视频已生成");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "视频合成失败", {
+      const message = err instanceof Error ? err.message : "视频合成失败";
+      // 把真实原因写回库，避免任务永远挂在「合成中」且 error_message 为空。
+      void fetch("/api/fail-creative-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.jobId, message }),
+      }).catch(() => {});
+      setVideos((v) => ({
+        ...v,
+        [targetId]: { ...(v[targetId] ?? job), targetId, status: "FAILED", error: message },
+      }));
+      toast.error(message, {
         action: { label: "重新合成", onClick: () => void runCompose(job) },
       });
     } finally {
