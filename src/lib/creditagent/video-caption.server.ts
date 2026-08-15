@@ -41,7 +41,11 @@ function linesInWindow(captions: CaptionLine[], from: number, to: number) {
 
 function sceneWithSpeech(visual: string, spoken: string[], segmentLabel: "0-8s" | "8-16s") {
   const beats = spoken.map((line, i) => `${i + 1}. "${line}"`).join(" ");
-  return `${visual} During this ${segmentLabel} shot the on-camera person speaks clear, natural American English at a calm ad pace, saying ONLY these lines in order without rushing or overlapping: ${beats} Match lip movement to the words. No other language. No on-screen text, no logos.`;
+  const softEnd =
+    segmentLabel === "0-8s"
+      ? "Finish the last spoken line by ~6.8s, then hold a calm continuous visual beat with no new dialogue for the final second so the shot can dissolve into the next."
+      : "Finish the last spoken line by ~6.8s, then hold a soft CTA pose looking toward camera with no new dialogue for the final second—no abrupt cut mid-motion.";
+  return `${visual} During this ${segmentLabel} shot the on-camera person speaks clear, natural American English at a calm ad pace, saying ONLY these lines in order without rushing or overlapping: ${beats} Match lip movement to the words. ${softEnd} No other language. No on-screen text, no logos.`;
 }
 
 /** 模板兜底：痛点 → 卖点 → CTA；口播与字幕同一套英文。 */
@@ -85,7 +89,7 @@ Hard rules:
 5. 3–11s: benefits / trust (limits, speed, licensed lender). 11–16s: clear CTA.
 6. 4–6 captions covering 0–16s with no gaps longer than 0.4s between adjacent lines.
 7. No banned claims: "100% approval", "no credit check", "guaranteed", "no income proof", etc.
-8. scenes[0] and scenes[1] are English visual directions for two 8s shots (same person, place, lighting). Each scene MUST list the exact English lines the talent speaks in that shot, in order, matching the captions that fall in that half (0–8s vs 8–16s). Natural conversational pace so speech fills the caption windows.
+8. scenes[0] and scenes[1] are English visual directions for two 8s shots (same person, place, lighting). Each scene MUST list the exact English lines the talent speaks in that shot, in order, matching the captions that fall in that half (0–8s vs 8–16s). Natural conversational pace so speech fills the caption windows. Finish speech by ~6.8s of each shot and hold a calm visual beat for the last second (no mid-sentence cut).
 
 Return JSON only:
 {"captions":[{"start":0,"end":3,"text":"..."}],"scenes":["...","..."]}`;

@@ -847,6 +847,24 @@ export function CreativeLibraryTab({
                               (vid?.status === "COMPLETED" ? "重新生成短视频" : "生成短视频")}
                           </button>
 
+                          {vid?.status === "COMPLETED" &&
+                            (vid.segments ?? []).filter((s) => s.url).length >= 2 && (
+                              <button
+                                type="button"
+                                onClick={() => void runCompose({ ...vid, targetId: v.id })}
+                                disabled={videoBusy}
+                                title="用已有两段素材重新合成（交叉淡化衔接，不重新调用视频模型）"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
+                              >
+                                {videoBusy ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <VideoIcon className="size-3" />
+                                )}
+                                柔化重合成（不重跑模型）
+                              </button>
+                            )}
+
 
                           <button
                             onClick={() =>

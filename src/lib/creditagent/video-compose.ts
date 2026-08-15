@@ -14,6 +14,10 @@ const CORE_CDN_BASES = [
 ];
 const W = 720;
 const H = 1280;
+/** 两段衔接交叉淡化时长（秒）；成片总长 ≈ 16 − CROSSFADE。 */
+const CROSSFADE = 0.75;
+const SEG_SECONDS = 8;
+const CAPTION_TIMELINE = 16;
 
 export type ComposeStage = "LOADING" | "DOWNLOADING" | "RENDERING" | "ENCODING";
 
@@ -166,20 +170,58 @@ export async function composeVideo({
   for (let i = 0; i < segmentUrls.length; i++) inputs.push("-i", `seg${i + 1}.mp4`);
   for (let i = 0; i < captions.length; i++) inputs.push("-i", `cap${i}.png`);
 
-  const build = (withAudio: boolean) => {
-    const n = segmentUrls.length;
-    let filter = "";
-    for (let i = 0; i < n; i++) filter += `[${i}:v]scale=${W}:${H},setsar=1[v${i}];`;
-    for (let i = 0; i < n; i++) filter += withAudio ? `[v${i}][${i}:a]` : `[v${i}]`;
-    filter += withAudio ? `concat=n=${n}:v=1:a=1[vc][aout];` : `concat=n=${n}:v=1:a=0[vc];`;
+  const n = segmentUrls.length;
+  const useXfade = n === 2;
+  const xOffset = SEG_SECONDS - CROSSFADE;
+  const outDur = useXfade ? SEG_SECONDS * 2 - CROSSFADE : SEG_SECONDS * n;
+  const endFadeAt = Math.max(0, outDur - CROSSFADE);
 
-    let prev = "vc";
+  const mapCaptionT = (t: number) =>
+    useXfade ? (t * outDur) / CAPTION_TIMELINE : t;
+
+  const build = (withAudio: boolean) => {
+    let filter = "";
+
+    if (useXfade) {
+      // 统一帧率/时间基后做画面交叉淡化，避免两段硬切。
+      filter += `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,format=yuv420p,settb=AVTB,setpts=PTS-STARTPTS[v0];`;
+      filter += `[1:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,format=yuv420p,settb=AVTB,setpts=PTS-STARTPTS[v1];`;
+      filter += `[v0][v1]xfade=transition=fade:duration=${CROSSFADE}:offset=${xOffset}[vx];`;
+      filter += `[vx]fade=t=out:st=${endFadeAt.toFixed(2)}:d=${CROSSFADE}[vb];`;
+    } else {
+      for (let i = 0; i < n; i++) {
+        filter += `[${i}:v]scale=${W}:${H},setsar=1,fps=24,format=yuv420p,setpts=PTS-STARTPTS[v${i}];`;
+      }
+      for (let i = 0; i < n; i++) filter += `[v${i}]`;
+      filter += `concat=n=${n}:v=1:a=0[vx];`;
+      filter += `[vx]fade=t=out:st=${endFadeAt.toFixed(2)}:d=${Math.min(CROSSFADE, outDur / 2)}[vb];`;
+    }
+
+    let prev = "vb";
     captions.forEach((c, i) => {
       const label = `o${i}`;
-      filter += `[${prev}][${n + i}:v]overlay=0:0:enable='between(t,${c.start},${c.end})'[${label}];`;
+      const start = mapCaptionT(c.start).toFixed(2);
+      const end = mapCaptionT(c.end).toFixed(2);
+      filter += `[${prev}][${n + i}:v]overlay=0:0:enable='between(t,${start},${end})'[${label}];`;
       prev = label;
     });
     filter += `[${prev}]null[vout]`;
+
+    if (withAudio) {
+      if (useXfade) {
+        filter += `;[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,asetpts=PTS-STARTPTS[a0];`;
+        filter += `[1:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,asetpts=PTS-STARTPTS[a1];`;
+        filter += `[a0][a1]acrossfade=d=${CROSSFADE}:c1=tri:c2=tri[ax];`;
+        filter += `[ax]afade=t=out:st=${endFadeAt.toFixed(2)}:d=${CROSSFADE}[aout]`;
+      } else {
+        for (let i = 0; i < n; i++) {
+          filter += `;[${i}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,asetpts=PTS-STARTPTS[a${i}]`;
+        }
+        for (let i = 0; i < n; i++) filter += `[a${i}]`;
+        filter += `concat=n=${n}:v=0:a=1[ax];`;
+        filter += `[ax]afade=t=out:st=${endFadeAt.toFixed(2)}:d=${Math.min(CROSSFADE, outDur / 2)}[aout]`;
+      }
+    }
 
     const args = ["-y", ...inputs, "-filter_complex", filter, "-map", "[vout]"];
     if (withAudio) args.push("-map", "[aout]", "-c:a", "aac", "-b:a", "128k");
@@ -207,7 +249,7 @@ export async function composeVideo({
   try {
     await ffmpeg.exec(build(true));
   } catch (audioErr) {
-    // 某些分段可能没有音轨，退化成无声成片而不是整体失败。
+    // 某些分段可能没有音轨，或 acrossfade 失败：退化成无声成片而不是整体失败。
     try {
       await ffmpeg.exec(build(false));
     } catch (e) {

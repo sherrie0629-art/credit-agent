@@ -41,7 +41,7 @@ function key() {
 }
 
 function wrapPrompt(scene: string) {
-  return `A vertical 9:16 social video ad segment for a licensed US consumer lending brand. ${scene} Cinematic natural light, real people, trustworthy professional tone, smooth camera motion. Clear English speech only, natural pacing aligned to the listed dialogue lines. No on-screen text, no logos, no Chinese speech.`;
+  return `A vertical 9:16 social video ad segment for a licensed US consumer lending brand. ${scene} Cinematic natural light, real people, trustworthy professional tone, smooth camera motion. Clear English speech only, natural pacing aligned to the listed dialogue lines. End the clip gently: complete speech before the last second and hold a still, calm beat—do not cut mid-word or mid-gesture. No on-screen text, no logos, no Chinese speech.`;
 }
 
 /** 向网关提交一段 8 秒视频，返回任务 id。 */
