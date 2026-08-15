@@ -104,10 +104,14 @@ export function CreativeLibraryTab({
   type VideoJob = {
     targetId: string;
     jobId: string;
-    status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+    status: "QUEUED" | "RUNNING" | "COMPOSING" | "COMPLETED" | "FAILED";
+    stage?: "SCRIPTING" | "SEGMENT_1" | "SEGMENT_2" | "COMPOSING" | "DONE";
+    segments?: { index: number; status: string; url?: string }[];
+    captions?: { start: number; end: number; text: string }[];
     videoUrl?: string;
     error?: string;
   };
+
   const [videos, setVideos] = useState<Record<string, VideoJob>>({});
   const [videoStage, setVideoStage] = useState<Record<string, string>>({});
   const pollers = useRef<Record<string, number>>({});
