@@ -114,6 +114,8 @@ export function CreativeLibraryTab({
 
   const [videos, setVideos] = useState<Record<string, VideoJob>>({});
   const [videoStage, setVideoStage] = useState<Record<string, string>>({});
+  /** 仅合成进度（柔化重合成 / 首次拼片），不占用「生成短视频」按钮文案。 */
+  const [composeStage, setComposeStage] = useState<Record<string, string>>({});
   const pollers = useRef<Record<string, number>>({});
   const composing = useRef<Record<string, boolean>>({});
   const bridging = useRef<Record<string, boolean>>({});
@@ -309,6 +311,26 @@ export function CreativeLibraryTab({
       if (!seg1?.url) throw new Error("第 1 段视频缺失，无法续拍");
       setVideoStage((p) => ({ ...p, [targetId]: "锁定角色：抽取第 1 段末帧…" }));
       const frame = await extractLastFrame(seg1.url);
+      // #region agent log
+      fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
+        body: JSON.stringify({
+          sessionId: "6fd86b",
+          hypothesisId: "C",
+          location: "CreativeLibraryTab.tsx:runBridge",
+          message: "extracted last frame",
+          data: {
+            targetId,
+            jobId: job.jobId,
+            bytes: frame.bytes.length,
+            contentType: frame.contentType,
+            seg1Url: seg1.url,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setVideoStage((p) => ({ ...p, [targetId]: "提交第 2 段（角色锁定续拍）…" }));
       const res = await fetch(
         `/api/continue-creative-video?jobId=${encodeURIComponent(job.jobId)}`,
@@ -363,7 +385,7 @@ export function CreativeLibraryTab({
         segmentUrls: urls,
         captions: job.captions ?? [],
         onStage: (s) =>
-          setVideoStage((p) => ({
+          setComposeStage((p) => ({
             ...p,
             [targetId]:
               s === "LOADING"
@@ -401,7 +423,7 @@ export function CreativeLibraryTab({
       });
     } finally {
       composing.current[targetId] = false;
-      setVideoStage((p) => {
+      setComposeStage((p) => {
         const next = { ...p };
         delete next[targetId];
         return next;
@@ -439,7 +461,7 @@ export function CreativeLibraryTab({
           window.clearInterval(pollers.current[targetId]!);
           delete pollers.current[targetId];
           if (job.status === "COMPOSING") {
-            setVideoStage((p) => ({ ...p, [targetId]: "两段已就绪，开始合成…" }));
+            setComposeStage((p) => ({ ...p, [targetId]: "两段已就绪，开始合成…" }));
             void runCompose({ ...job, targetId, jobId });
             return;
           }
@@ -805,11 +827,14 @@ export function CreativeLibraryTab({
                     const p = preview[v.id];
                     const img = p?.src ?? v.imageUrl;
                     const vid = videos[v.id];
-                    const videoBusy =
+                    const composingBusy = Boolean(composeStage[v.id]);
+                    // 生成管线 busy（含首次自动合成）；柔化重合成单独用 composingBusy，避免两个按钮一起转圈。
+                    const generatingBusy =
                       Boolean(videoStage[v.id]) ||
                       vid?.status === "RUNNING" ||
                       vid?.status === "QUEUED" ||
                       vid?.status === "COMPOSING";
+                    const videoLocked = generatingBusy || composingBusy;
 
 
                     return (
@@ -923,7 +948,7 @@ export function CreativeLibraryTab({
                               handleVideo(v.id, `${v.angle}. ${v.headline}. ${v.bodyText}`)
                             }
                             disabled={
-                              videoBusy ||
+                              videoLocked ||
                               v.status === "BLOCKED" ||
                               v.complianceStatus === "FAILED" ||
                               !img
@@ -937,13 +962,17 @@ export function CreativeLibraryTab({
                             }
                             className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                           >
-                            {videoBusy ? (
+                            {generatingBusy ? (
                               <Loader2 className="size-3 animate-spin" />
                             ) : (
                               <VideoIcon className="size-3" />
                             )}
                             {videoStage[v.id] ??
-                              (vid?.status === "COMPLETED" ? "重新生成短视频" : "生成短视频")}
+                              (vid?.status === "COMPOSING"
+                                ? (composeStage[v.id] ?? "合成中…")
+                                : vid?.status === "COMPLETED"
+                                  ? "重新生成短视频"
+                                  : "生成短视频")}
                           </button>
 
                           {vid?.status === "COMPLETED" &&
@@ -951,16 +980,16 @@ export function CreativeLibraryTab({
                               <button
                                 type="button"
                                 onClick={() => void runCompose({ ...vid, targetId: v.id })}
-                                disabled={videoBusy}
+                                disabled={videoLocked}
                                 title="用已有两段素材重新合成（交叉淡化衔接，不重新调用视频模型）"
                                 className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                               >
-                                {videoBusy ? (
+                                {composingBusy ? (
                                   <Loader2 className="size-3 animate-spin" />
                                 ) : (
                                   <VideoIcon className="size-3" />
                                 )}
-                                柔化重合成（不重跑模型）
+                                {composeStage[v.id] ?? "柔化重合成（不重跑模型）"}
                               </button>
                             )}
 

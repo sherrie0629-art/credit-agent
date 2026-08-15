@@ -10,6 +10,28 @@ const SECONDS = "8";
 const SIZE = "720x1280";
 const [FRAME_W, FRAME_H] = SIZE.split("x").map(Number) as [number, number];
 
+// #region agent log
+function agentLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+) {
+  fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6fd86b" },
+    body: JSON.stringify({
+      sessionId: "6fd86b",
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
 export type VideoStage =
   | "SCRIPTING"
   | "SEGMENT_1"
@@ -23,6 +45,8 @@ export interface VideoSegment {
   jobId?: string;
   status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   url?: string;
+  /** 调试用：角色锁定提交证据（云端可查库） */
+  lockDebug?: Record<string, unknown>;
 }
 
 export interface VideoJobView {
@@ -69,39 +93,86 @@ function wrapPrompt(scene: string) {
   return `A vertical 9:16 social video ad segment for a licensed US consumer lending brand. ${scene} Animate from the provided reference image as the first frame—keep the exact same person (face, hair, age, skin tone), clothing, accessories, room, and lighting. Cinematic natural light, trustworthy professional tone, smooth camera motion. Clear English speech only, natural pacing aligned to the listed dialogue lines. End the clip gently: complete speech before the last second and hold a still, calm beat—do not cut mid-word or mid-gesture. No on-screen text, no logos, no Chinese speech.`;
 }
 
-/** 向网关提交一段 8 秒图生视频，返回任务 id。 */
-async function submitSegment(scene: string, referenceDataUrl: string): Promise<string> {
+/** 向网关提交一段 8 秒图生视频，返回任务 id + 调试信息。 */
+async function submitSegment(
+  scene: string,
+  referenceDataUrl: string,
+): Promise<{ id: string; lockDebug: Record<string, unknown> }> {
   const prompt = wrapPrompt(scene);
+  const refLen = referenceDataUrl.length;
+  const refPrefix = referenceDataUrl.slice(0, 40);
   // Lovable 网关兼容 OpenAI Videos 形态；个别字段名可能略有差异，失败时换形态重试。
-  const bodies: Record<string, unknown>[] = [
+  const bodies: { label: string; body: Record<string, unknown> }[] = [
     {
-      model: MODEL,
-      prompt,
-      seconds: SECONDS,
-      size: SIZE,
-      input_reference: { image_url: referenceDataUrl },
+      label: "input_reference.object",
+      body: {
+        model: MODEL,
+        prompt,
+        seconds: SECONDS,
+        size: SIZE,
+        input_reference: { image_url: referenceDataUrl },
+      },
     },
     {
-      model: MODEL,
-      prompt,
-      seconds: SECONDS,
-      size: SIZE,
-      input_reference: referenceDataUrl,
+      label: "input_reference.string",
+      body: {
+        model: MODEL,
+        prompt,
+        seconds: SECONDS,
+        size: SIZE,
+        input_reference: referenceDataUrl,
+      },
+    },
+    {
+      label: "image.string",
+      body: {
+        model: MODEL,
+        prompt,
+        seconds: SECONDS,
+        size: SIZE,
+        image: referenceDataUrl,
+      },
     },
   ];
 
+  const attempts: Record<string, unknown>[] = [];
   let lastMessage = "视频生成请求失败。";
-  for (const body of bodies) {
+  for (const { label, body } of bodies) {
     const res = await fetch(GATEWAY, {
       method: "POST",
       headers: { Authorization: `Bearer ${key()}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    const errBody = res.ok
+      ? null
+      : ((await res.json().catch(() => null)) as { message?: string } | null);
+    attempts.push({
+      label,
+      status: res.status,
+      ok: res.ok,
+      message: errBody?.message?.slice(0, 200) ?? null,
+    });
+    // #region agent log
+    agentLog("A", "video.server.ts:submitSegment", "gateway submit attempt", {
+      label,
+      status: res.status,
+      ok: res.ok,
+      refLen,
+      refPrefix,
+      message: errBody?.message?.slice(0, 200) ?? null,
+    });
+    // #endregion
     if (res.ok) {
       const job = (await res.json()) as { id: string };
-      return job.id;
+      const lockDebug = {
+        bodyLabel: label,
+        refLen,
+        refPrefix,
+        gatewayJobId: job.id,
+        attempts,
+      };
+      return { id: job.id, lockDebug };
     }
-    const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
     lastMessage =
       errBody?.message ??
       (res.status === 429
@@ -109,9 +180,14 @@ async function submitSegment(scene: string, referenceDataUrl: string): Promise<s
         : res.status === 402
           ? "AI 额度不足，请补充后再生成视频。"
           : "视频生成请求失败。");
-    // 额度/排队直接抛，不重试另一种 body。
     if (res.status === 429 || res.status === 402) throw new Error(lastMessage);
   }
+  // #region agent log
+  agentLog("A", "video.server.ts:submitSegment", "all submit bodies failed", {
+    attempts,
+    refLen,
+  });
+  // #endregion
   throw new Error(lastMessage);
 }
 
@@ -175,6 +251,14 @@ export async function createVideoJob(targetId: string, prompt: string): Promise<
   if (running && running.length > 0) return view(running[0]);
 
   const hero = await loadVariantHero(targetId);
+  // #region agent log
+  agentLog("B", "video.server.ts:createVideoJob", "hero load result", {
+    targetId,
+    hasHero: Boolean(hero),
+    heroBytes: hero?.bytes.length ?? 0,
+    heroType: hero?.contentType ?? null,
+  });
+  // #endregion
   if (!hero) {
     throw new Error("请先生成主视觉。短视频用主视觉锁定角色外貌与服装，无图无法保证一致性。");
   }
@@ -194,10 +278,21 @@ export async function createVideoJob(targetId: string, prompt: string): Promise<
   });
 
   const masterId = `vjob_${crypto.randomUUID()}`;
-  const segJob = await submitSegment(script.scenes[0], referenceDataUrl);
+  const submitted = await submitSegment(script.scenes[0], referenceDataUrl);
+  // #region agent log
+  agentLog("A", "video.server.ts:createVideoJob", "seg1 submitted", {
+    masterId,
+    ...submitted.lockDebug,
+  });
+  // #endregion
 
   const segments: VideoSegment[] = [
-    { index: 1, jobId: segJob, status: "RUNNING" },
+    {
+      index: 1,
+      jobId: submitted.id,
+      status: "RUNNING",
+      lockDebug: { ...submitted.lockDebug, heroBytes: hero.bytes.length, heroType: hero.contentType },
+    },
     { index: 2, status: "PENDING" },
   ];
 
@@ -212,6 +307,8 @@ export async function createVideoJob(targetId: string, prompt: string): Promise<
     prompt: `${script.scenes[0]}\n---\n${script.scenes[1]}`,
     seconds: "16",
     size: SIZE,
+    // 临时把锁定证据塞进 error_message 前缀，便于云端 SQL 一眼看到（成功后会清掉）
+    error_message: `LOCKDBG seg1=${JSON.stringify(segments[0].lockDebug).slice(0, 900)}`,
   });
 
   return {
@@ -332,26 +429,80 @@ export async function continueVideoJob(
   const scenes = String(row.prompt ?? "").split("\n---\n");
   const referenceDataUrl = await toReferenceDataUrl(bridgeBytes, contentType);
 
-  let secondJob: string;
+  // #region agent log
+  agentLog("C", "video.server.ts:continueVideoJob", "bridge frame received", {
+    jobId,
+    bridgeBytes: bridgeBytes.length,
+    contentType,
+    refLen: referenceDataUrl.length,
+    stage: row.stage,
+  });
+  // #endregion
+
+  let submitted: { id: string; lockDebug: Record<string, unknown> };
   try {
-    secondJob = await submitSegment(scenes[1] ?? scenes[0] ?? "", referenceDataUrl);
+    submitted = await submitSegment(scenes[1] ?? scenes[0] ?? "", referenceDataUrl);
   } catch (e) {
     return fail(supabase, jobId, e instanceof Error ? e.message : "第 2 段提交失败。");
   }
 
-  segments[1] = { index: 2, jobId: secondJob, status: "RUNNING" };
+  segments[1] = {
+    index: 2,
+    jobId: submitted.id,
+    status: "RUNNING",
+    lockDebug: {
+      ...submitted.lockDebug,
+      bridgeBytes: bridgeBytes.length,
+      bridgeType: contentType,
+    },
+  };
+  const lockNote = `LOCKDBG seg1=${JSON.stringify(segments[0]?.lockDebug ?? {}).slice(0, 400)} | seg2=${JSON.stringify(segments[1].lockDebug).slice(0, 400)}`;
   const { data } = await supabase
     .from("creative_videos")
-    .update({ segments, stage: "SEGMENT_2", status: "RUNNING" })
+    .update({
+      segments,
+      stage: "SEGMENT_2",
+      status: "RUNNING",
+      error_message: lockNote,
+    })
     .eq("job_id", jobId)
     .select("*")
     .maybeSingle();
+  // #region agent log
+  agentLog("C", "video.server.ts:continueVideoJob", "seg2 submitted after bridge", {
+    jobId,
+    ...submitted.lockDebug,
+    bridgeBytes: bridgeBytes.length,
+  });
+  // #endregion
   return view(data ?? { ...row, segments, stage: "SEGMENT_2", status: "RUNNING" });
 }
 
 /** 成片回写：浏览器合成完成后调用。 */
 export async function completeVideoJob(jobId: string, videoUrl: string): Promise<VideoJobView> {
   const supabase = await db();
+  const { data: prev } = await supabase
+    .from("creative_videos")
+    .select("error_message, segments")
+    .eq("job_id", jobId)
+    .maybeSingle();
+  // 保留 LOCKDBG 证据到完成后，便于对照成片查库（不覆盖为 null）
+  const keepDbg =
+    typeof prev?.error_message === "string" && prev.error_message.startsWith("LOCKDBG")
+      ? prev.error_message
+      : null;
+  // #region agent log
+  agentLog("E", "video.server.ts:completeVideoJob", "complete with lock dbg", {
+    jobId,
+    keepDbg: keepDbg?.slice(0, 300) ?? null,
+    segDebug: (prev?.segments as VideoSegment[] | null)?.map((s) => ({
+      index: s.index,
+      bodyLabel: s.lockDebug?.bodyLabel ?? null,
+      refLen: s.lockDebug?.refLen ?? null,
+      bridgeBytes: s.lockDebug?.bridgeBytes ?? null,
+    })),
+  });
+  // #endregion
   const { data } = await supabase
     .from("creative_videos")
     .update({
@@ -359,6 +510,7 @@ export async function completeVideoJob(jobId: string, videoUrl: string): Promise
       stage: "DONE",
       video_url: videoUrl,
       completed_at: new Date().toISOString(),
+      ...(keepDbg ? { error_message: keepDbg } : {}),
     })
     .eq("job_id", jobId)
     .select("*")
