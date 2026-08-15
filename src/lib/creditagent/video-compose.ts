@@ -73,21 +73,13 @@ export async function composeVideo({
 
   const ffmpeg = new FFmpeg();
 
-  // 优先同源打包的 ESM core，其次 CDN 的 ESM 构建。
-  const sources: { label: string; urls: () => Promise<{ core: string; wasm: string }> }[] = [
-    {
-      label: "bundled",
-      urls: async () => {
-        const [core, wasm] = await Promise.all([
-          import("@ffmpeg/core/dist/esm/ffmpeg-core.js?url"),
-          import("@ffmpeg/core/dist/esm/ffmpeg-core.wasm?url"),
-        ]);
-        return { core: core.default as string, wasm: wasm.default as string };
-      },
-    },
+  // 优先同源托管的 ESM core（wasm 走大文件资源托管），其次 CDN 的 ESM 构建。
+  const sources: { label: string; core: string; wasm: string }[] = [
+    { label: "same-origin", core: "/wasm/ffmpeg-core.js", wasm: LOCAL_WASM_URL },
     ...CORE_CDN_BASES.map((base) => ({
       label: base,
-      urls: async () => ({ core: `${base}/ffmpeg-core.js`, wasm: `${base}/ffmpeg-core.wasm` }),
+      core: `${base}/ffmpeg-core.js`,
+      wasm: `${base}/ffmpeg-core.wasm`,
     })),
   ];
 
