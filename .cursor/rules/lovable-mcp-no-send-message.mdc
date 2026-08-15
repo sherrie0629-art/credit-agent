@@ -1,0 +1,13 @@
+---
+description: Debug cloud issues via Cursor + git push; never Lovable send_message without auth
+alwaysApply: true
+---
+
+# Lovable MCP / 云端排查约定
+
+排查 **Lovable 云端预览** 问题时：
+
+1. **默认**：在 Cursor 里写好调试/修复代码，经用户明确要求后用 **git commit + git push** 同步到连接分支，让 Lovable 预览拉取更新。
+2. **禁止默认调用** Lovable MCP 的 `send_message`（以及会启动云端 AI Agent、消耗 workspace credits 的同类写代码操作）。
+3. **仅当** 只读工具不够（例如必须让 Lovable Agent 改云端沙箱、且无法靠 push 同步）时，**先向用户说明原因并获得明确授权**，再调用 `send_message`。
+4. 查库、列项目、读文件等 **只读** Lovable MCP 工具可以照常使用，不替代上述「改代码须 push / 须授权」约定。

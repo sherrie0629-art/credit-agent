@@ -782,6 +782,85 @@ export function CreativeLibraryTab({
                             playsInline
                             preload="metadata"
                             className="mt-2 aspect-[9/16] w-full rounded bg-black object-cover"
+                            onLoadedData={() => {
+                              // #region agent log
+                              fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  "X-Debug-Session-Id": "6fd86b",
+                                },
+                                body: JSON.stringify({
+                                  sessionId: "6fd86b",
+                                  runId: "playback-pre",
+                                  hypothesisId: "C",
+                                  location: "CreativeLibraryTab.tsx:video",
+                                  message: "video loadeddata",
+                                  data: { jobId: vid.jobId, videoUrl: vid.videoUrl },
+                                  timestamp: Date.now(),
+                                }),
+                              }).catch(() => {});
+                              // #endregion
+                            }}
+                            onError={() => {
+                              void (async () => {
+                                let clientStatus: number | null = null;
+                                let clientBytes: number | null = null;
+                                let clientType: string | null = null;
+                                let clientMagic: string | null = null;
+                                let clientError: string | null = null;
+                                try {
+                                  const res = await fetch(vid.videoUrl!);
+                                  clientStatus = res.status;
+                                  clientType = res.headers.get("content-type");
+                                  const buf = new Uint8Array(await res.arrayBuffer());
+                                  clientBytes = buf.byteLength;
+                                  clientMagic = Array.from(buf.slice(0, 12))
+                                    .map((b) => b.toString(16).padStart(2, "0"))
+                                    .join("");
+                                } catch (e) {
+                                  clientError = e instanceof Error ? e.message : String(e);
+                                }
+                                // #region agent log
+                                fetch("http://127.0.0.1:7245/ingest/f05c1af9-fd58-4b84-a7ea-5cdcd71e3717", {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    "X-Debug-Session-Id": "6fd86b",
+                                  },
+                                  body: JSON.stringify({
+                                    sessionId: "6fd86b",
+                                    runId: "playback-pre",
+                                    hypothesisId: "A-E",
+                                    location: "CreativeLibraryTab.tsx:video-onError",
+                                    message: "video element error",
+                                    data: {
+                                      jobId: vid.jobId,
+                                      videoUrl: vid.videoUrl,
+                                      clientStatus,
+                                      clientBytes,
+                                      clientType,
+                                      clientMagic,
+                                      clientError,
+                                    },
+                                    timestamp: Date.now(),
+                                  }),
+                                }).catch(() => {});
+                                // #endregion
+                                await fetch("/api/probe-creative-video", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    jobId: vid.jobId,
+                                    clientStatus,
+                                    clientBytes,
+                                    clientType,
+                                    clientMagic,
+                                    clientError,
+                                  }),
+                                }).catch(() => {});
+                              })();
+                            }}
                           />
                         )}
 
