@@ -1,10 +1,11 @@
-// 短视频脚本层：把素材文案改写成「黄金前 3 秒」结构的字幕 + 两段分镜提示词。
-// 输出严格结构化，LLM 不可用或不合规时回退模板，保证视频链路不被阻断。
+// 短视频脚本层：把素材文案改写成「黄金前 3 秒」结构的英文字幕 + 两段分镜。
+// 字幕时间轴必须对齐口播；分镜提示里写入 exact spoken English lines，供 Veo 生成可对口的音轨。
+// LLM 不可用或不合规时回退模板，保证视频链路不被阻断。
 
 import { BANNED_PHRASES } from "./compliance";
 
 export interface CaptionLine {
-  /** 秒 */
+  /** 秒（整条 16 秒成片时间轴） */
   start: number;
   end: number;
   text: string;
@@ -12,7 +13,7 @@ export interface CaptionLine {
 
 export interface VideoScript {
   captions: CaptionLine[];
-  /** 两段 8 秒镜头的画面描述 */
+  /** 两段 8 秒镜头的画面描述（含必须说出的英文台词） */
   scenes: [string, string];
   source: "AI" | "TEMPLATE";
 }
@@ -25,7 +26,8 @@ export interface ScriptInput {
   loanTermRange?: string;
 }
 
-const MAX_CHARS = 18;
+/** 竖版单行英文字幕上限（约 720px / 字号 40）。 */
+const MAX_CHARS = 42;
 const TOTAL = 16;
 
 function clip(text: string) {
@@ -33,41 +35,60 @@ function clip(text: string) {
   return t.length > MAX_CHARS ? `${t.slice(0, MAX_CHARS - 1)}…` : t;
 }
 
-/** 模板兜底：同样遵守 痛点 → 卖点 → CTA 的时间轴。 */
+function linesInWindow(captions: CaptionLine[], from: number, to: number) {
+  return captions.filter((c) => c.start < to && c.end > from).map((c) => c.text);
+}
+
+function sceneWithSpeech(visual: string, spoken: string[], segmentLabel: "0-8s" | "8-16s") {
+  const beats = spoken.map((line, i) => `${i + 1}. "${line}"`).join(" ");
+  return `${visual} During this ${segmentLabel} shot the on-camera person speaks clear, natural American English at a calm ad pace, saying ONLY these lines in order without rushing or overlapping: ${beats} Match lip movement to the words. No other language. No on-screen text, no logos.`;
+}
+
+/** 模板兜底：痛点 → 卖点 → CTA；口播与字幕同一套英文。 */
 function templateScript(input: ScriptInput): VideoScript {
   const body = input.bodyText.split(/[。！？.!?;；,，]/).filter((s) => s.trim().length > 1);
   const sell1 = clip(body[0] ?? input.headline);
-  const sell2 = clip(body[1] ?? input.angle ?? "持牌机构，费率透明");
+  const sell2 = clip(body[1] ?? input.angle ?? "Licensed lender. Clear fixed rates.");
+  const captions: CaptionLine[] = [
+    { start: 0, end: 3, text: clip(input.headline) },
+    { start: 3, end: 7.5, text: sell1 },
+    { start: 7.5, end: 11.5, text: sell2 },
+    { start: 11.5, end: TOTAL, text: "Check your rate in minutes" },
+  ];
+  const spoken1 = linesInWindow(captions, 0, 8);
+  const spoken2 = linesInWindow(captions, 8, 16);
   return {
-    captions: [
-      { start: 0, end: 3, text: clip(input.headline) },
-      { start: 3, end: 7.5, text: sell1 },
-      { start: 7.5, end: 11.5, text: sell2 },
-      { start: 11.5, end: TOTAL, text: "点击了解可借额度" },
-    ],
+    captions,
     scenes: [
-      `Opening frame lands immediately inside a real everyday money-pressure moment tied to: ${input.headline}. No logo animation, no fade-in, no slow establishing shot — the very first frame already shows the person and the problem, then turns toward relief.`,
-      `Same person, same location and lighting as before. The mood resolves: the loan is approved on the phone, money arrives, the person looks relieved and confident, ending on a clear, calm final beat suitable for a call to action.`,
+      sceneWithSpeech(
+        "0–8s: Open on the first frame in a real everyday money-stress moment tied to the headline. Soft natural window light, one adult at a kitchen or living-room table looking at bills on a phone, then a turn toward relief.",
+        spoken1,
+        "0-8s",
+      ),
+      sceneWithSpeech(
+        "8–16s: Same person, same location and lighting. Mood resolves—approval on the phone, calm confidence—ending on a clear CTA beat looking toward camera.",
+        spoken2,
+        "8-16s",
+      ),
     ],
     source: "TEMPLATE",
   };
 }
 
-const INSTRUCTIONS = `你是消费信贷出海短视频的编导。为一条 16 秒竖版（9:16）广告写字幕与两段分镜。
+const INSTRUCTIONS = `You write scripts for a 16-second vertical (9:16) US consumer-lending social ad.
 
-硬性结构（必须遵守）：
-1. 0-3 秒是黄金前 3 秒：第一条字幕必须直接抛出用户痛点或核心优惠，禁止品牌铺垫、口号、寒暄。
-2. 品牌/产品在 3 秒内首次露出（写进第一条或第二条字幕的文字里；画面里不出现任何文字或 logo）。
-3. 3-11 秒讲卖点与信任要素（额度、放款速度、持牌合规）。
-4. 11-16 秒必须是明确的行动号召（CTA）。
-5. 共 4-6 条字幕，覆盖 0 到 16 秒不留空档，每条中文不超过 18 个字。
-6. 不得出现「100% 通过」「无需审核」「保证放款」这类绝对化承诺。
+Hard rules:
+1. ALL caption text MUST be English only (no Chinese). Each caption ≤ ${MAX_CHARS} characters.
+2. Captions are burned-in subtitles that MUST match spoken VO word-for-word. Caption timings are when those words are spoken.
+3. Golden first 3 seconds: first caption is a pain point or core offer—no brand warmup.
+4. Brand/product may appear in caption 1 or 2; never as on-screen logos in the video.
+5. 3–11s: benefits / trust (limits, speed, licensed lender). 11–16s: clear CTA.
+6. 4–6 captions covering 0–16s with no gaps longer than 0.4s between adjacent lines.
+7. No banned claims: "100% approval", "no credit check", "guaranteed", "no income proof", etc.
+8. scenes[0] and scenes[1] are English visual directions for two 8s shots (same person, place, lighting). Each scene MUST list the exact English lines the talent speaks in that shot, in order, matching the captions that fall in that half (0–8s vs 8–16s). Natural conversational pace so speech fills the caption windows.
 
-两段分镜（scenes）用英文写，各约 8 秒，同一主角、同一场景、同一光线，连贯衔接。
-第 1 段必须第一帧就进入真实场景，不要 logo 动画、黑场、缓慢推镜。
-两段都必须注明：no on-screen text, no logos。
-
-只输出 JSON：{"captions":[{"start":0,"end":3,"text":"..."}],"scenes":["...","..."]}`;
+Return JSON only:
+{"captions":[{"start":0,"end":3,"text":"..."}],"scenes":["...","..."]}`;
 
 function normalize(raw: unknown, input: ScriptInput): VideoScript | null {
   const obj = raw as { captions?: CaptionLine[]; scenes?: string[] } | null;
@@ -85,24 +106,29 @@ function normalize(raw: unknown, input: ScriptInput): VideoScript | null {
     .sort((a, b) => a.start - b.start);
 
   if (captions.length < 4) return null;
-  // 黄金前 3 秒：首条必须从 0 开始、3 秒内说完。
   if (captions[0]!.start > 0.2 || captions[0]!.end > 3.6) return null;
-  // 结尾必须有 CTA 时段。
   if (captions[captions.length - 1]!.end < TOTAL - 1) return null;
 
-  // 合规兜底：字幕只做禁语校验（期限/APR 披露由素材本身承载，不适用于短字幕）。
+  // Reject leftover Chinese captions from older prompts.
+  if (captions.some((c) => /[\u4e00-\u9fff]/.test(c.text))) return null;
+
   const merged = captions.map((c) => c.text).join(" ").toLowerCase();
   if (BANNED_PHRASES.some((p) => merged.includes(p))) return null;
 
+  const spoken1 = linesInWindow(captions, 0, 8);
+  const spoken2 = linesInWindow(captions, 8, 16);
+  // Force spoken lines into scenes so Veo audio tracks the subtitle copy even if the model omitted them.
+  const scene0 = sceneWithSpeech(String(scenes[0]).replace(/\s+/g, " ").trim(), spoken1, "0-8s");
+  const scene1 = sceneWithSpeech(String(scenes[1]).replace(/\s+/g, " ").trim(), spoken2, "8-16s");
 
   return {
     captions,
-    scenes: [String(scenes[0]), String(scenes[1])],
+    scenes: [scene0, scene1],
     source: "AI",
   };
 }
 
-/** 生成字幕与分镜；任何异常都回退模板。 */
+/** 生成英文字幕与分镜；任何异常都回退模板。 */
 export async function buildVideoScript(input: ScriptInput): Promise<VideoScript> {
   try {
     const { callLovableModel } = await import("./advisor.server");
@@ -112,6 +138,8 @@ export async function buildVideoScript(input: ScriptInput): Promise<VideoScript>
       angle: input.angle ?? "",
       maxApr: input.maxApr ?? null,
       loanTermRange: input.loanTermRange ?? null,
+      language: "en-US",
+      note: "Captions and spoken VO must be English and time-aligned.",
     });
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return templateScript(input);

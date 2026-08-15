@@ -41,7 +41,7 @@ function key() {
 }
 
 function wrapPrompt(scene: string) {
-  return `A vertical 9:16 social video ad segment for a licensed consumer lending brand. ${scene} Cinematic natural light, real people, trustworthy and professional tone, smooth camera motion, no on-screen text, no logos.`;
+  return `A vertical 9:16 social video ad segment for a licensed US consumer lending brand. ${scene} Cinematic natural light, real people, trustworthy professional tone, smooth camera motion. Clear English speech only, natural pacing aligned to the listed dialogue lines. No on-screen text, no logos, no Chinese speech.`;
 }
 
 /** 向网关提交一段 8 秒视频，返回任务 id。 */

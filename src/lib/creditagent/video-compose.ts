@@ -1,6 +1,6 @@
-// 浏览器端成片：把两段 8 秒 MP4 拼成约 16 秒，并把中文字幕硬烧进画面。
+// 浏览器端成片：两段 8 秒 MP4 拼成约 16 秒，并把英文字幕硬烧进画面。
 // 放在浏览器是因为服务端运行环境（Worker）跑不了 ffmpeg；
-// 字幕用 canvas 渲染成透明 PNG 再 overlay，这样不需要额外打包中文字体。
+// 字幕用 canvas 渲染成透明 PNG 再 overlay（拉丁字体，可两行换行）。
 
 import type { CaptionLine } from "./video-caption.server";
 import wasmAsset from "../../../public/wasm/ffmpeg-core.wasm.asset.json";
@@ -17,6 +17,34 @@ const H = 1280;
 
 export type ComposeStage = "LOADING" | "DOWNLOADING" | "RENDERING" | "ENCODING";
 
+function wrapCaptionLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [text];
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(test).width > maxWidth && cur) {
+      lines.push(cur);
+      cur = w;
+      if (lines.length === 2) {
+        // 剩余词并入第二行并截断
+        const rest = [w, ...words.slice(words.indexOf(w) + 1)].join(" ");
+        let second = rest;
+        while (second.length > 1 && ctx.measureText(`${second}…`).width > maxWidth) {
+          second = second.slice(0, -1);
+        }
+        lines[1] = ctx.measureText(rest).width > maxWidth ? `${second}…` : rest;
+        return lines;
+      }
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, 2);
+}
+
 /** 把一条字幕画成整幅透明 PNG（底部字幕条），交给 ffmpeg overlay。 */
 async function captionPng(text: string): Promise<Uint8Array> {
   const canvas = document.createElement("canvas");
@@ -25,16 +53,21 @@ async function captionPng(text: string): Promise<Uint8Array> {
   const ctx = canvas.getContext("2d")!;
   ctx.clearRect(0, 0, W, H);
 
-  const fontSize = 46;
-  ctx.font = `700 ${fontSize}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif`;
+  const fontSize = 40;
+  ctx.font = `700 ${fontSize}px Inter, "Helvetica Neue", Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const metrics = ctx.measureText(text);
   const padX = 28;
-  const boxW = Math.min(W - 48, metrics.width + padX * 2);
-  const boxH = fontSize + 34;
-  const boxY = H - 240;
+  const maxTextW = W - 48 - padX * 2;
+  const lines = wrapCaptionLines(ctx, text, maxTextW);
+  const lineGap = fontSize + 8;
+  const boxH = lineGap * lines.length + 28;
+  const boxW = Math.min(
+    W - 48,
+    Math.max(...lines.map((l) => ctx.measureText(l).width)) + padX * 2,
+  );
+  const boxY = H - 240 - (lines.length > 1 ? 12 : 0);
 
   ctx.fillStyle = "rgba(0,0,0,0.62)";
   const x = (W - boxW) / 2;
@@ -49,7 +82,10 @@ async function captionPng(text: string): Promise<Uint8Array> {
   ctx.fill();
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, W / 2, boxY + boxH / 2, boxW - padX);
+  const textTop = boxY + boxH / 2 - ((lines.length - 1) * lineGap) / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, W / 2, textTop + i * lineGap, boxW - padX);
+  });
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("字幕渲染失败");

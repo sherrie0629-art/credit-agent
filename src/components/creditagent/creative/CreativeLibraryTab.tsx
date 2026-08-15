@@ -834,7 +834,7 @@ export function CreativeLibraryTab({
                             title={
                               v.complianceStatus === "FAILED"
                                 ? "合规未通过的变体不可生成视频"
-                                : "生成 16 秒竖版短视频（两段 8 秒拼接，带烧录字幕）"
+                                : "生成 16 秒竖版短视频（两段 8 秒拼接，英文字幕对齐口播）"
                             }
                             className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
                           >
