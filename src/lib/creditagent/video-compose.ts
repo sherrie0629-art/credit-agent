@@ -3,6 +3,9 @@
 // 字幕用 canvas 渲染成透明 PNG 再 overlay，这样不需要额外打包中文字体。
 
 import type { CaptionLine } from "./video-caption.server";
+import wasmAsset from "../../../public/wasm/ffmpeg-core.wasm.asset.json";
+
+const LOCAL_WASM_URL = (wasmAsset as { url: string }).url;
 
 // 必须是 ESM 构建：ffmpeg.load() 对 core 走 dynamic import()，UMD 无法被浏览器 import。
 const CORE_CDN_BASES = [
