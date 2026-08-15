@@ -115,6 +115,8 @@ export function CreativeLibraryTab({
   const [videos, setVideos] = useState<Record<string, VideoJob>>({});
   const [videoStage, setVideoStage] = useState<Record<string, string>>({});
   const pollers = useRef<Record<string, number>>({});
+  const composing = useRef<Record<string, boolean>>({});
+
 
 
 
