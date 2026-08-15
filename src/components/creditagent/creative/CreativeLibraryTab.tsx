@@ -114,7 +114,7 @@ export function CreativeLibraryTab({
 
   const [videos, setVideos] = useState<Record<string, VideoJob>>({});
   const [videoStage, setVideoStage] = useState<Record<string, string>>({});
-  /** 仅合成进度（柔化重合成 / 首次拼片），不占用「生成短视频」按钮文案。 */
+  /** 浏览器拼片进度（首次生成后的自动合成），不占用「生成短视频」的模型阶段文案。 */
   const [composeStage, setComposeStage] = useState<Record<string, string>>({});
   const pollers = useRef<Record<string, number>>({});
   const composing = useRef<Record<string, boolean>>({});
@@ -828,7 +828,6 @@ export function CreativeLibraryTab({
                     const img = p?.src ?? v.imageUrl;
                     const vid = videos[v.id];
                     const composingBusy = Boolean(composeStage[v.id]);
-                    // 生成管线 busy（含首次自动合成）；柔化重合成单独用 composingBusy，避免两个按钮一起转圈。
                     const generatingBusy =
                       Boolean(videoStage[v.id]) ||
                       vid?.status === "RUNNING" ||
@@ -864,64 +863,83 @@ export function CreativeLibraryTab({
                           <span className="ml-auto label-mono">{VARIANT_STATUS_LABEL[v.status]}</span>
                         </div>
 
-                        {img && !failed[v.id] ? (
-                          <img
-                            src={p?.src && !p.final ? img : creativeThumbUrl(img, 480)}
-                            alt={`变体主视觉：${v.angle}`}
-                            loading="lazy"
-                            decoding="async"
-                            fetchPriority="low"
-                            onError={() => setFailed((s) => ({ ...s, [v.id]: true }))}
-                            className={cn(
-                              "mt-2 aspect-video w-full rounded object-cover transition-[filter]",
-                              p && !p.final ? "blur-xl" : "blur-0",
-                            )}
-                          />
-                        ) : (
-                          <div className="mt-2 flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
-                            {stage[v.id] ? (
-                              <Loader2 className="size-5 animate-spin text-neon" />
-                            ) : (
-                              <ImageIcon className="size-5 opacity-60" />
-                            )}
-                            <span className="text-[11px]">
-                              {stage[v.id]
-                                ? stage[v.id]
-                                : failed[v.id]
-                                  ? "图片加载失败，可重新生成"
-                                  : "尚未生成主视觉"}
-                            </span>
-                          </div>
-                        )}
+                        {(() => {
+                          const hasHero = Boolean(img && !failed[v.id]);
+                          const hasVideo = vid?.status === "COMPLETED" && Boolean(vid.videoUrl);
+                          const heroBlock = hasHero ? (
+                            <img
+                              src={p?.src && !p.final ? img : creativeThumbUrl(img!, 480)}
+                              alt={`变体主视觉：${v.angle}`}
+                              loading="lazy"
+                              decoding="async"
+                              fetchPriority="low"
+                              onError={() => setFailed((s) => ({ ...s, [v.id]: true }))}
+                              className={cn(
+                                "aspect-video w-full rounded object-cover transition-[filter]",
+                                p && !p.final ? "blur-xl" : "blur-0",
+                              )}
+                            />
+                          ) : (
+                            <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
+                              {stage[v.id] ? (
+                                <Loader2 className="size-5 animate-spin text-neon" />
+                              ) : (
+                                <ImageIcon className="size-5 opacity-60" />
+                              )}
+                              <span className="text-[11px]">
+                                {stage[v.id]
+                                  ? stage[v.id]
+                                  : failed[v.id]
+                                    ? "图片加载失败，可重新生成"
+                                    : "尚未生成主视觉"}
+                              </span>
+                            </div>
+                          );
+                          const videoBlock = hasVideo ? (
+                            <div className="flex justify-center">
+                              <video
+                                src={vid.videoUrl}
+                                poster={img ? creativeThumbUrl(img, 720) : undefined}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                className="aspect-[9/16] max-h-[220px] w-auto rounded bg-black object-cover"
+                                onError={(ev) => {
+                                  void (async () => {
+                                    const el = ev.currentTarget;
+                                    if (el.dataset.blobFallback) return;
+                                    try {
+                                      const res = await fetch(vid.videoUrl!);
+                                      if (!res.ok) return;
+                                      const buf = new Uint8Array(await res.arrayBuffer());
+                                      if (buf.byteLength === 0) return;
+                                      el.dataset.blobFallback = "1";
+                                      el.src = URL.createObjectURL(
+                                        new Blob([buf], { type: "video/mp4" }),
+                                      );
+                                      el.load();
+                                    } catch {
+                                      /* 保持原生错误态 */
+                                    }
+                                  })();
+                                }}
+                              />
+                            </div>
+                          ) : null;
 
-                        {vid?.status === "COMPLETED" && vid.videoUrl && (
-                          <video
-                            src={vid.videoUrl}
-                            controls
-                            playsInline
-                            preload="metadata"
-                            className="mt-2 aspect-[9/16] w-full rounded bg-black object-cover"
-                            onError={(ev) => {
-                              void (async () => {
-                                const el = ev.currentTarget;
-                                if (el.dataset.blobFallback) return;
-                                try {
-                                  const res = await fetch(vid.videoUrl!);
-                                  if (!res.ok) return;
-                                  const buf = new Uint8Array(await res.arrayBuffer());
-                                  if (buf.byteLength === 0) return;
-                                  el.dataset.blobFallback = "1";
-                                  el.src = URL.createObjectURL(
-                                    new Blob([buf], { type: "video/mp4" }),
-                                  );
-                                  el.load();
-                                } catch {
-                                  /* 保持原生错误态 */
-                                }
-                              })();
-                            }}
-                          />
-                        )}
+                          if (hasHero && hasVideo) {
+                            return (
+                              <div className="mt-2 grid grid-cols-2 items-start gap-2">
+                                {heroBlock}
+                                {videoBlock}
+                              </div>
+                            );
+                          }
+                          if (hasVideo) {
+                            return <div className="mt-2">{videoBlock}</div>;
+                          }
+                          return <div className="mt-2">{heroBlock}</div>;
+                        })()}
 
                         <p className="mt-2 text-[11px] text-neon">{v.angle}</p>
                         <p className="mt-1 text-xs font-medium">{v.headline}</p>
@@ -974,25 +992,6 @@ export function CreativeLibraryTab({
                                   ? "重新生成短视频"
                                   : "生成短视频")}
                           </button>
-
-                          {vid?.status === "COMPLETED" &&
-                            (vid.segments ?? []).filter((s) => s.url).length >= 2 && (
-                              <button
-                                type="button"
-                                onClick={() => void runCompose({ ...vid, targetId: v.id })}
-                                disabled={videoLocked}
-                                title="用已有两段素材重新合成（交叉淡化衔接，不重新调用视频模型）"
-                                className="inline-flex w-full items-center justify-center gap-2 rounded border border-border px-2 py-1.5 text-[11px] transition-colors hover:border-neon/50 hover:text-neon disabled:opacity-50"
-                              >
-                                {composingBusy ? (
-                                  <Loader2 className="size-3 animate-spin" />
-                                ) : (
-                                  <VideoIcon className="size-3" />
-                                )}
-                                {composeStage[v.id] ?? "柔化重合成（不重跑模型）"}
-                              </button>
-                            )}
-
 
                           <button
                             onClick={() =>
