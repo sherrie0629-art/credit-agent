@@ -90,16 +90,10 @@ function normalize(raw: unknown, input: ScriptInput): VideoScript | null {
   // 结尾必须有 CTA 时段。
   if (captions[captions.length - 1]!.end < TOTAL - 1) return null;
 
-  // 合规兜底：字幕整体过一次禁语与 APR 校验。
-  const merged = captions.map((c) => c.text).join(" ");
-  const verdict = scanCompliance({
-    headline: captions[0]!.text,
-    bodyText: merged,
-    loanTermRange: input.loanTermRange ?? "—",
-    maxApr: input.maxApr ?? 0,
-    specialAdCategory: false,
-  });
-  if (verdict.status === "FAILED") return null;
+  // 合规兜底：字幕只做禁语校验（期限/APR 披露由素材本身承载，不适用于短字幕）。
+  const merged = captions.map((c) => c.text).join(" ").toLowerCase();
+  if (BANNED_PHRASES.some((p) => merged.includes(p))) return null;
+
 
   return {
     captions,
