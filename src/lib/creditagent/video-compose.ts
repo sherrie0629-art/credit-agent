@@ -87,7 +87,7 @@ export async function composeVideo({
   const loadErrors: string[] = [];
   for (const src of sources) {
     try {
-      const { core, wasm } = await src.urls();
+      const { core, wasm } = src;
       await ffmpeg.load({
         coreURL: await toBlobURL(core, "text/javascript"),
         wasmURL: await toBlobURL(wasm, "application/wasm"),
