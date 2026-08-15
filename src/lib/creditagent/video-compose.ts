@@ -4,9 +4,10 @@
 
 import type { CaptionLine } from "./video-caption.server";
 
-const CORE_BASES = [
-  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd",
-  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd",
+// 必须是 ESM 构建：ffmpeg.load() 对 core 走 dynamic import()，UMD 无法被浏览器 import。
+const CORE_CDN_BASES = [
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm",
+  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm",
 ];
 const W = 720;
 const H = 1280;
