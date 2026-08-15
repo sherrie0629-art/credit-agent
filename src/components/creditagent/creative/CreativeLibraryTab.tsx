@@ -245,6 +245,7 @@ export function CreativeLibraryTab({
         setVideos(map);
         for (const j of data.jobs) {
           if (j.status === "QUEUED" || j.status === "RUNNING") pollVideo(j.targetId, j.jobId);
+          if (j.status === "COMPOSING") void runCompose(j);
         }
       } catch {
         /* 视频是增值能力，拉取失败不影响素材库 */
@@ -258,21 +259,83 @@ export function CreativeLibraryTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** 两段都出片后，在浏览器里拼接 + 烧字幕，再把成片回传落库。 */
+  async function runCompose(job: VideoJob) {
+    const targetId = job.targetId;
+    if (composing.current[targetId]) return;
+    composing.current[targetId] = true;
+    const urls = (job.segments ?? [])
+      .filter((s) => s.url)
+      .sort((a, b) => a.index - b.index)
+      .map((s) => s.url!);
+    try {
+      if (urls.length < 2) throw new Error("分段视频缺失");
+      const { composeVideo } = await import("@/lib/creditagent/video-compose");
+      const bytes = await composeVideo({
+        segmentUrls: urls,
+        captions: job.captions ?? [],
+        onStage: (s) =>
+          setVideoStage((p) => ({
+            ...p,
+            [targetId]:
+              s === "LOADING"
+                ? "加载合成引擎…"
+                : s === "DOWNLOADING"
+                  ? "下载分段素材…"
+                  : s === "RENDERING"
+                    ? "渲染字幕…"
+                    : "拼接与烧录字幕…（约 1-2 分钟）",
+          })),
+      });
+      const res = await fetch(`/api/save-creative-video?jobId=${encodeURIComponent(job.jobId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: bytes as unknown as BodyInit,
+      });
+      if (!res.ok) throw new Error("成片保存失败");
+      const saved = (await res.json()) as VideoJob;
+      setVideos((v) => ({ ...v, [targetId]: { ...saved, targetId } }));
+      toast.success("16 秒带字幕短视频已生成");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "视频合成失败", {
+        action: { label: "重新合成", onClick: () => void runCompose(job) },
+      });
+    } finally {
+      composing.current[targetId] = false;
+      setVideoStage((p) => {
+        const next = { ...p };
+        delete next[targetId];
+        return next;
+      });
+    }
+  }
+
   function pollVideo(targetId: string, jobId: string) {
     if (pollers.current[targetId]) return;
     const startedAt = Date.now();
     const run = async () => {
       const s = Math.round((Date.now() - startedAt) / 1000);
-      setVideoStage((p) => ({ ...p, [targetId]: `AI 正在生成视频… ${s}s（通常 1-3 分钟）` }));
       try {
         const res = await fetch(`/api/creative-video-status?jobId=${encodeURIComponent(jobId)}`);
         if (!res.ok) return;
         const job = (await res.json()) as VideoJob & { error?: string };
         if (!job.status) return;
         setVideos((v) => ({ ...v, [targetId]: { ...job, targetId, jobId } }));
-        if (job.status === "COMPLETED" || job.status === "FAILED") {
+        setVideoStage((p) => ({
+          ...p,
+          [targetId]:
+            job.stage === "SEGMENT_2"
+              ? `生成第 2 段（共 2 段）… ${s}s`
+              : `生成第 1 段（共 2 段）… ${s}s`,
+        }));
+        if (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "COMPOSING") {
           window.clearInterval(pollers.current[targetId]!);
           delete pollers.current[targetId];
+          if (job.status === "COMPOSING") {
+            setVideoStage((p) => ({ ...p, [targetId]: "两段已就绪，开始合成…" }));
+            void runCompose({ ...job, targetId, jobId });
+            return;
+          }
           setVideoStage((p) => {
             const next = { ...p };
             delete next[targetId];
@@ -290,7 +353,7 @@ export function CreativeLibraryTab({
   }
 
   async function handleVideo(targetId: string, prompt: string) {
-    setVideoStage((p) => ({ ...p, [targetId]: "任务提交中…" }));
+    setVideoStage((p) => ({ ...p, [targetId]: "写字幕脚本中…" }));
     try {
       const res = await fetch("/api/generate-creative-video", {
         method: "POST",
@@ -300,7 +363,7 @@ export function CreativeLibraryTab({
       const job = (await res.json()) as VideoJob & { error?: string };
       if (!res.ok || !job.jobId) throw new Error(job.error ?? "视频生成请求失败");
       setVideos((v) => ({ ...v, [targetId]: { ...job, targetId } }));
-      toast.info("视频任务已提交，生成约需 1-3 分钟");
+      toast.info("视频任务已提交：两段 8 秒串行生成，约需 3-6 分钟");
       pollVideo(targetId, job.jobId);
     } catch (err) {
       setVideoStage((p) => {
@@ -308,6 +371,7 @@ export function CreativeLibraryTab({
         delete next[targetId];
         return next;
       });
+
       toast.error(err instanceof Error ? err.message : "视频生成失败");
     }
   }
