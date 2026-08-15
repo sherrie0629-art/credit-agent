@@ -140,13 +140,27 @@ export async function composeVideo({
   onStage?.("ENCODING");
   try {
     await ffmpeg.exec(build(true));
-  } catch {
+  } catch (audioErr) {
     // 某些分段可能没有音轨，退化成无声成片而不是整体失败。
-    await ffmpeg.exec(build(false));
+    try {
+      await ffmpeg.exec(build(false));
+    } catch (e) {
+      throw new Error(
+        `视频编码失败：${e instanceof Error ? e.message : String(e)}（含音轨尝试：${
+          audioErr instanceof Error ? audioErr.message : String(audioErr)
+        }）`,
+      );
+    }
   }
 
-  const out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
+  let out: Uint8Array;
+  try {
+    out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
+  } catch (e) {
+    ffmpeg.terminate();
+    throw new Error(`视频编码失败：${e instanceof Error ? e.message : String(e)}`);
+  }
   ffmpeg.terminate();
-  if (!out || out.byteLength === 0) throw new Error("视频合成失败");
+  if (!out || out.byteLength === 0) throw new Error("视频编码失败：输出为空");
   return out;
 }
