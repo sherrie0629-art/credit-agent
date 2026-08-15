@@ -10,7 +10,22 @@ async function admin() {
   return getAdminClient();
 }
 
+/** 按指定路径上传 MP4 字节，返回可播放的代理短路径。 */
+export async function storeVideoBytes(path: string, bytes: Uint8Array): Promise<string | null> {
+  const supabase = await admin();
+  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
+    contentType: "video/mp4",
+    upsert: true,
+  });
+  if (error) {
+    console.error("[creative-video] upload failed", error);
+    return null;
+  }
+  return `${VIDEO_ROUTE_PREFIX}/${path}`;
+}
+
 /** 上传 MP4 字节，返回可直接放进 <video src> 的短路径。 */
+
 export async function storeVariantVideoBytes(
   jobId: string,
   bytes: Uint8Array,
