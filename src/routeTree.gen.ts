@@ -16,6 +16,7 @@ import { Route as ConversionsRouteImport } from './routes/conversions'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSaveCreativeVideoRouteImport } from './routes/api/save-creative-video'
 import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
 import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
 import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
@@ -60,6 +61,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSaveCreativeVideoRoute = ApiSaveCreativeVideoRouteImport.update({
+  id: '/api/save-creative-video',
+  path: '/api/save-creative-video',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
+  '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
+  '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/api/generate-creative-image': typeof ApiGenerateCreativeImageRoute
   '/api/generate-creative-video': typeof ApiGenerateCreativeVideoRoute
   '/api/save-creative-image': typeof ApiSaveCreativeImageRoute
+  '/api/save-creative-video': typeof ApiSaveCreativeVideoRoute
   '/api/public/leads': typeof ApiPublicLeadsRoute
   '/api/public/loan-events': typeof ApiPublicLoanEventsRoute
   '/api/public/creative-image/$': typeof ApiPublicCreativeImageSplatRoute
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
+    | '/api/save-creative-video'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
+    | '/api/save-creative-video'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/api/generate-creative-image'
     | '/api/generate-creative-video'
     | '/api/save-creative-image'
+    | '/api/save-creative-video'
     | '/api/public/leads'
     | '/api/public/loan-events'
     | '/api/public/creative-image/$'
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   ApiGenerateCreativeImageRoute: typeof ApiGenerateCreativeImageRoute
   ApiGenerateCreativeVideoRoute: typeof ApiGenerateCreativeVideoRoute
   ApiSaveCreativeImageRoute: typeof ApiSaveCreativeImageRoute
+  ApiSaveCreativeVideoRoute: typeof ApiSaveCreativeVideoRoute
   ApiPublicLeadsRoute: typeof ApiPublicLeadsRoute
   ApiPublicLoanEventsRoute: typeof ApiPublicLoanEventsRoute
   ApiPublicCreativeImageSplatRoute: typeof ApiPublicCreativeImageSplatRoute
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/save-creative-video': {
+      id: '/api/save-creative-video'
+      path: '/api/save-creative-video'
+      fullPath: '/api/save-creative-video'
+      preLoaderRoute: typeof ApiSaveCreativeVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/save-creative-image': {
@@ -392,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateCreativeImageRoute: ApiGenerateCreativeImageRoute,
   ApiGenerateCreativeVideoRoute: ApiGenerateCreativeVideoRoute,
   ApiSaveCreativeImageRoute: ApiSaveCreativeImageRoute,
+  ApiSaveCreativeVideoRoute: ApiSaveCreativeVideoRoute,
   ApiPublicLeadsRoute: ApiPublicLeadsRoute,
   ApiPublicLoanEventsRoute: ApiPublicLoanEventsRoute,
   ApiPublicCreativeImageSplatRoute: ApiPublicCreativeImageSplatRoute,
