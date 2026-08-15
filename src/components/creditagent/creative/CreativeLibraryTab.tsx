@@ -703,7 +703,9 @@ export function CreativeLibraryTab({
                     const videoBusy =
                       Boolean(videoStage[v.id]) ||
                       vid?.status === "RUNNING" ||
-                      vid?.status === "QUEUED";
+                      vid?.status === "QUEUED" ||
+                      vid?.status === "COMPOSING";
+
 
                     return (
                       <div key={v.id} className="rounded border border-border bg-background/50 p-3">
