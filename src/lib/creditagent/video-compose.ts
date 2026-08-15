@@ -72,22 +72,41 @@ export async function composeVideo({
   ]);
 
   const ffmpeg = new FFmpeg();
-  // unpkg 偶发不可用，失败后退到 jsdelivr。
+
+  // 优先同源打包的 ESM core，其次 CDN 的 ESM 构建。
+  const sources: { label: string; urls: () => Promise<{ core: string; wasm: string }> }[] = [
+    {
+      label: "bundled",
+      urls: async () => {
+        const [core, wasm] = await Promise.all([
+          import("@ffmpeg/core/dist/esm/ffmpeg-core.js?url"),
+          import("@ffmpeg/core/dist/esm/ffmpeg-core.wasm?url"),
+        ]);
+        return { core: core.default as string, wasm: wasm.default as string };
+      },
+    },
+    ...CORE_CDN_BASES.map((base) => ({
+      label: base,
+      urls: async () => ({ core: `${base}/ffmpeg-core.js`, wasm: `${base}/ffmpeg-core.wasm` }),
+    })),
+  ];
+
   let loaded = false;
-  let loadError = "";
-  for (const base of CORE_BASES) {
+  const loadErrors: string[] = [];
+  for (const src of sources) {
     try {
+      const { core, wasm } = await src.urls();
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+        coreURL: await toBlobURL(core, "text/javascript"),
+        wasmURL: await toBlobURL(wasm, "application/wasm"),
       });
       loaded = true;
       break;
     } catch (e) {
-      loadError = `${base}: ${e instanceof Error ? e.message : String(e)}`;
+      loadErrors.push(`${src.label}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  if (!loaded) throw new Error(`合成引擎加载失败：${loadError}`);
+  if (!loaded) throw new Error(`合成引擎加载失败：${loadErrors.join(" | ")}`);
 
   onStage?.("DOWNLOADING");
   for (let i = 0; i < segmentUrls.length; i++) {
