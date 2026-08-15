@@ -71,21 +71,44 @@ export async function composeVideo({
   ]);
 
   const ffmpeg = new FFmpeg();
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-  });
+  // unpkg 偶发不可用，失败后退到 jsdelivr。
+  let loaded = false;
+  let loadError = "";
+  for (const base of CORE_BASES) {
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+      });
+      loaded = true;
+      break;
+    } catch (e) {
+      loadError = `${base}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  if (!loaded) throw new Error(`合成引擎加载失败：${loadError}`);
 
   onStage?.("DOWNLOADING");
   for (let i = 0; i < segmentUrls.length; i++) {
-    const res = await fetch(segmentUrls[i]!);
-    if (!res.ok) throw new Error("分段视频下载失败");
+    let res: Response;
+    try {
+      res = await fetch(segmentUrls[i]!);
+    } catch (e) {
+      throw new Error(
+        `分段视频下载失败（段${i + 1} ${e instanceof Error ? e.message : String(e)}）`,
+      );
+    }
+    if (!res.ok) throw new Error(`分段视频下载失败（段${i + 1} HTTP ${res.status}）`);
     await ffmpeg.writeFile(`seg${i + 1}.mp4`, new Uint8Array(await res.arrayBuffer()));
   }
 
   onStage?.("RENDERING");
   for (let i = 0; i < captions.length; i++) {
-    await ffmpeg.writeFile(`cap${i}.png`, await captionPng(captions[i]!.text));
+    try {
+      await ffmpeg.writeFile(`cap${i}.png`, await captionPng(captions[i]!.text));
+    } catch (e) {
+      throw new Error(`字幕渲染失败：${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   const inputs: string[] = [];
