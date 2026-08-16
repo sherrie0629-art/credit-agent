@@ -867,9 +867,10 @@ export function CreativeLibraryTab({
                           const hasHero = Boolean(img && !failed[v.id]);
                           const hasVideo = vid?.status === "COMPLETED" && Boolean(vid.videoUrl);
                           // 主视觉与视频封面共用同一张小图：避免 w=720 再打一次缩略图，
-                          // 竖图按宽 720 会变成约 720×1280 PNG，流式解码就会从上往下刷。
+                          // 竖图按宽 720 就会变成约 720×1280 PNG，流式解码就会从上往下刷。
                           const thumbSrc = img ? creativeThumbUrl(img, 256) : undefined;
-                          const heroBlock = hasHero ? (
+
+                          const heroImg = hasHero ? (
                             <img
                               src={p?.src && !p.final ? img : thumbSrc}
                               alt={`变体主视觉：${v.angle}`}
@@ -878,12 +879,14 @@ export function CreativeLibraryTab({
                               fetchPriority="low"
                               onError={() => setFailed((s) => ({ ...s, [v.id]: true }))}
                               className={cn(
-                                "aspect-video w-full rounded object-cover transition-[filter]",
+                                "h-full w-full object-cover transition-[filter]",
                                 p && !p.final ? "blur-xl" : "blur-0",
                               )}
                             />
-                          ) : (
-                            <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded border border-dashed border-border bg-muted/40 text-muted-foreground">
+                          ) : null;
+
+                          const heroPlaceholder = (
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 text-muted-foreground">
                               {stage[v.id] ? (
                                 <Loader2 className="size-5 animate-spin text-neon" />
                               ) : (
@@ -898,6 +901,7 @@ export function CreativeLibraryTab({
                               </span>
                             </div>
                           );
+
                           const videoEl = hasVideo ? (
                             <video
                               src={vid.videoUrl}
@@ -905,7 +909,7 @@ export function CreativeLibraryTab({
                               controls
                               playsInline
                               preload="none"
-                              className="aspect-[9/16] max-h-[220px] w-auto bg-black object-cover"
+                              className="h-full w-full bg-black object-cover"
                               onError={(ev) => {
                                 void (async () => {
                                   const el = ev.currentTarget;
@@ -928,22 +932,66 @@ export function CreativeLibraryTab({
                             />
                           ) : null;
 
+                          // 主视觉 + 短视频同时存在：使用统一高度的标签网格式并排布局
                           if (hasHero && hasVideo) {
                             return (
-                              <div className="mt-3 flex items-center gap-3">
-                                <div className="min-w-0 flex-1">{heroBlock}</div>
-                                <div className="shrink-0 overflow-hidden rounded">{videoEl}</div>
+                              <div className="mt-3 flex h-44 gap-3">
+                                <div className="relative min-w-0 flex-[3] overflow-hidden rounded-xl border border-border/60">
+                                  {heroImg}
+                                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                  <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
+                                    主视觉
+                                  </span>
+                                </div>
+                                <div className="group relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border/60">
+                                  {videoEl}
+                                  <div className="pointer-events-none absolute inset-0 bg-black/30 transition-colors group-hover:bg-black/50" />
+                                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 shadow-xl backdrop-blur-md transition-transform duration-300 group-hover:scale-110">
+                                      <svg
+                                        className="h-4 w-4 translate-x-0.5 fill-current text-white"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path d="M8 5v14l11-7z" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                  <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
+                                    短视频
+                                  </span>
+                                </div>
                               </div>
                             );
                           }
+
+                          // 仅图片：保持原有 16:9 单媒体展示
+                          if (hasHero) {
+                            return (
+                              <div className="mt-2">
+                                <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border/60">
+                                  {heroImg}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // 仅视频：保持原有居中竖版展示
                           if (hasVideo) {
                             return (
-                              <div className="mt-2 flex justify-center overflow-hidden rounded">
-                                {videoEl}
+                              <div className="mt-2 flex justify-center overflow-hidden rounded-xl">
+                                <div className="relative aspect-[9/16] max-h-[220px] w-auto overflow-hidden rounded-xl border border-border/60">
+                                  {videoEl}
+                                  <div className="pointer-events-none absolute inset-0 bg-black/30 transition-colors group-hover:bg-black/50" />
+                                  <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
+                                    短视频
+                                  </span>
+                                </div>
                               </div>
                             );
                           }
-                          return <div className="mt-2">{heroBlock}</div>;
+
+                          // 两者都没有：显示占位
+                          return <div className="mt-2 h-44">{heroPlaceholder}</div>;
                         })()}
 
                         <p className="mt-3 text-[11px] text-neon">{v.angle}</p>
