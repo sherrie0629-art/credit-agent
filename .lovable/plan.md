@@ -11,9 +11,13 @@
 - 重新生成主视觉 / 重新生成短视频 / 送去合规审查 三个按钮位置不变。
 - 合规评分、变体状态、复选框等现有元素不受影响。
 
+## 先决条件
+
+当前项目存在一个 TypeScript 构建错误：`src/routes/api/public/creative-video/$.ts:47` 把 `Uint8Array` 直接传给 `new Response()`。实施本方案前会先把它包成 `new Blob([bytes], { type: contentType })`，确保构建通过、短视频预览可用。
+
 ## 改动范围
 
-仅修改 `src/components/creditagent/creative/CreativeLibraryTab.tsx` 中渲染变体卡片媒体区的局部 JSX（约第 866–947 行）。
+主要修改 `src/components/creditagent/creative/CreativeLibraryTab.tsx` 中渲染变体卡片媒体区的局部 JSX（约第 866–947 行）；同时修复上述构建错误。
 
 ## 具体实现
 
