@@ -866,9 +866,12 @@ export function CreativeLibraryTab({
                         {(() => {
                           const hasHero = Boolean(img && !failed[v.id]);
                           const hasVideo = vid?.status === "COMPLETED" && Boolean(vid.videoUrl);
+                          // 主视觉与视频封面共用同一张小图：避免 w=720 再打一次缩略图，
+                          // 竖图按宽 720 会变成约 720×1280 PNG，流式解码就会从上往下刷。
+                          const thumbSrc = img ? creativeThumbUrl(img, 256) : undefined;
                           const heroBlock = hasHero ? (
                             <img
-                              src={p?.src && !p.final ? img : creativeThumbUrl(img!, 480)}
+                              src={p?.src && !p.final ? img : thumbSrc}
                               alt={`变体主视觉：${v.angle}`}
                               loading="lazy"
                               decoding="async"
@@ -895,55 +898,57 @@ export function CreativeLibraryTab({
                               </span>
                             </div>
                           );
-                          const videoBlock = hasVideo ? (
-                            <div className="flex justify-center">
-                              <video
-                                src={vid.videoUrl}
-                                poster={img ? creativeThumbUrl(img, 720) : undefined}
-                                controls
-                                playsInline
-                                preload="metadata"
-                                className="aspect-[9/16] max-h-[220px] w-auto rounded bg-black object-cover"
-                                onError={(ev) => {
-                                  void (async () => {
-                                    const el = ev.currentTarget;
-                                    if (el.dataset.blobFallback) return;
-                                    try {
-                                      const res = await fetch(vid.videoUrl!);
-                                      if (!res.ok) return;
-                                      const buf = new Uint8Array(await res.arrayBuffer());
-                                      if (buf.byteLength === 0) return;
-                                      el.dataset.blobFallback = "1";
-                                      el.src = URL.createObjectURL(
-                                        new Blob([buf], { type: "video/mp4" }),
-                                      );
-                                      el.load();
-                                    } catch {
-                                      /* 保持原生错误态 */
-                                    }
-                                  })();
-                                }}
-                              />
-                            </div>
+                          const videoEl = hasVideo ? (
+                            <video
+                              src={vid.videoUrl}
+                              poster={thumbSrc}
+                              controls
+                              playsInline
+                              preload="none"
+                              className="aspect-[9/16] max-h-[220px] w-auto bg-black object-cover"
+                              onError={(ev) => {
+                                void (async () => {
+                                  const el = ev.currentTarget;
+                                  if (el.dataset.blobFallback) return;
+                                  try {
+                                    const res = await fetch(vid.videoUrl!);
+                                    if (!res.ok) return;
+                                    const buf = new Uint8Array(await res.arrayBuffer());
+                                    if (buf.byteLength === 0) return;
+                                    el.dataset.blobFallback = "1";
+                                    el.src = URL.createObjectURL(
+                                      new Blob([buf], { type: "video/mp4" }),
+                                    );
+                                    el.load();
+                                  } catch {
+                                    /* 保持原生错误态 */
+                                  }
+                                })();
+                              }}
+                            />
                           ) : null;
 
                           if (hasHero && hasVideo) {
                             return (
-                              <div className="mt-2 grid grid-cols-2 items-start gap-2">
-                                {heroBlock}
-                                {videoBlock}
+                              <div className="mt-3 flex items-center gap-3">
+                                <div className="min-w-0 flex-1">{heroBlock}</div>
+                                <div className="shrink-0 overflow-hidden rounded">{videoEl}</div>
                               </div>
                             );
                           }
                           if (hasVideo) {
-                            return <div className="mt-2">{videoBlock}</div>;
+                            return (
+                              <div className="mt-2 flex justify-center overflow-hidden rounded">
+                                {videoEl}
+                              </div>
+                            );
                           }
                           return <div className="mt-2">{heroBlock}</div>;
                         })()}
 
-                        <p className="mt-2 text-[11px] text-neon">{v.angle}</p>
+                        <p className="mt-3 text-[11px] text-neon">{v.angle}</p>
                         <p className="mt-1 text-xs font-medium">{v.headline}</p>
-                        <p className="mt-1 line-clamp-4 text-[11px] text-muted-foreground">
+                        <p className="mt-1 line-clamp-3 text-[11px] text-muted-foreground">
                           {v.bodyText}
                         </p>
 
