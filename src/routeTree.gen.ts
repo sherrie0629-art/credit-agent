@@ -9,50 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AnalyticsRouteImport } from './routes/analytics'
-import { Route as CampaignsRouteImport } from './routes/campaigns'
-import { Route as ConversionsRouteImport } from './routes/conversions'
-import { Route as CreativeRouteImport } from './routes/creative'
-import { Route as LpRouteImport } from './routes/lp'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as ApiContinueCreativeVideoRouteImport } from './routes/api/continue-creative-video'
-import { Route as ApiCreativeVideoStatusRouteImport } from './routes/api/creative-video-status'
-import { Route as ApiFailCreativeVideoRouteImport } from './routes/api/fail-creative-video'
-import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
-import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
-import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
+import { Route as LpRouteImport } from './routes/lp'
+import { Route as CreativeRouteImport } from './routes/creative'
+import { Route as ConversionsRouteImport } from './routes/conversions'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiSaveCreativeVideoRouteImport } from './routes/api/save-creative-video'
-import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
+import { Route as ApiSaveCreativeImageRouteImport } from './routes/api/save-creative-image'
+import { Route as ApiGenerateCreativeVideoRouteImport } from './routes/api/generate-creative-video'
+import { Route as ApiGenerateCreativeImageRouteImport } from './routes/api/generate-creative-image'
+import { Route as ApiFailCreativeVideoRouteImport } from './routes/api/fail-creative-video'
+import { Route as ApiCreativeVideoStatusRouteImport } from './routes/api/creative-video-status'
+import { Route as ApiContinueCreativeVideoRouteImport } from './routes/api/continue-creative-video'
 import { Route as ApiPublicLoanEventsRouteImport } from './routes/api/public/loan-events'
-import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
-import { Route as ApiPublicCreativeVideoSplatRouteImport } from './routes/api/public/creative-video/$'
-import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicLeadsRouteImport } from './routes/api/public/leads'
 import { Route as ApiPublicCronUploadConversionsRouteImport } from './routes/api/public/cron/upload-conversions'
+import { Route as ApiPublicCronAgentSweepRouteImport } from './routes/api/public/cron/agent-sweep'
+import { Route as ApiPublicCreativeVideoSplatRouteImport } from './routes/api/public/creative-video/$'
+import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/public/creative-image/$'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalyticsRoute = AnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CampaignsRoute = CampaignsRouteImport.update({
-  id: '/campaigns',
-  path: '/campaigns',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConversionsRoute = ConversionsRouteImport.update({
-  id: '/conversions',
-  path: '/conversions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CreativeRoute = CreativeRouteImport.update({
-  id: '/creative',
-  path: '/creative',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LpRoute = LpRouteImport.update({
@@ -60,9 +40,61 @@ const LpRoute = LpRouteImport.update({
   path: '/lp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const CreativeRoute = CreativeRouteImport.update({
+  id: '/creative',
+  path: '/creative',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConversionsRoute = ConversionsRouteImport.update({
+  id: '/conversions',
+  path: '/conversions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSaveCreativeVideoRoute = ApiSaveCreativeVideoRouteImport.update({
+  id: '/api/save-creative-video',
+  path: '/api/save-creative-video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
+  id: '/api/save-creative-image',
+  path: '/api/save-creative-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGenerateCreativeVideoRoute =
+  ApiGenerateCreativeVideoRouteImport.update({
+    id: '/api/generate-creative-video',
+    path: '/api/generate-creative-video',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGenerateCreativeImageRoute =
+  ApiGenerateCreativeImageRouteImport.update({
+    id: '/api/generate-creative-image',
+    path: '/api/generate-creative-image',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiFailCreativeVideoRoute = ApiFailCreativeVideoRouteImport.update({
+  id: '/api/fail-creative-video',
+  path: '/api/fail-creative-video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCreativeVideoStatusRoute = ApiCreativeVideoStatusRouteImport.update({
+  id: '/api/creative-video-status',
+  path: '/api/creative-video-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiContinueCreativeVideoRoute =
@@ -71,36 +103,9 @@ const ApiContinueCreativeVideoRoute =
     path: '/api/continue-creative-video',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiCreativeVideoStatusRoute = ApiCreativeVideoStatusRouteImport.update({
-  id: '/api/creative-video-status',
-  path: '/api/creative-video-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiFailCreativeVideoRoute = ApiFailCreativeVideoRouteImport.update({
-  id: '/api/fail-creative-video',
-  path: '/api/fail-creative-video',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiGenerateCreativeImageRoute =
-  ApiGenerateCreativeImageRouteImport.update({
-    id: '/api/generate-creative-image',
-    path: '/api/generate-creative-image',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiGenerateCreativeVideoRoute =
-  ApiGenerateCreativeVideoRouteImport.update({
-    id: '/api/generate-creative-video',
-    path: '/api/generate-creative-video',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiSaveCreativeImageRoute = ApiSaveCreativeImageRouteImport.update({
-  id: '/api/save-creative-image',
-  path: '/api/save-creative-image',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSaveCreativeVideoRoute = ApiSaveCreativeVideoRouteImport.update({
-  id: '/api/save-creative-video',
-  path: '/api/save-creative-video',
+const ApiPublicLoanEventsRoute = ApiPublicLoanEventsRouteImport.update({
+  id: '/api/public/loan-events',
+  path: '/api/public/loan-events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
@@ -108,21 +113,10 @@ const ApiPublicLeadsRoute = ApiPublicLeadsRouteImport.update({
   path: '/api/public/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicLoanEventsRoute = ApiPublicLoanEventsRouteImport.update({
-  id: '/api/public/loan-events',
-  path: '/api/public/loan-events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicCreativeImageSplatRoute =
-  ApiPublicCreativeImageSplatRouteImport.update({
-    id: '/api/public/creative-image/$',
-    path: '/api/public/creative-image/$',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicCreativeVideoSplatRoute =
-  ApiPublicCreativeVideoSplatRouteImport.update({
-    id: '/api/public/creative-video/$',
-    path: '/api/public/creative-video/$',
+const ApiPublicCronUploadConversionsRoute =
+  ApiPublicCronUploadConversionsRouteImport.update({
+    id: '/api/public/cron/upload-conversions',
+    path: '/api/public/cron/upload-conversions',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
@@ -130,10 +124,16 @@ const ApiPublicCronAgentSweepRoute = ApiPublicCronAgentSweepRouteImport.update({
   path: '/api/public/cron/agent-sweep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicCronUploadConversionsRoute =
-  ApiPublicCronUploadConversionsRouteImport.update({
-    id: '/api/public/cron/upload-conversions',
-    path: '/api/public/cron/upload-conversions',
+const ApiPublicCreativeVideoSplatRoute =
+  ApiPublicCreativeVideoSplatRouteImport.update({
+    id: '/api/public/creative-video/$',
+    path: '/api/public/creative-video/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCreativeImageSplatRoute =
+  ApiPublicCreativeImageSplatRouteImport.update({
+    id: '/api/public/creative-image/$',
+    path: '/api/public/creative-image/$',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -298,39 +298,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analytics': {
-      id: '/analytics'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/campaigns': {
-      id: '/campaigns'
-      path: '/campaigns'
-      fullPath: '/campaigns'
-      preLoaderRoute: typeof CampaignsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/conversions': {
-      id: '/conversions'
-      path: '/conversions'
-      fullPath: '/conversions'
-      preLoaderRoute: typeof ConversionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/creative': {
-      id: '/creative'
-      path: '/creative'
-      fullPath: '/creative'
-      preLoaderRoute: typeof CreativeRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lp': {
@@ -340,53 +312,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
+    '/creative': {
+      id: '/creative'
+      path: '/creative'
+      fullPath: '/creative'
+      preLoaderRoute: typeof CreativeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/continue-creative-video': {
-      id: '/api/continue-creative-video'
-      path: '/api/continue-creative-video'
-      fullPath: '/api/continue-creative-video'
-      preLoaderRoute: typeof ApiContinueCreativeVideoRouteImport
+    '/conversions': {
+      id: '/conversions'
+      path: '/conversions'
+      fullPath: '/conversions'
+      preLoaderRoute: typeof ConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/creative-video-status': {
-      id: '/api/creative-video-status'
-      path: '/api/creative-video-status'
-      fullPath: '/api/creative-video-status'
-      preLoaderRoute: typeof ApiCreativeVideoStatusRouteImport
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/fail-creative-video': {
-      id: '/api/fail-creative-video'
-      path: '/api/fail-creative-video'
-      fullPath: '/api/fail-creative-video'
-      preLoaderRoute: typeof ApiFailCreativeVideoRouteImport
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/generate-creative-image': {
-      id: '/api/generate-creative-image'
-      path: '/api/generate-creative-image'
-      fullPath: '/api/generate-creative-image'
-      preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/generate-creative-video': {
-      id: '/api/generate-creative-video'
-      path: '/api/generate-creative-video'
-      fullPath: '/api/generate-creative-video'
-      preLoaderRoute: typeof ApiGenerateCreativeVideoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/save-creative-image': {
-      id: '/api/save-creative-image'
-      path: '/api/save-creative-image'
-      fullPath: '/api/save-creative-image'
-      preLoaderRoute: typeof ApiSaveCreativeImageRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/save-creative-video': {
@@ -396,11 +354,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSaveCreativeVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/leads': {
-      id: '/api/public/leads'
-      path: '/api/public/leads'
-      fullPath: '/api/public/leads'
-      preLoaderRoute: typeof ApiPublicLeadsRouteImport
+    '/api/save-creative-image': {
+      id: '/api/save-creative-image'
+      path: '/api/save-creative-image'
+      fullPath: '/api/save-creative-image'
+      preLoaderRoute: typeof ApiSaveCreativeImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/generate-creative-video': {
+      id: '/api/generate-creative-video'
+      path: '/api/generate-creative-video'
+      fullPath: '/api/generate-creative-video'
+      preLoaderRoute: typeof ApiGenerateCreativeVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/generate-creative-image': {
+      id: '/api/generate-creative-image'
+      path: '/api/generate-creative-image'
+      fullPath: '/api/generate-creative-image'
+      preLoaderRoute: typeof ApiGenerateCreativeImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fail-creative-video': {
+      id: '/api/fail-creative-video'
+      path: '/api/fail-creative-video'
+      fullPath: '/api/fail-creative-video'
+      preLoaderRoute: typeof ApiFailCreativeVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/creative-video-status': {
+      id: '/api/creative-video-status'
+      path: '/api/creative-video-status'
+      fullPath: '/api/creative-video-status'
+      preLoaderRoute: typeof ApiCreativeVideoStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/continue-creative-video': {
+      id: '/api/continue-creative-video'
+      path: '/api/continue-creative-video'
+      fullPath: '/api/continue-creative-video'
+      preLoaderRoute: typeof ApiContinueCreativeVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/loan-events': {
@@ -410,18 +403,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLoanEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/creative-image/$': {
-      id: '/api/public/creative-image/$'
-      path: '/api/public/creative-image/$'
-      fullPath: '/api/public/creative-image/$'
-      preLoaderRoute: typeof ApiPublicCreativeImageSplatRouteImport
+    '/api/public/leads': {
+      id: '/api/public/leads'
+      path: '/api/public/leads'
+      fullPath: '/api/public/leads'
+      preLoaderRoute: typeof ApiPublicLeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/creative-video/$': {
-      id: '/api/public/creative-video/$'
-      path: '/api/public/creative-video/$'
-      fullPath: '/api/public/creative-video/$'
-      preLoaderRoute: typeof ApiPublicCreativeVideoSplatRouteImport
+    '/api/public/cron/upload-conversions': {
+      id: '/api/public/cron/upload-conversions'
+      path: '/api/public/cron/upload-conversions'
+      fullPath: '/api/public/cron/upload-conversions'
+      preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/cron/agent-sweep': {
@@ -431,11 +424,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronAgentSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/cron/upload-conversions': {
-      id: '/api/public/cron/upload-conversions'
-      path: '/api/public/cron/upload-conversions'
-      fullPath: '/api/public/cron/upload-conversions'
-      preLoaderRoute: typeof ApiPublicCronUploadConversionsRouteImport
+    '/api/public/creative-video/$': {
+      id: '/api/public/creative-video/$'
+      path: '/api/public/creative-video/$'
+      fullPath: '/api/public/creative-video/$'
+      preLoaderRoute: typeof ApiPublicCreativeVideoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/creative-image/$': {
+      id: '/api/public/creative-image/$'
+      path: '/api/public/creative-image/$'
+      fullPath: '/api/public/creative-image/$'
+      preLoaderRoute: typeof ApiPublicCreativeImageSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
