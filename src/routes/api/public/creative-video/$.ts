@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/public/creative-video/$")({
           });
         }
 
-        return new Response(new Blob([bytes], { type: contentType }), {
+        return new Response(new Blob([bytes as BlobPart], { type: contentType }), {
           status: 200,
           headers: {
             "Content-Type": contentType,
