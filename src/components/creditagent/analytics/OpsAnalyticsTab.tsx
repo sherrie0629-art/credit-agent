@@ -540,7 +540,7 @@ function ChannelCreatives({ adGroupId }: { adGroupId?: string }) {
           <Link
             key={p.creativeId}
             to="/creative"
-            search={{ tab: "library" as const }}
+            search={{ tab: "library" as const, creativeId: p.creativeId }}
             className="flex items-baseline justify-between gap-2 text-[11px] transition-colors hover:text-neon"
           >
             <span className="truncate">{c?.headline ?? p.creativeId}</span>
