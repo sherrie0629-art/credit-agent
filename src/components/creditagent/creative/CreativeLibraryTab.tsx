@@ -104,6 +104,23 @@ export function CreativeLibraryTab({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // 从运营看板「素材下钻」跳转过来时：滚动到目标卡片并短暂高亮。
+  useEffect(() => {
+    if (!focusCreativeId || !loaded) return;
+    if (!creatives.some((c) => c.id === focusCreativeId)) return;
+    const el = document.getElementById(`creative-${focusCreativeId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(focusCreativeId);
+    const t = window.setTimeout(() => setHighlightId(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [focusCreativeId, loaded, creatives]);
+
+  const focusedCreative = focusCreativeId
+    ? creatives.find((c) => c.id === focusCreativeId)
+    : undefined;
 
   type VideoJob = {
     targetId: string;
