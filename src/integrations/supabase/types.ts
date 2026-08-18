@@ -1216,6 +1216,32 @@ export type Database = {
       get_agent_snapshot: { Args: never; Returns: Json }
       get_budget_pool_today: { Args: never; Returns: Json }
       get_conversion_snapshot: { Args: never; Returns: Json }
+      list_creative_video_jobs: {
+        Args: never
+        Returns: {
+          captions: Json
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_id: string
+          prompt: string
+          seconds: string
+          segments: Json
+          size: string
+          stage: string
+          status: string
+          target_id: string
+          target_kind: string
+          video_url: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "creative_videos"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never
