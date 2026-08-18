@@ -595,6 +595,23 @@ export function CreativeLibraryTab({
 
       {!loaded && <p className="text-sm text-muted-foreground">正在加载素材指标…</p>}
 
+      {focusCreativeId && loaded && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-neon/40 bg-neon/5 px-3 py-2 text-xs">
+          <span className="truncate">
+            {focusedCreative
+              ? `正在查看：${focusedCreative.headline}`
+              : "未找到该素材（可能已下线或不在当前数据范围内）"}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground underline-offset-2 hover:text-neon hover:underline"
+            onClick={() => onClearFocus?.()}
+          >
+            显示全部
+          </button>
+        </div>
+      )}
+
       {creatives.map((c) => {
         const f = fatigueByCreative.get(c.id);
         const level = (f?.level ?? c.fatigueLevel) as FatigueLevel;
