@@ -40,7 +40,7 @@ export const Route = createFileRoute("/creative")({
 });
 
 function CreativeHub() {
-  const { tab } = Route.useSearch();
+  const { tab, creativeId } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
   const [draft, setDraft] = useState<ComplianceInput>({
