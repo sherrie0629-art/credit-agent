@@ -81,8 +81,12 @@ const LEVEL_STYLE: Record<FatigueLevel, string> = {
 
 export function CreativeLibraryTab({
   onReview,
+  focusCreativeId,
+  onClearFocus,
 }: {
   onReview: (draft: ComplianceInput) => void;
+  focusCreativeId?: string;
+  onClearFocus?: () => void;
 }) {
   const creatives = useAgentStore((s) => s.creatives);
   const metrics = useAgentStore((s) => s.creativeMetrics);
