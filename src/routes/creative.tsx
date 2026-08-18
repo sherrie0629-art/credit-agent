@@ -14,6 +14,7 @@ type TabKey = (typeof TABS)[number];
 export const Route = createFileRoute("/creative")({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: TABS.includes(search.tab as TabKey) ? (search.tab as TabKey) : ("library" as TabKey),
+    creativeId: typeof search.creativeId === "string" ? search.creativeId : undefined,
   }),
   head: () => ({
     meta: [
