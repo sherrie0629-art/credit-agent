@@ -81,8 +81,12 @@ const LEVEL_STYLE: Record<FatigueLevel, string> = {
 
 export function CreativeLibraryTab({
   onReview,
+  focusCreativeId,
+  onClearFocus,
 }: {
   onReview: (draft: ComplianceInput) => void;
+  focusCreativeId?: string;
+  onClearFocus?: () => void;
 }) {
   const creatives = useAgentStore((s) => s.creatives);
   const metrics = useAgentStore((s) => s.creativeMetrics);
@@ -100,6 +104,23 @@ export function CreativeLibraryTab({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // 从运营看板「素材下钻」跳转过来时：滚动到目标卡片并短暂高亮。
+  useEffect(() => {
+    if (!focusCreativeId || !loaded) return;
+    if (!creatives.some((c) => c.id === focusCreativeId)) return;
+    const el = document.getElementById(`creative-${focusCreativeId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(focusCreativeId);
+    const t = window.setTimeout(() => setHighlightId(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [focusCreativeId, loaded, creatives]);
+
+  const focusedCreative = focusCreativeId
+    ? creatives.find((c) => c.id === focusCreativeId)
+    : undefined;
 
   type VideoJob = {
     targetId: string;
@@ -574,6 +595,23 @@ export function CreativeLibraryTab({
 
       {!loaded && <p className="text-sm text-muted-foreground">正在加载素材指标…</p>}
 
+      {focusCreativeId && loaded && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-neon/40 bg-neon/5 px-3 py-2 text-xs">
+          <span className="truncate">
+            {focusedCreative
+              ? `正在查看：${focusedCreative.headline}`
+              : "未找到该素材（可能已下线或不在当前数据范围内）"}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground underline-offset-2 hover:text-neon hover:underline"
+            onClick={() => onClearFocus?.()}
+          >
+            显示全部
+          </button>
+        </div>
+      )}
+
       {creatives.map((c) => {
         const f = fatigueByCreative.get(c.id);
         const level = (f?.level ?? c.fatigueLevel) as FatigueLevel;
@@ -582,7 +620,14 @@ export function CreativeLibraryTab({
         const exp = experiments.find((e) => e.parentCreativeId === c.id);
 
         return (
-          <article key={c.id} className="panel space-y-4 p-4">
+          <article
+            key={c.id}
+            id={`creative-${c.id}`}
+            className={cn(
+              "panel space-y-4 p-4 transition-shadow",
+              highlightId === c.id && "shadow-neon ring-2 ring-neon",
+            )}
+          >
             <div className="flex flex-wrap items-start gap-3">
               {(() => {
                 const shot = preview[c.id];

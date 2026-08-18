@@ -12,8 +12,11 @@ const TABS = ["library", "compliance", "experiments"] as const;
 type TabKey = (typeof TABS)[number];
 
 export const Route = createFileRoute("/creative")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { tab: TabKey; creativeId?: string } => ({
     tab: TABS.includes(search.tab as TabKey) ? (search.tab as TabKey) : ("library" as TabKey),
+    ...(typeof search.creativeId === "string" && search.creativeId
+      ? { creativeId: search.creativeId }
+      : {}),
   }),
   head: () => ({
     meta: [
@@ -37,7 +40,7 @@ export const Route = createFileRoute("/creative")({
 });
 
 function CreativeHub() {
-  const { tab } = Route.useSearch();
+  const { tab, creativeId } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
   const [draft, setDraft] = useState<ComplianceInput>({
@@ -72,6 +75,8 @@ function CreativeHub() {
 
         <TabsContent value="library" className="mt-4">
           <CreativeLibraryTab
+            focusCreativeId={creativeId}
+            onClearFocus={() => navigate({ search: { tab: "library" } })}
             onReview={(d) => {
               setDraft(d);
               setTab("compliance");
