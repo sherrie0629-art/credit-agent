@@ -75,6 +75,8 @@ function CreativeHub() {
 
         <TabsContent value="library" className="mt-4">
           <CreativeLibraryTab
+            focusCreativeId={creativeId}
+            onClearFocus={() => navigate({ search: { tab: "library" } })}
             onReview={(d) => {
               setDraft(d);
               setTab("compliance");
