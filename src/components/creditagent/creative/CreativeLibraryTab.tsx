@@ -625,7 +625,7 @@ export function CreativeLibraryTab({
             id={`creative-${c.id}`}
             className={cn(
               "panel space-y-4 p-4 transition-shadow",
-              highlightId === c.id && "ring-2 ring-neon shadow-[0_0_0_4px_hsl(var(--neon)/0.15)]",
+              highlightId === c.id && "shadow-neon ring-2 ring-neon",
             )}
           >
             <div className="flex flex-wrap items-start gap-3">
