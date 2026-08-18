@@ -620,7 +620,14 @@ export function CreativeLibraryTab({
         const exp = experiments.find((e) => e.parentCreativeId === c.id);
 
         return (
-          <article key={c.id} className="panel space-y-4 p-4">
+          <article
+            key={c.id}
+            id={`creative-${c.id}`}
+            className={cn(
+              "panel space-y-4 p-4 transition-shadow",
+              highlightId === c.id && "ring-2 ring-neon shadow-[0_0_0_4px_hsl(var(--neon)/0.15)]",
+            )}
+          >
             <div className="flex flex-wrap items-start gap-3">
               {(() => {
                 const shot = preview[c.id];
