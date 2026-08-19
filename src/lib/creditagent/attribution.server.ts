@@ -93,32 +93,13 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
     });
   }
 
-  // —— 花费 / 点击：来自日级指标 ——
+  // —— 花费 / 点击 / 线索 / 放款：统一以日级投放指标为准，保证口径同源 ——
+  // leads = spend / CPL，disbursed = spend / CPS（平台日报口径），
+  // 放款金额 = 放款笔数 × 历史平均单笔放款额（来自 lead_events）。
   const cur = new Map<string, FactorSample>();
   const prior = new Map<string, FactorSample>();
   const dailyCps = new Map<string, { day: string; cps: number }[]>();
 
-  for (const r of metrics) {
-    const id = String(r.ad_group_id);
-    const day = String(r.day);
-    const spend = Number(r.spend ?? 0);
-    const clicks = Number(r.clicks ?? 0);
-    const cps = Number(r.cps ?? 0);
-    if (day >= priorFrom && day <= dataThrough) {
-      const bucket = day >= curFrom ? cur : prior;
-      const s = bucket.get(id) ?? EMPTY_SAMPLE();
-      s.spend += spend;
-      s.clicks += clicks;
-      bucket.set(id, s);
-    }
-    if (cps > 0) {
-      const list = dailyCps.get(id) ?? [];
-      list.push({ day, cps });
-      dailyCps.set(id, list);
-    }
-  }
-
-  // —— 线索 / 放款：按线索点击时间归入队列（cohort 口径，配合时滞校正）——
   const [{ data: leadRows }, { data: eventRows }] = await Promise.all([
     supabase.from("leads").select("id, ad_group_id, click_at").limit(5000),
     supabase
@@ -132,22 +113,37 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const events = (eventRows ?? []) as Row[];
   const leadById = new Map(leads.map((l) => [String(l.id), l]));
 
-  const dayOf = (iso: string) => String(iso).slice(0, 10);
-  for (const l of leads) {
-    const id = String(l.ad_group_id ?? "");
-    if (!id) continue;
-    const d = dayOf(l.click_at);
-    if (d >= curFrom && d <= dataThrough) {
-      const s = cur.get(id) ?? EMPTY_SAMPLE();
-      s.leads += 1;
-      cur.set(id, s);
-    } else if (d >= priorFrom && d <= priorTo) {
-      const s = prior.get(id) ?? EMPTY_SAMPLE();
-      s.leads += 1;
-      prior.set(id, s);
+  const values = events.map((e) => Number(e.value ?? 0)).filter((v) => v > 0);
+  const avgLoan = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 3000;
+
+  for (const r of metrics) {
+    const id = String(r.ad_group_id);
+    const day = String(r.day);
+    const spend = Number(r.spend ?? 0);
+    const clicks = Number(r.clicks ?? 0);
+    const cps = Number(r.cps ?? 0);
+    const cpl = Number(r.cpl ?? 0);
+    if (day >= priorFrom && day <= dataThrough) {
+      const bucket = day >= curFrom ? cur : prior;
+      const s = bucket.get(id) ?? EMPTY_SAMPLE();
+      s.spend += spend;
+      s.clicks += clicks;
+      if (cpl > 0) s.leads += spend / cpl;
+      if (cps > 0) {
+        const d = spend / cps;
+        s.disbursed += d;
+        s.disbursedAmount += d * avgLoan;
+      }
+      bucket.set(id, s);
+    }
+    if (cps > 0) {
+      const list = dailyCps.get(id) ?? [];
+      list.push({ day, cps });
+      dailyCps.set(id, list);
     }
   }
 
+  // —— 时滞样本：仍取真实 leads → lead_events 的点击到放款间隔 ——
   const lagDays: number[] = [];
   for (const e of events) {
     const lead = leadById.get(String(e.lead_id));
@@ -157,16 +153,9 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
     if (Number.isFinite(clickAt) && Number.isFinite(at) && at >= clickAt) {
       lagDays.push((at - clickAt) / 86_400_000);
     }
-    const id = String(lead.ad_group_id ?? "");
-    if (!id) continue;
-    const d = dayOf(lead.click_at);
-    const bucket = d >= curFrom && d <= dataThrough ? cur : d >= priorFrom && d <= priorTo ? prior : null;
-    if (!bucket) continue;
-    const s = bucket.get(id) ?? EMPTY_SAMPLE();
-    s.disbursed += 1;
-    s.disbursedAmount += Number(e.value ?? 0);
-    bucket.set(id, s);
   }
+
+  const dayOf = (iso: string) => String(iso).slice(0, 10);
 
   // —— 逐组归因 ——
   const ids = [...new Set([...cur.keys(), ...prior.keys()])];
