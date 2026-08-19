@@ -22,6 +22,8 @@ import type {
   FeedbackHealth,
   FunnelStageRow,
 } from "@/lib/creditagent/types";
+import { AttributionPanel } from "./AttributionPanel";
+import type { AttributionBundle } from "@/lib/creditagent/attribution";
 import { useAgentStore } from "@/lib/creditagent/store";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +46,7 @@ export function OpsAnalyticsTab({
   const [insights, setInsights] = useState<string[]>([]);
   const [decisionBrief, setDecisionBrief] = useState<DecisionBriefItem[]>([]);
   const [opsDiagnostics, setOpsDiagnostics] = useState<OpsDiagnosticItem[]>([]);
+  const [attribution, setAttribution] = useState<AttributionBundle | null>(null);
   const [feedback, setFeedback] = useState<FeedbackHealth[]>(feedbackFallback);
   const [funnel, setFunnel] = useState<FunnelStageRow[]>(funnelFallback);
   const [channelTrend, setChannelTrend] = useState<ChannelTrendPoint[]>(trendFallback);
@@ -62,6 +65,7 @@ export function OpsAnalyticsTab({
         setInsights(res.insights ?? []);
         setDecisionBrief(res.decisionBrief ?? []);
         setOpsDiagnostics(res.opsDiagnostics ?? []);
+        setAttribution((res as { attribution?: AttributionBundle | null }).attribution ?? null);
         setFeedback(res.feedbackHealth);
         setFunnel(res.funnel);
         setChannelTrend(res.channelTrend);
@@ -430,6 +434,8 @@ export function OpsAnalyticsTab({
           ))}
         </div>
       </section>
+
+      <AttributionPanel data={attribution} />
     </div>
   );
 }

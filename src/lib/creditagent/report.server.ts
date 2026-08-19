@@ -338,6 +338,10 @@ export async function getExecWeeklyReport(week: WeekKey, includeAppendix = true)
 export async function getOpsAnalyticsBundle(week: WeekKey) {
   const bundle = await getAnalyticsPeriodBundle(week);
   const { buildAnalyticsBrief } = await import("./report");
+  const { getAttributionBundle } = await import("./attribution.server");
+  const attribution = await getAttributionBundle(
+    bundle.snapshot.guardrailLimits?.maxBudgetDeltaPct ?? 30,
+  ).catch(() => null);
   const pending = bundle.snapshot.decisions.filter((d) => d.status === "PENDING_APPROVAL");
   const pendingActionable = pending.filter(
     (d) => d.actionType === "BUDGET_SHIFT" || d.actionType === "CREATIVE_PAUSE",
@@ -370,5 +374,6 @@ export async function getOpsAnalyticsBundle(week: WeekKey) {
     funnel: bundle.snapshot.funnel,
     channelTrend: bundle.snapshot.channelTrend,
     channelBreakdown: bundle.snapshot.channelBreakdown,
+    attribution,
   };
 }
