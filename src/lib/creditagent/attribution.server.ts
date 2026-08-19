@@ -261,7 +261,7 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
 
   return {
     available: groups.length > 0,
-    note: `归因窗口锚定日级数据最后一天 ${dataThrough}；本期 ${curFrom} ~ ${dataThrough}，对比期 ${priorFrom} ~ ${priorTo}。花费/点击来自日级投放指标，线索与放款按点击归队（cohort 口径）。`,
+    note: `归因窗口锚定日级数据最后一天 ${dataThrough}；本期 ${curFrom} ~ ${dataThrough}，对比期 ${priorFrom} ~ ${priorTo}。花费/点击/线索/放款均取自日级投放指标（同源口径），放款金额按历史平均单笔额折算；时滞曲线取自真实线索的点击→放款间隔。`,
     window: { curFrom, curTo: dataThrough, priorFrom, priorTo },
     groups,
     portfolio: {

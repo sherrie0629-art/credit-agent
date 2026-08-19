@@ -206,7 +206,7 @@ function GroupRow({ g, target }: { g: AttributionGroup; target: number }) {
         <div className="min-w-0">
           <p className="truncate text-xs font-medium">{g.adGroupName}</p>
           <p className="font-mono text-[10px] text-muted-foreground">
-            {g.channel} · 花费 {money(g.cur.spend)} · 线索 {g.cur.leads} · 放款 {g.cur.disbursed} 笔
+            {g.channel} · 花费 {money(g.cur.spend)} · 线索 {Math.round(g.cur.leads)} · 放款 {g.cur.disbursed.toFixed(1)} 笔
           </p>
         </div>
         <div className="flex items-center gap-3">
