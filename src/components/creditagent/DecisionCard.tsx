@@ -8,6 +8,7 @@ import { AgentBadge, ChannelBadge, StatusBadge } from "./badges";
 import { toastForExternal } from "@/lib/creditagent/google-ads";
 import { agentApi } from "@/lib/creditagent/store";
 import type { AgentDecision } from "@/lib/creditagent/types";
+import { describeChange } from "@/lib/creditagent/ontology/decision-diff";
 import { cn } from "@/lib/utils";
 
 const METRIC_LABEL: Record<AgentDecision["dataMetricsTrigger"]["metric"], string> = {
