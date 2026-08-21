@@ -10,6 +10,7 @@ import {
   searchAdGroups,
   searchCampaigns,
 } from "./google-ads.server";
+import { markAudienceSegmentsRemoved, upsertAudienceSegment } from "./audience-mirror.server";
 import { recordGuardrail } from "./guardrails.server";
 import { hasServiceRole, LOCAL_WRITE_HINT } from "./read-client.server";
 
@@ -98,6 +99,7 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
     const seenAdGroupIds = new Set<string>();
     const seenCreativeIds = new Set<string>();
     const adGroupToCampaign = new Map<string, string>();
+    const seenSegmentIds = new Set<string>();
 
     for (const c of campaigns) {
       if (!c.id || !c.resourceName) continue;
@@ -251,6 +253,13 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
       }
       creativesUpserted += 1;
     }
+
+    markedRemoved += await markAudienceSegmentsRemoved(
+      supabase,
+      "google_sync",
+      [...seenSegmentIds],
+      syncAt,
+    );
 
     // Soft-remove google_sync rows missing from this pull (never touch demo).
     const { data: existingCamps } = await supabase
