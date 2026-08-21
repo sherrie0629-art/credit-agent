@@ -146,6 +146,6 @@ AudienceSegment
 
 1. **先做一个最小本体层映射**：把现有 `campaigns / ad_groups / creative_assets / leads / agent_decisions` 的字段和关系整理成一份显式的「实体-关系-动作」文档，作为团队共识。
 2. **在归因模块试点**：把 `AttributionPanel` 的杜邦分解结果绑定到具体 AdGroup / AudienceSegment 节点，验证「因子贡献图」对产品价值的提升。
-3. **把受众从字符串升级为实体**：新增 `audience_segments` 表，逐步替换 `ad_groups.audience` 自由文本。
+3. **把受众从字符串升级为「平台同步的只读实体」**：圈选标签仍在 Google / Meta 后台维护，本地新增 `audience_segments` 只做平台定向的镜像（随结构同步拉取、`origin=google_sync/meta_sync`、UI 只读），把 `ad_groups.audience` 自由文本换成对镜像实体的引用；本地只额外写「派生指标」（历史 CVR / 放款率 / 成熟度）这类平台不提供、且由我方数据算出的字段，不做本地圈人。
 4. **动作本体化**：把 `agent_decisions` 的 `action_type` 扩展为带输入/输出/前置条件的 Action Type，并在 `guardrails` 中增加本体一致性检查。
 5. **暂不引入图数据库**：当前 Postgres + JSONB + 应用层图谱抽象已足够。只有当多跳归因、复杂关系查询成为瓶颈时，再考虑 Neo4j / TigerGraph 等专业图库。
