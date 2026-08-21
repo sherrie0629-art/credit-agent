@@ -31,10 +31,12 @@ export function DecisionCard({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [impactOpen, setImpactOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState<"approve" | "reject" | "rollback" | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const trigger = decision.dataMetricsTrigger;
+  const impact = decision.ontologyDiff ?? [];
 
   useEffect(() => {
     if (!busy || busyKind !== "approve") {
