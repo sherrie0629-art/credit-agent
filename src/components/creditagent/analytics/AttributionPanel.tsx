@@ -5,7 +5,9 @@ import type {
   AttributionBundle,
   AttributionGroup,
   CpsContribution,
+  FactorAttribution,
 } from "@/lib/creditagent/attribution";
+import { FACTOR_ENTITY_LABEL } from "@/lib/creditagent/attribution";
 import { cn } from "@/lib/utils";
 
 const FACTOR_COLOR: Record<CpsContribution["key"], string> = {
@@ -160,6 +162,15 @@ export function AttributionPanel({ data }: { data: AttributionBundle | null }) {
         </div>
       </div>
 
+      {/* —— 因子归属：变化落在哪些实体上 —— */}
+      {data.factorEntities.length > 0 && (
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {data.factorEntities.map((fa) => (
+            <FactorEntityCard key={fa.kind} fa={fa} />
+          ))}
+        </div>
+      )}
+
       {/* —— 组级：因果条 + 预测 + 处方 —— */}
       <div className="mt-4 space-y-3">
         {data.groups.map((g) => (
@@ -167,8 +178,43 @@ export function AttributionPanel({ data }: { data: AttributionBundle | null }) {
         ))}
       </div>
 
+
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{data.note}</p>
     </section>
+  );
+}
+
+function FactorEntityCard({ fa }: { fa: FactorAttribution }) {
+  return (
+    <div className="rounded-md border border-border bg-background/50 p-4">
+      <p className="label-mono">因子归属 · {FACTOR_ENTITY_LABEL[fa.kind]}</p>
+      <p className="mt-2 text-xs leading-relaxed">{fa.headline}</p>
+      <div className="mt-3 space-y-1.5">
+        {fa.rows.slice(0, 5).map((r) => (
+          <div key={`${r.id}-${r.factor}`} className="space-y-0.5">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className={cn("h-2 w-2 shrink-0 rounded-sm", FACTOR_COLOR[r.factor])} />
+                <span className="truncate text-muted-foreground">{r.name}</span>
+              </span>
+              <span
+                className={cn("font-mono shrink-0", r.contribution > 0 ? "text-destructive" : "text-success")}
+              >
+                {signed(r.contribution)}
+              </span>
+            </div>
+            <p className="pl-3.5 text-[10px] text-muted-foreground">{r.detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-muted-foreground">
+        {fa.byFactor.map((f) => (
+          <span key={f.key}>
+            {f.label} {signed(f.contribution)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

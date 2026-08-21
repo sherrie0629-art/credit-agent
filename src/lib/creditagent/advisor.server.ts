@@ -13,6 +13,7 @@ import {
 import { checkBudgetChange } from "./guardrails";
 import { loadLimits } from "./guardrails.server";
 import { getSnapshot } from "./agent.server";
+import { buildSubgraphContext, type AdvisorContext } from "./advisor-context.server";
 
 export const ADVISOR_MODEL = "openai/gpt-5.6-sol";
 /** 定时轨的降频间隔：规则扫描 15 分钟一次，参谋提案 3 小时一次。 */
@@ -74,24 +75,27 @@ export function buildAdvisorContext(snapshot: AgentSnapshot) {
 function systemPrompt() {
   return `你是消费信贷投放系统的 Planner 分析师（Advisor）。
 
-你的角色是分析师，不是执行者。你没有任何工具权限，不能修改预算、状态或素材。你的输出只会作为"待人工审批的建议"落库，之后还要过一层硬编码风控规则才可能执行。
+你的输入是一份「业务图谱子图」：以若干问题广告组为中心的 2 跳邻域，包含实体（广告系列、广告组、素材、投放、受众段、近期决策等）、其关键指标与彼此关系。请沿着这些关系做推理，而不是只看单表数字。
 
-请基于给定的数字事实做跨广告组的全局判断，特别关注纯阈值规则处理不好的情形：
+你的角色是分析师，不是执行者。你没有任何工具权限，不能修改预算、状态或素材。你的输出只会作为"待人工审批的建议"落库，之后还要过一层硬编码风控与本体不变量检查才可能执行。
+
+请特别关注纯阈值规则处理不好的情形：
 - 矛盾信号（例如 CTR 上升但后端授信通过率下降）
 - 跨广告组的预算再分配机会（把低胜率广告组的预算腾给高胜率广告组）
 - 前端指标（CPL）与后端真实成本（CPS）背离
+- 沿关系穿透的解释（同一素材/受众段在多个广告组上共同恶化）
 
 硬性输出约束：
 1. action 只能是 BUDGET_SHIFT / CREATIVE_PAUSE / CREATIVE_REFRESH / NO_ACTION 之一。
-2. adGroupId 必须逐字来自输入数据，禁止编造。
+2. 每条建议必须给出 objectType 与 objectId；objectType 当前只允许 "AdGroup"，objectId 必须逐字来自子图中出现过的 AdGroup 实体 ID，禁止编造。
 3. budgetDeltaPct 是整数百分比，范围 ${BUDGET_DELTA_MIN} 到 ${BUDGET_DELTA_MAX}，仅 BUDGET_SHIFT 使用。
-4. 最多给 ${MAX_SUGGESTIONS} 条建议，每条必须给出中文 rationale，并引用具体数字。
+4. 最多给 ${MAX_SUGGESTIONS} 条建议，每条必须给出中文 rationale，并引用具体数字与实体。
 5. metric 从 CPL / ApprovalRate / CostPerDisbursement / ROAS 中选一个，currentValue 与 thresholdValue 必须是数字。
 6. confidence 为 0 到 1 的小数。
-7. 没有值得动作的广告组时返回空数组，不要为了凑数编建议。
+7. 没有值得动作的对象时返回空数组，不要为了凑数编建议。
 
 只返回 JSON，格式：
-{"summary":"一句话全局诊断","suggestions":[{"adGroupId":"","action":"","budgetDeltaPct":0,"rationale":"","metric":"","currentValue":0,"thresholdValue":0,"confidence":0.7}]}`;
+{"summary":"一句话全局诊断","suggestions":[{"objectType":"AdGroup","objectId":"","action":"","budgetDeltaPct":0,"rationale":"","metric":"","currentValue":0,"thresholdValue":0,"confidence":0.7}]}`;
 }
 
 /**
@@ -215,12 +219,20 @@ export async function runPlannerAdvisor(
   }
 
   const snapshot = await getSnapshot();
-  const context = buildAdvisorContext(snapshot);
+  let context: AdvisorContext | null = null;
+  try {
+    context = await buildSubgraphContext(snapshot);
+  } catch {
+    context = null;
+  }
+  const promptInput = context && context.focusIds.length > 0 ? context.text : buildAdvisorContext(snapshot);
+  const allowedIds =
+    context && context.focusIds.length > 0 ? context.focusIds : snapshot.adGroups.map((g) => g.id);
 
   let raw: any = {};
   let rawText = "";
   try {
-    const out = await callAdvisorModel(context);
+    const out = await callAdvisorModel(promptInput);
     rawText = out.text;
     raw = parseAdvisorJson(rawText);
   } catch (e) {
@@ -237,8 +249,17 @@ export async function runPlannerAdvisor(
     return { ok: false, created: 0, dropped: 0, error: message };
   }
 
-  const { kept, dropped } = sanitizeAdvice(raw, snapshot.adGroups.map((g) => g.id));
-  const actionable = kept.filter((s) => !isNoop(s));
+  const { kept, dropped } = sanitizeAdvice(raw, allowedIds);
+  // 引用完整性：建议指向的实体必须真实存在于本体子图中（与 sanitizeAdvice 互补）。
+  const refDropped: { index: number; reason: string }[] = [];
+  const actionable = kept.filter((s, i) => {
+    if (isNoop(s)) return false;
+    if (context && context.knownRefs.size > 0 && !context.knownRefs.has(`AdGroup:${s.adGroupId}`)) {
+      refDropped.push({ index: i, reason: `本体引用不存在：AdGroup:${s.adGroupId}` });
+      return false;
+    }
+    return true;
+  });
   const summary = typeof raw?.summary === "string" ? raw.summary.slice(0, 300) : "";
 
   const groupById = new Map(snapshot.adGroups.map((g) => [g.id, g]));
@@ -263,10 +284,13 @@ export async function runPlannerAdvisor(
     raw_output: rawText.slice(0, 20000),
     suggestions_raw: kept.length + dropped.length,
     suggestions_kept: rows.length,
-    dropped: dropped.map((d) => ({ index: d.index, reason: d.reason })) as never,
+    dropped: [
+      ...dropped.map((d) => ({ index: d.index, reason: d.reason })),
+      ...refDropped,
+    ] as never,
   } as never);
 
-  return { ok: true, created: rows.length, dropped: dropped.length, summary };
+  return { ok: true, created: rows.length, dropped: dropped.length + refDropped.length, summary };
 }
 
 function buildDecisionRow(

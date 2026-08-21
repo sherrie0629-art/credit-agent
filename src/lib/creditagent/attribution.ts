@@ -429,6 +429,105 @@ export interface AttributionBundle {
     forecastCps: number | null;
   };
   lag: (MaturityAdjustment & { note: string }) | null;
+  /** 因子归属：把 CPS 三因子的变化挂到 广告组 / 受众段 / 素材投放 三类实体上。 */
+  factorEntities: FactorAttribution[];
   target: number;
 }
 
+
+
+// ——— 因子归属：把 CPC / 线索转化率 / 放款率的变化归到具体实体 ———
+
+export type FactorEntityKind = "AdGroup" | "AudienceSegment" | "CreativePlacement";
+
+export const FACTOR_ENTITY_LABEL: Record<FactorEntityKind, string> = {
+  AdGroup: "广告组",
+  AudienceSegment: "受众段",
+  CreativePlacement: "素材投放",
+};
+
+export interface FactorEntitySample {
+  kind: FactorEntityKind;
+  id: string;
+  name: string;
+  cur: FactorSample;
+  prior: FactorSample;
+}
+
+export interface FactorEntityContribution {
+  kind: FactorEntityKind;
+  id: string;
+  name: string;
+  factor: CpsFactorKey;
+  factorLabel: string;
+  /** 本期/上期 因子比值 */
+  ratio: number;
+  /** 按花费权重折算后，对全盘 ΔCPS 的美元贡献；正数 = 推高 CPS */
+  contribution: number;
+  /** 占该实体族全部|贡献|之比 0–1 */
+  share: number;
+  spend: number;
+  detail: string;
+}
+
+export interface FactorAttribution {
+  kind: FactorEntityKind;
+  rows: FactorEntityContribution[];
+  byFactor: { key: CpsFactorKey; label: string; contribution: number }[];
+  headline: string;
+}
+
+/**
+ * 把每个实体的 LMDI 分解按「本期花费占比」折算，得到该实体对全盘 CPS 变化的因子级贡献。
+ * 折算的意义：一个只花了 2% 预算的组即使 CPC 翻倍，对全盘的实际影响也有限。
+ */
+export function attributeFactorToEntities(
+  kind: FactorEntityKind,
+  entities: FactorEntitySample[],
+): FactorAttribution | null {
+  const totalSpend = entities.reduce((s, e) => s + e.cur.spend, 0);
+  if (!(totalSpend > 0)) return null;
+
+  const rows: FactorEntityContribution[] = [];
+  for (const e of entities) {
+    const d = decomposeCps(e.cur, e.prior);
+    if (!d) continue;
+    const weight = e.cur.spend / totalSpend;
+    for (const p of d.parts) {
+      const contribution = p.contribution * weight;
+      if (Math.abs(contribution) < 0.005) continue;
+      const worse = contribution > 0;
+      const pct = Math.abs(p.ratio - 1) * 100;
+      rows.push({
+        kind,
+        id: e.id,
+        name: e.name,
+        factor: p.key,
+        factorLabel: p.label,
+        ratio: p.ratio,
+        contribution,
+        share: 0,
+        spend: e.cur.spend,
+        detail: `${p.label}${worse ? "恶化" : "改善"} ${pct.toFixed(0)}%（占本期花费 ${(weight * 100).toFixed(0)}%）`,
+      });
+    }
+  }
+  if (rows.length === 0) return null;
+
+  const absSum = rows.reduce((s, r) => s + Math.abs(r.contribution), 0) || 1;
+  for (const r of rows) r.share = Math.abs(r.contribution) / absSum;
+  rows.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+
+  const byFactor = (["cpc", "leadCvr", "disbRate"] as CpsFactorKey[]).map((key) => ({
+    key,
+    label: FACTOR_LABEL[key],
+    contribution: rows.filter((r) => r.factor === key).reduce((s, r) => s + r.contribution, 0),
+  }));
+
+  const top = rows[0]!;
+  const headline = `${top.factorLabel}${top.contribution > 0 ? "恶化" : "改善"}的 ${(top.share * 100).toFixed(
+    0,
+  )}% 来自${FACTOR_ENTITY_LABEL[kind]}「${top.name}」（$${Math.abs(top.contribution).toFixed(2)}）。`;
+
+  return { kind, rows: rows.slice(0, 12), byFactor, headline };
+}

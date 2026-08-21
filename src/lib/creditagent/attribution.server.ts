@@ -2,6 +2,7 @@
 import {
   TARGET_CPS,
   adjustForLag,
+  attributeFactorToEntities,
   buildMaturityCurve,
   buildPrescription,
   computeFactors,
@@ -10,6 +11,8 @@ import {
   decomposeGrowth,
   linearForecast,
   type CpsDecomposition,
+  type FactorEntityKind,
+  type FactorEntitySample,
   type FactorSample,
   type Forecast,
   type GrowthDecomposition,
@@ -53,6 +56,7 @@ function emptyBundle(note: string): AttributionBundle {
     groups: [],
     portfolio: { decomposition: null, growth: null, curCps: 0, priorCps: 0, forecastCps: null },
     lag: null,
+    factorEntities: [],
     target: TARGET_CPS,
   };
 }
@@ -64,15 +68,20 @@ function emptyBundle(note: string): AttributionBundle {
 export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<AttributionBundle> {
   const supabase = await db();
 
-  const [{ data: metricRows, error: metricErr }, { data: groupRows }] = await Promise.all([
-    supabase
-      .from("creative_metrics")
-      .select("ad_group_id, day, spend, clicks, impressions, cpl, cps")
-      .not("ad_group_id", "is", null)
-      .order("day", { ascending: true })
-      .limit(5000),
-    supabase.from("ad_groups").select("id, name, channel, campaign_id, daily_budget, spent_today"),
-  ]);
+  const [{ data: metricRows, error: metricErr }, { data: groupRows }, { data: segmentRows }, { data: creativeRows }] =
+    await Promise.all([
+      supabase
+        .from("creative_metrics")
+        .select("ad_group_id, creative_id, day, spend, clicks, impressions, cpl, cps")
+        .not("ad_group_id", "is", null)
+        .order("day", { ascending: true })
+        .limit(5000),
+      supabase
+        .from("ad_groups")
+        .select("id, name, channel, campaign_id, daily_budget, spent_today, audience, audience_segment_id"),
+      supabase.from("audience_segments").select("id, name, channel"),
+      supabase.from("creative_assets").select("id, headline"),
+    ]);
 
   const metrics = (metricRows ?? []) as Row[];
   if (metricErr || metrics.length === 0) {
@@ -84,14 +93,32 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const priorTo = addDays(curFrom, -1);
   const priorFrom = addDays(priorTo, -(WINDOW_DAYS - 1));
 
-  const groupMeta = new Map<string, { name: string; channel: string; campaignId: string }>();
+  const segmentName = new Map<string, string>();
+  for (const s of (segmentRows ?? []) as Row[]) {
+    segmentName.set(String(s.id), String(s.name ?? s.id));
+  }
+  const creativeName = new Map<string, string>();
+  for (const c of (creativeRows ?? []) as Row[]) {
+    creativeName.set(String(c.id), String(c.headline ?? c.id));
+  }
+
+  const groupMeta = new Map<
+    string,
+    { name: string; channel: string; campaignId: string; segmentId: string; segmentLabel: string }
+  >();
   for (const g of (groupRows ?? []) as Row[]) {
+    const segId = g.audience_segment_id ? String(g.audience_segment_id) : "";
     groupMeta.set(String(g.id), {
       name: String(g.name ?? g.id),
       channel: String(g.channel ?? "-"),
       campaignId: String(g.campaign_id ?? ""),
+      segmentId: segId || `text:${String(g.audience ?? "未标注受众")}`,
+      segmentLabel: segId
+        ? (segmentName.get(segId) ?? segId)
+        : String(g.audience ?? "未标注受众"),
     });
   }
+
 
   // —— 花费 / 点击 / 线索 / 放款：统一以日级投放指标为准，保证口径同源 ——
   // leads = spend / CPL，disbursed = spend / CPS（平台日报口径），
@@ -99,6 +126,12 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const cur = new Map<string, FactorSample>();
   const prior = new Map<string, FactorSample>();
   const dailyCps = new Map<string, { day: string; cps: number }[]>();
+  // 因子归属所需的另外两个实体维度
+  const segCur = new Map<string, FactorSample>();
+  const segPrior = new Map<string, FactorSample>();
+  const placeCur = new Map<string, FactorSample>();
+  const placePrior = new Map<string, FactorSample>();
+
 
   const [{ data: leadRows }, { data: eventRows }] = await Promise.all([
     supabase.from("leads").select("id, ad_group_id, click_at").limit(5000),
@@ -116,25 +149,35 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const values = events.map((e) => Number(e.value ?? 0)).filter((v) => v > 0);
   const avgLoan = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 3000;
 
+  const accumulate = (m: Map<string, FactorSample>, key: string, r: Row, spend: number, clicks: number) => {
+    const s = m.get(key) ?? EMPTY_SAMPLE();
+    const cps = Number(r.cps ?? 0);
+    const cpl = Number(r.cpl ?? 0);
+    s.spend += spend;
+    s.clicks += clicks;
+    if (cpl > 0) s.leads += spend / cpl;
+    if (cps > 0) {
+      const d = spend / cps;
+      s.disbursed += d;
+      s.disbursedAmount += d * avgLoan;
+    }
+    m.set(key, s);
+  };
+
   for (const r of metrics) {
     const id = String(r.ad_group_id);
     const day = String(r.day);
     const spend = Number(r.spend ?? 0);
     const clicks = Number(r.clicks ?? 0);
     const cps = Number(r.cps ?? 0);
-    const cpl = Number(r.cpl ?? 0);
     if (day >= priorFrom && day <= dataThrough) {
-      const bucket = day >= curFrom ? cur : prior;
-      const s = bucket.get(id) ?? EMPTY_SAMPLE();
-      s.spend += spend;
-      s.clicks += clicks;
-      if (cpl > 0) s.leads += spend / cpl;
-      if (cps > 0) {
-        const d = spend / cps;
-        s.disbursed += d;
-        s.disbursedAmount += d * avgLoan;
+      const isCur = day >= curFrom;
+      accumulate(isCur ? cur : prior, id, r, spend, clicks);
+      const segId = groupMeta.get(id)?.segmentId;
+      if (segId) accumulate(isCur ? segCur : segPrior, segId, r, spend, clicks);
+      if (r.creative_id) {
+        accumulate(isCur ? placeCur : placePrior, `${String(r.creative_id)}|${id}`, r, spend, clicks);
       }
-      bucket.set(id, s);
     }
     if (cps > 0) {
       const list = dailyCps.get(id) ?? [];
@@ -142,6 +185,7 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
       dailyCps.set(id, list);
     }
   }
+
 
   // —— 时滞样本：仍取真实 leads → lead_events 的点击到放款间隔 ——
   const lagDays: number[] = [];
@@ -259,6 +303,45 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const curFactors = computeFactors(curTotal);
   const priorFactors = computeFactors(priorTotal);
 
+  // —— 因子归属：三类实体各出一份 ——
+  const buildSamples = (
+    kind: FactorEntityKind,
+    curMap: Map<string, FactorSample>,
+    priorMap: Map<string, FactorSample>,
+    label: (id: string) => string,
+  ): FactorEntitySample[] =>
+    [...new Set([...curMap.keys(), ...priorMap.keys()])].map((id) => ({
+      kind,
+      id,
+      name: label(id),
+      cur: curMap.get(id) ?? EMPTY_SAMPLE(),
+      prior: priorMap.get(id) ?? EMPTY_SAMPLE(),
+    }));
+
+  const factorEntities = [
+    attributeFactorToEntities(
+      "AdGroup",
+      buildSamples("AdGroup", cur, prior, (id) => groupMeta.get(id)?.name ?? id),
+    ),
+    attributeFactorToEntities(
+      "AudienceSegment",
+      buildSamples("AudienceSegment", segCur, segPrior, (id) => {
+        if (id.startsWith("text:")) return `${id.slice(5)}（未镜像）`;
+        return segmentName.get(id) ?? id;
+      }),
+    ),
+    attributeFactorToEntities(
+      "CreativePlacement",
+      buildSamples("CreativePlacement", placeCur, placePrior, (id) => {
+        const [creativeId, adGroupId] = id.split("|");
+        const c = creativeName.get(String(creativeId)) ?? String(creativeId);
+        const g = groupMeta.get(String(adGroupId))?.name ?? String(adGroupId);
+        return `${c} @ ${g}`;
+      }),
+    ),
+  ].filter((x): x is NonNullable<typeof x> => x !== null);
+
+
   return {
     available: groups.length > 0,
     note: `归因窗口锚定日级数据最后一天 ${dataThrough}；本期 ${curFrom} ~ ${dataThrough}，对比期 ${priorFrom} ~ ${priorTo}。花费/点击/线索/放款均取自日级投放指标（同源口径），放款金额按历史平均单笔额折算；时滞曲线取自真实线索的点击→放款间隔。`,
@@ -274,6 +357,7 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
       forecastCps: portfolioForecast ? Math.max(0, portfolioForecast.predicted) : null,
     },
     lag,
+    factorEntities,
     target: TARGET_CPS,
   };
 }
