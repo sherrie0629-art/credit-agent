@@ -56,6 +56,8 @@ export function formatAdvisorScheduleLabel(
 }
 
 export interface AdvisorSuggestion {
+  /** 本体对象类型；当前只允许 AdGroup（唯一可自动执行的写入面）。 */
+  objectType: "AdGroup";
   adGroupId: string;
   action: AdvisorAction;
   /** 仅 BUDGET_SHIFT 有意义，已 clamp 到 [-40, 30]。 */
@@ -108,9 +110,15 @@ export function sanitizeAdvice(raw: unknown, knownAdGroupIds: string[]): Sanitiz
     }
     const r = item as Record<string, unknown>;
 
-    const adGroupId = String(r.adGroupId ?? r.ad_group_id ?? "").trim();
+    const objectType = String(r.objectType ?? r.object_type ?? "AdGroup").trim();
+    if (objectType !== "AdGroup") {
+      dropped.push({ index, reason: `objectType 不可执行：${objectType}`, raw: item });
+      return;
+    }
+
+    const adGroupId = String(r.objectId ?? r.object_id ?? r.adGroupId ?? r.ad_group_id ?? "").trim();
     if (!adGroupId || !known.has(adGroupId)) {
-      dropped.push({ index, reason: `广告组 id 不存在于快照：${adGroupId || "(空)"}`, raw: item });
+      dropped.push({ index, reason: `广告组 id 不在本体子图中（疑似幻觉）：${adGroupId || "(空)"}`, raw: item });
       return;
     }
 
@@ -141,6 +149,7 @@ export function sanitizeAdvice(raw: unknown, knownAdGroupIds: string[]): Sanitiz
       : "CostPerDisbursement";
 
     kept.push({
+      objectType: "AdGroup",
       adGroupId,
       action,
       budgetDeltaPct:
