@@ -3,10 +3,13 @@
 import { OBJECT_TYPES, type ObjectTypeId } from "./objects";
 import { incomingLinks, outgoingLinks, type LinkTypeDef } from "./links";
 
+/** 子图节点属性只保留可序列化标量，跨 RPC 传输安全。 */
+export type OntologyPropValue = string | number | boolean | null;
+
 export interface OntologyNode {
   type: ObjectTypeId;
   id: string;
-  props: Record<string, unknown>;
+  props: Record<string, OntologyPropValue>;
 }
 
 export interface OntologyEdge {
@@ -47,9 +50,14 @@ function rowId(type: ObjectTypeId, row: Record<string, unknown>): string {
 
 function pickProps(type: ObjectTypeId, row: Record<string, unknown>) {
   const def = OBJECT_TYPES[type];
-  const props: Record<string, unknown> = {};
+  const props: Record<string, OntologyPropValue> = {};
   for (const col of def.keyColumns) {
-    if (row[col] !== undefined) props[col] = row[col];
+    const v = row[col];
+    if (v === undefined) continue;
+    props[col] =
+      v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+        ? (v as OntologyPropValue)
+        : JSON.stringify(v);
   }
   return props;
 }
