@@ -253,6 +253,21 @@ async function considerAdGroup(
   ];
 
   const supabase = await db();
+  const { buildDecisionOntology } = await import("./ontology/decision-diff.server");
+  const ontology = await buildDecisionOntology({
+    rootType: "AdGroup",
+    rootId: g.id,
+    changes: [
+      {
+        type: "AdGroup",
+        id: g.id,
+        name: g.name,
+        field: "daily_budget",
+        from: g.dailyBudget,
+        to: targetBudget,
+      },
+    ],
+  });
   await supabase.from("agent_decisions").insert({
     id: decisionId,
     timestamp: new Date().toISOString(),
@@ -276,6 +291,8 @@ async function considerAdGroup(
     status: "PENDING_APPROVAL",
     effect: `日预算 $${g.dailyBudget.toLocaleString()} → $${targetBudget.toLocaleString()}`,
     rollback_to: `$${g.dailyBudget.toLocaleString()}`,
+    ontology_before: ontology.ontology_before,
+    ontology_diff: ontology.ontology_diff,
   } as never);
 
   await upsertState(g.id, nextState, { touchSuggestion: true });
