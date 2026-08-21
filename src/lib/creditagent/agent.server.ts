@@ -129,6 +129,8 @@ function mapDecision(r: Row): AgentDecision {
     guardrailNote: r.guardrail_note ?? undefined,
     externalMutateStatus: r.external_mutate_status ?? undefined,
     externalMutateDetail: r.external_mutate_detail ?? undefined,
+    ontologyDiff: Array.isArray(r.ontology_diff) ? r.ontology_diff : undefined,
+    ontologyBefore: r.ontology_before ?? null,
   };
 
 }
