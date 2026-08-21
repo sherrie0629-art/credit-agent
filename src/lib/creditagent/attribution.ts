@@ -429,8 +429,11 @@ export interface AttributionBundle {
     forecastCps: number | null;
   };
   lag: (MaturityAdjustment & { note: string }) | null;
+  /** 因子归属：把 CPS 三因子的变化挂到 广告组 / 受众段 / 素材投放 三类实体上。 */
+  factorEntities: FactorAttribution[];
   target: number;
 }
+
 
 
 // ——— 因子归属：把 CPC / 线索转化率 / 放款率的变化归到具体实体 ———
