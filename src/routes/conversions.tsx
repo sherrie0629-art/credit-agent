@@ -74,6 +74,22 @@ const conversionSnapshotQuery = queryOptions({
 });
 
 
+const QUEUE_PAGE_SIZE = 20;
+
+/** 页码列表：页数少时全展示，多时保留首页/末页/当前页邻格。 */
+function queuePageItems(page: number, pageCount: number): Array<number | "…"> {
+  const nums = Array.from({ length: pageCount }, (_, i) => i + 1).filter(
+    (n) => pageCount <= 7 || n === 1 || n === pageCount || Math.abs(n - page) <= 1,
+  );
+  const out: Array<number | "…"> = [];
+  for (const n of nums) {
+    const prev = out[out.length - 1];
+    if (typeof prev === "number" && n - prev > 1) out.push("…");
+    out.push(n);
+  }
+  return out;
+}
+
 const STATUS_STYLE: Record<string, string> = {
   SENT: "border-success/40 bg-success/10 text-success",
   PENDING: "border-border bg-muted/40 text-muted-foreground",
@@ -139,6 +155,7 @@ function ConversionsPage() {
   const [snap, setSnap] = useState<ConversionSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
   const [simLeads, setSimLeads] = useState(20);
   const [simRate, setSimRate] = useState(40);
@@ -157,6 +174,10 @@ function ConversionsPage() {
     () => (snap?.uploads ?? []).filter((u) => filter === "ALL" || u.status === filter),
     [snap, filter],
   );
+
+  const pageCount = Math.max(1, Math.ceil(uploads.length / QUEUE_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paged = uploads.slice((safePage - 1) * QUEUE_PAGE_SIZE, safePage * QUEUE_PAGE_SIZE);
 
   async function run<T>(fn: () => Promise<T>, done: (r: T) => void) {
     setBusy(true);
@@ -400,7 +421,10 @@ function ConversionsPage() {
             {["ALL", "PENDING", "SENT", "FAILED", "SKIPPED"].map((s) => (
               <button
                 key={s}
-                onClick={() => setFilter(s)}
+                onClick={() => {
+                  setFilter(s);
+                  setPage(1);
+                }}
                 className={cn(
                   "rounded border px-2 py-1 font-mono text-[10px]",
                   filter === s
@@ -428,7 +452,7 @@ function ConversionsPage() {
               </tr>
             </thead>
             <tbody>
-              {uploads.slice(0, 60).map((u) => (
+              {paged.map((u) => (
                 <Fragment key={u.id}>
                   <tr className="border-b border-border/60">
                     <td className="py-2">
@@ -501,7 +525,49 @@ function ConversionsPage() {
           </table>
           {uploads.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">暂无回传记录</p>
-          ) : null}
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[11px] text-muted-foreground">
+                共 {uploads.length} 条 · 第 {safePage}/{pageCount} 页
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground disabled:opacity-40"
+                >
+                  上一页
+                </button>
+                {queuePageItems(safePage, pageCount).map((item, i) =>
+                  item === "…" ? (
+                    <span key={`e${i}`} className="px-1 font-mono text-[10px] text-muted-foreground">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => setPage(item)}
+                      className={cn(
+                        "min-w-7 rounded border px-2 py-1 font-mono text-[10px]",
+                        item === safePage
+                          ? "border-neon/50 bg-neon/10 text-neon"
+                          : "border-border text-muted-foreground",
+                      )}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+                <button
+                  disabled={safePage >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  className="rounded border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground disabled:opacity-40"
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </AppShell>
