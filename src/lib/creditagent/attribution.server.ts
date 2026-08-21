@@ -2,6 +2,7 @@
 import {
   TARGET_CPS,
   adjustForLag,
+  attributeFactorToEntities,
   buildMaturityCurve,
   buildPrescription,
   computeFactors,
@@ -10,6 +11,8 @@ import {
   decomposeGrowth,
   linearForecast,
   type CpsDecomposition,
+  type FactorEntityKind,
+  type FactorEntitySample,
   type FactorSample,
   type Forecast,
   type GrowthDecomposition,
@@ -53,6 +56,7 @@ function emptyBundle(note: string): AttributionBundle {
     groups: [],
     portfolio: { decomposition: null, growth: null, curCps: 0, priorCps: 0, forecastCps: null },
     lag: null,
+    factorEntities: [],
     target: TARGET_CPS,
   };
 }
@@ -353,6 +357,7 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
       forecastCps: portfolioForecast ? Math.max(0, portfolioForecast.predicted) : null,
     },
     lag,
+    factorEntities,
     target: TARGET_CPS,
   };
 }
