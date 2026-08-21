@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           ai_suggestion: string
           audience: string
+          audience_segment_id: string | null
           bid_strategy: string
           bid_target: number | null
           campaign_id: string
@@ -42,6 +43,7 @@ export type Database = {
         Insert: {
           ai_suggestion?: string
           audience?: string
+          audience_segment_id?: string | null
           bid_strategy?: string
           bid_target?: number | null
           campaign_id: string
@@ -66,6 +68,7 @@ export type Database = {
         Update: {
           ai_suggestion?: string
           audience?: string
+          audience_segment_id?: string | null
           bid_strategy?: string
           bid_target?: number | null
           campaign_id?: string
@@ -88,6 +91,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ad_groups_audience_segment_id_fkey"
+            columns: ["audience_segment_id"]
+            isOneToOne: false
+            referencedRelation: "audience_segments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ad_groups_campaign_fk"
             columns: ["campaign_id"]
@@ -277,6 +287,92 @@ export type Database = {
           max_daily_budget_delta_pct?: number
           mode?: string
           risk_first?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      audience_segment_facts: {
+        Row: {
+          created_at: string
+          expected_cvr: number | null
+          expected_disb_rate: number | null
+          id: string
+          maturity: number | null
+          sample_size: number
+          segment_id: string
+          updated_at: string
+          window_from: string | null
+          window_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          expected_cvr?: number | null
+          expected_disb_rate?: number | null
+          id?: string
+          maturity?: number | null
+          sample_size?: number
+          segment_id: string
+          updated_at?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          expected_cvr?: number | null
+          expected_disb_rate?: number | null
+          id?: string
+          maturity?: number | null
+          sample_size?: number
+          segment_id?: string
+          updated_at?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audience_segment_facts_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "audience_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audience_segments: {
+        Row: {
+          channel: string
+          created_at: string
+          id: string
+          name: string
+          origin: string
+          platform_removed: boolean
+          platform_resource_name: string | null
+          synced_at: string | null
+          targeting_json: Json
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id: string
+          name: string
+          origin?: string
+          platform_removed?: boolean
+          platform_resource_name?: string | null
+          synced_at?: string | null
+          targeting_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: string
+          name?: string
+          origin?: string
+          platform_removed?: boolean
+          platform_resource_name?: string | null
+          synced_at?: string | null
+          targeting_json?: Json
           updated_at?: string
         }
         Relationships: []

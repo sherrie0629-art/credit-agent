@@ -10,6 +10,7 @@ import {
   searchAds,
   searchCampaigns,
 } from "./meta-ads.server";
+import { markAudienceSegmentsRemoved, upsertAudienceSegment } from "./audience-mirror.server";
 import { recordGuardrail } from "./guardrails.server";
 import { hasServiceRole, LOCAL_WRITE_HINT } from "./read-client.server";
 
@@ -89,6 +90,7 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
     const seenAdGroupIds = new Set<string>();
     const seenCreativeIds = new Set<string>();
     const adGroupToCampaign = new Map<string, string>();
+    const seenSegmentIds = new Set<string>();
 
     for (const c of campaigns) {
       if (!c.id) continue;
@@ -134,13 +136,26 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
         a.dailyBudgetCents != null
           ? Math.max(0, Math.round(metaCentsToDollars(a.dailyBudgetCents)))
           : 0;
+      // 受众镜像：定向真相源在 Meta 后台，本地只读。
+      const audienceName = `${a.name || `Meta Ad Set ${a.id}`} · 平台定向`;
+      const segmentId = await upsertAudienceSegment(supabase, {
+        id: `m_aud_${a.id}`,
+        channel: "Meta",
+        name: audienceName,
+        platformResourceName: a.id,
+        targeting: { source: "meta_ads", adSetId: a.id },
+        origin: "meta_sync",
+        syncAt,
+      });
+      if (segmentId) seenSegmentIds.add(segmentId);
       const row = {
         id,
         campaign_id: campaignId,
         name: a.name || `Meta Ad Set ${a.id}`,
         channel: "Meta",
         placement: "Feed",
-        audience: "Meta Sync",
+        audience: audienceName,
+        audience_segment_id: segmentId,
         bid_strategy: "Lowest Cost",
         bid_target: null,
         status: mapStatus(a.status),
@@ -233,6 +248,12 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
     await markRemoved("campaigns", seenCampaignIds);
     await markRemoved("ad_groups", seenAdGroupIds);
     await markRemoved("creative_assets", seenCreativeIds);
+    markedRemoved += await markAudienceSegmentsRemoved(
+      supabase,
+      "meta_sync",
+      [...seenSegmentIds],
+      syncAt,
+    );
 
     // 生成的数据库类型还没包含这张审计表，先做一次窄化。
     await (supabase as any).from("meta_structure_sync_runs").insert({
