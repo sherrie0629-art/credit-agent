@@ -89,6 +89,7 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
     const seenAdGroupIds = new Set<string>();
     const seenCreativeIds = new Set<string>();
     const adGroupToCampaign = new Map<string, string>();
+    const seenSegmentIds = new Set<string>();
 
     for (const c of campaigns) {
       if (!c.id) continue;
@@ -134,13 +135,26 @@ export async function syncMetaStructure(): Promise<MetaStructureSyncResult> {
         a.dailyBudgetCents != null
           ? Math.max(0, Math.round(metaCentsToDollars(a.dailyBudgetCents)))
           : 0;
+      // 受众镜像：定向真相源在 Meta 后台，本地只读。
+      const audienceName = `${a.name || `Meta Ad Set ${a.id}`} · 平台定向`;
+      const segmentId = await upsertAudienceSegment(supabase, {
+        id: `m_aud_${a.id}`,
+        channel: "Meta",
+        name: audienceName,
+        platformResourceName: a.id,
+        targeting: { source: "meta_ads", adSetId: a.id },
+        origin: "meta_sync",
+        syncAt,
+      });
+      if (segmentId) seenSegmentIds.add(segmentId);
       const row = {
         id,
         campaign_id: campaignId,
         name: a.name || `Meta Ad Set ${a.id}`,
         channel: "Meta",
         placement: "Feed",
-        audience: "Meta Sync",
+        audience: audienceName,
+        audience_segment_id: segmentId,
         bid_strategy: "Lowest Cost",
         bid_target: null,
         status: mapStatus(a.status),
