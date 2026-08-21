@@ -160,12 +160,22 @@ export function AttributionPanel({ data }: { data: AttributionBundle | null }) {
         </div>
       </div>
 
+      {/* —— 因子归属：变化落在哪些实体上 —— */}
+      {data.factorEntities.length > 0 && (
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {data.factorEntities.map((fa) => (
+            <FactorEntityCard key={fa.kind} fa={fa} />
+          ))}
+        </div>
+      )}
+
       {/* —— 组级：因果条 + 预测 + 处方 —— */}
       <div className="mt-4 space-y-3">
         {data.groups.map((g) => (
           <GroupRow key={g.adGroupId} g={g} target={data.target} />
         ))}
       </div>
+
 
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{data.note}</p>
     </section>
