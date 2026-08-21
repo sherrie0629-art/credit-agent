@@ -1,156 +1,140 @@
-# Palantir 本体论 Agent 范式在 CreditAgent 中的概念分析
+# 本体论（Ontology）范式落地 CreditAgent — 分步骤实施方案
 
-## 1. 结论：高度适用，但应分阶段落地
+目标：把现在「表 + 硬编码规则 + LLM 建议」的结构，升级为「业务图谱（实体-关系-动作）+ 图谱约束下的 Agent 读写」。核心收益是三条：归因能穿透到实体、决策能追溯到路径、写操作被本体约束挡住幻觉。
 
-Palantir 的 Ontology Agent 范式（把业务建模成「实体-关系-规则-动作」的可计算图谱，Agent 通过读写图谱来执行业务）对 AI 广告自动化投放非常适用。消费信贷投放的因果链长、合规要求高、资金动作敏感，正是「需要可审计的业务图谱」而非「黑箱端到端模型」的典型场景。
+原则：不引入图数据库，继续用 Postgres + 应用层本体抽象；受众等平台侧对象一律「只拉不推、UI 只读」；LLM 仍然只产建议，不获得写权限。
 
-但本体论不是简单加一张图数据库。对 CreditAgent 来说，第一阶段应聚焦「把现有关系型模型显式化为本体语义层」，让 LLM/Agent 的推理和动作都锚定在这个语义层上，而不是直接操作 SQL 表。
+---
 
-## 2. 为什么适用：三个契合点
+## 阶段一：本体注册表（1 步，纯代码，无迁移）
 
-### 2.1 业务实体天然分层
-CreditAgent 已有清晰的实体层级：
+把散落在 `types.ts` / SQL 视图里的隐式模型，收敛成一份显式、可被代码引用的本体定义。
 
-```text
-Advertiser（客户）
-  └── Portfolio（投放组合）
-        └── Campaign（系列 / 渠道级）
-              └── AdGroup（广告组 / 执行单元）
-                    └── CreativePlacement（素材投放关系）
-                          └── CreativeAsset（素材）
-                                └── CreativeVariant（变体 / 实验臂）
-  └── AudienceSegment（受众段）
-  └── Lead（线索） → LeadEvent（事件） → Disbursement（放款）
-  └── AgentDecision（决策） / GuardrailEvent（护栏事件）
-```
+新增 `src/lib/creditagent/ontology/`：
+- `objects.ts` — Object Type 定义：Campaign、AdGroup、CreativeAsset、CreativeVariant、CreativeExperiment、CreativePlacement、AudienceSegment、Lead、LeadEvent、AgentDecision、BudgetPoolEntry、GuardrailEvent。每个类型声明：`id 字段`、`表名`、`关键属性`、`是否平台镜像（origin 感知）`。
+- `links.ts` — Link Type 定义：`Campaign contains AdGroup`、`AdGroup delivers CreativeAsset (via creative_placements, 带 share)`、`AdGroup targets AudienceSegment`、`Lead attributed_to AdGroup/Creative`、`AgentDecision acts_on X`、`AgentDecision produces BudgetPoolEntry`、`GuardrailEvent blocks AgentDecision`。每条边声明两端类型、基数、外键列。
+- `actions.ts` — Action Type 定义：`BUDGET_SHIFT`、`BID_ADJUST`、`CREATIVE_PAUSE`、`CREATIVE_REFRESH`、`VARIANT_PROMOTE`。每个动作声明：输入参数 schema（zod）、作用对象类型、前置条件列表、产生的副作用实体。
 
-这与 Palantir 的 Object Type → Property → Link Type → Action Type 模型天然对应。
+产出：一份机器可读的本体，后续所有阶段都引用它。此阶段不改任何运行时行为。
 
-### 2.2 因果链比单纯统计更重要
-当前归因看板已经做到「结果记账」。本体论可以进一步回答「为什么」：CPS 上升是因为 CPC 变贵、转化率下降、还是放款率下降？预算从 A 组挪到 B 组后，B 组增量中有多少是真实增量、多少是从 A 组转移过来的？这些问题需要显式建模实体间的因果路径。
+验收：`tsgo` 通过；本体定义与现有表结构一一对上（人工核对清单）。
 
-### 2.3 动作需要可审计、可回滚
-Agent 的预算调整、启停、素材替换都是资金动作。本体论可以把每一次动作表达为「从状态 S1 到 S2 的图谱变换」，并强制通过规则验证（preflight）。这比在 SQL 里直接 UPDATE 一行更易于审计和回滚。
+---
 
-## 3. 本体层设计草案
+## 阶段二：子图查询层（1 步，纯代码）
 
-### 3.1 核心 Object Types
+Agent 与 UI 都需要「以某个实体为中心取 N 跳邻域」的能力，避免把全量 snapshot 喂给 LLM。
 
-| Object Type | 对应现有表 | 关键属性 | 关键关系 |
-|-------------|------------|----------|----------|
-| Advertiser | 客户维度（可新增） | industry, risk_appetite, target_cps | owns Campaign |
-| Campaign | campaigns | channel, placement, status, daily_budget, origin | contains AdGroup, targets AudienceSegment |
-| AdGroup | ad_groups | bid_strategy, bid_target, status, daily_budget | belongs_to Campaign, delivers Creative via CreativePlacement, generates Lead |
-| CreativeAsset | creative_assets | compliance_status, fatigue_level, max_apr | has Variant, placed_in AdGroup |
-| CreativeVariant | creative_variants | angle, compliance_score | belongs_to CreativeAsset, participates_in Experiment |
-| CreativeExperiment | creative_experiments | status, winner_variant_id | arms Variant |
-| CreativePlacement | creative_placements | share, status | links CreativeAsset ↔ AdGroup |
-| AudienceSegment | 新增 / 从 audience 字符串提炼 | channel, targeting_json, expected_cvr | targeted_by Campaign/AdGroup |
-| Lead | leads | channel, click_at, landing_url | attributed_to AdGroup/Creative, has_events LeadEvent |
-| LeadEvent | lead_events | event_type, value, occurred_at | belongs_to Lead |
-| AgentDecision | agent_decisions | action_type, status, trigger_source, confidence_score | acts_on Campaign/AdGroup/Creative, produces BudgetPoolEntry |
-| BudgetPoolEntry | budget_pool_entries | direction, amount, status | releases_from / allocates_to AdGroup |
-| GuardrailEvent | guardrail_events | rule, verdict, detail | blocks_or_modifies AgentDecision |
+新增 `src/lib/creditagent/ontology/subgraph.server.ts`：
+- `getSubgraph({ rootType, rootId, depth })` — 按 `links.ts` 声明的边，从 Postgres 拉取有限跳邻域，返回 `{ nodes, edges }`。
+- 深度上限 3，节点数上限（默认 200）截断并标注 `truncated`。
+- 复用现有 `read-client.server.ts` 的只读/管理端 client 选择逻辑。
 
-### 3.2 关键 Link Types（关系语义化）
+新增 `src/lib/creditagent/ontology/serialize.ts`：把子图压成给 LLM 的紧凑文本（实体 + 关键指标 + 关系），控制 token。
 
-- `Campaign --contains--> AdGroup`：结构关系，决定预算层级。
-- `AdGroup --delivers--> CreativeAsset`：通过 CreativePlacement 实现，带 share 权重。
-- `AdGroup --targets--> AudienceSegment`：投放目标关系。
-- `Lead --attributed_to--> AdGroup / CreativeAsset`：归因关系，支持多触点时可扩展为路径。
-- `AgentDecision --acts_on--> AdGroup`：动作对象。
-- `AgentDecision --produces--> BudgetPoolEntry`：资金影响。
-- `GuardrailEvent --blocks--> AgentDecision`：规则拦截。
+验收：对一个真实 AdGroup 取 2 跳子图，能拿到父 Campaign、投放素材、近期线索统计、相关决策。
 
-### 3.3 Action Types（本体化动作）
+---
 
-把当前 `action_type` 枚举扩展为有输入/输出/前置条件的动作类型：
+## 阶段三：本体一致性检查接入护栏（1 步，纯代码）
 
-- `BUDGET_SHIFT`：输入（from AdGroup, to AdGroup, amount），输出（BudgetPoolEntry pair），前置条件（guardrail checkBudgetChange）。
-- `BID_ADJUST`：输入（AdGroup, new bid_target），前置条件（bidStrategy 允许 target）。
-- `CREATIVE_PAUSE` / `CREATIVE_REFRESH`：输入（CreativePlacement 或 CreativeAsset），前置条件（compliance_status != FAILED）。
-- `VARIANT_PROMOTE`：输入（experiment_id, winner_variant_id），前置条件（统计显著性 / 样本量）。
+在现有 `guardrails.ts` / `guardrails.server.ts` 的硬编码阈值之上，加一层「结构合法性」检查，作为所有自动写入的前置门控。
 
-## 4. 四个高价值应用场景
+新增 `src/lib/creditagent/ontology/invariants.ts`（纯函数，可单测）：
+- 类型合法：`BID_ADJUST` 不能作用于不需要 target 的出价策略（复用 `structure.ts` 的 `bidStrategyNeedsTarget`）。
+- 状态一致：父 Campaign 为 PAUSED 时不得单独激活其 AdGroup；`COMPLIANCE_HOLD` 对象禁止加预算。
+- 平台镜像保护：`origin != demo` 的实体禁止结构性改写，只允许预算/启停。
+- 资金守恒：当日 `budget_pool_entries` 的 ALLOCATE 累计不得超过 RELEASE 累计。
+- 引用完整：决策引用的 adGroupId / creativeId 必须在本体中存在（挡 LLM 幻觉 ID，与现有 `sanitizeAdvice` 互补）。
 
-### 4.1 因果归因：从「结果记账」到「机制解释」
-当前 `AttributionPanel` 已经用杜邦分解把 CPS 拆成 CPC × 1/CVR × 1/DisbRate。本体论可以进一步把每个因子锚定到具体实体：
+改造 `guardrails.server.ts` 的 `preflight`：先跑 invariants，再跑现有阈值检查；违反时写 `guardrail_events`（`rule` 记为 `ONTOLOGY_*`）。
 
-- CPC 上升 → 是某个 AudienceSegment 竞争激烈，还是某个 Placement 流量质量下降？
-- CVR 下降 → 是 Landing Page 问题，还是 Creative 与 Audience 不匹配？
-- 放款率下降 → 是某个 Campaign 引入的用户资质变差，还是宏观经济因素？
+验收：构造违规输入的单测全部被拦截；正常审批路径行为不变。
 
-实现方式：把 `CpsDecomposition` 中的每个因子变化标注到 `AdGroup` / `AudienceSegment` / `CreativePlacement` 节点上，形成「因子贡献图」。
+---
 
-### 4.2 决策审计：每一次 Agent 动作都可追溯
-当前 `agent_decisions` 表已经记录了动作，但本体论可以让审计更结构化：
+## 阶段四：决策的图谱差分与审计视图（1 步，含迁移）
 
-- 动作前状态快照：相关 Campaign、AdGroup、Creative、BudgetPool 的完整子图。
-- 动作规则路径：触发了哪些 guardrail，哪些被通过、哪些被拦截。
-- 动作后预期 vs 实际：把 `effect` 字段扩展为图谱差分（graph diff）。
+让每条决策带上「动作前子图快照 + 预期变更」，审批页展示影响面。
 
-这样审批页面可以展示「如果批准，哪些节点会变化、变化量是多少、是否符合本体约束」。
+迁移：`agent_decisions` 增加两列
+- `ontology_before jsonb`（决策生成时的相关子图快照，裁剪版）
+- `ontology_diff jsonb`（预期节点变更：`[{ type, id, field, from, to }]`）
 
-### 4.3 执行护栏：用本体约束防止 LLM 幻觉
-当前 `guardrails.ts` 是硬编码规则。本体论可以把它升级为「本体一致性检查」：
+代码：
+- `agent.server.ts` 创建决策时调用 `getSubgraph` + 动作定义生成 diff 一并落库。
+- `DecisionCard.tsx` 增加「影响面」折叠区：列出会变更的实体、字段、前后值，以及触发/通过的护栏规则。
 
-- 类型检查：`BID_ADJUST` 不能作用于 `bid_strategy = "Lowest Cost"` 的 AdGroup。
-- 关系检查：暂停的 Campaign 下不能单独激活 AdGroup（状态一致性）。
-- 预算守恒：所有 `BudgetPoolEntry` 的 RELEASE 总量 ≥ ALLOCATE 总量。
-- 合规检查：`CreativeAsset` 的 `max_apr` 必须 ≤ Advertiser 所在司法管辖区上限。
+验收：新产生的决策卡上能看到「本次将改动 2 个广告组的日预算，资金来自 X 组释放」。
 
-这些检查可以独立于 LLM，作为 Agent 动作的前置门控。
+---
 
-### 4.4 跨实体预算再分配：图谱驱动的资金流动
-当前 `reallocate.ts` 已经能筛选高胜率 AdGroup 并生成待审卡。本体论可以让逻辑更透明：
+## 阶段五：受众镜像实体（1 步，含迁移）
 
-- 释放节点：哪些 AdGroup 因为风险/疲劳/节奏被释放预算，释放原因是什么。
-- 候选节点：哪些 AdGroup 符合接收条件，各自的胜率、CPS、成熟度如何。
-- 资金路径：从 A 到 B 的每一笔 BudgetPoolEntry 都有完整的图谱路径，便于后续归因「这笔预算增量带来了多少真实放款」。
+受众圈选真相源在 Google / Meta 后台，本地只做只读镜像 + 本地派生指标。
 
-## 5. 受众本体：平台同步的只读镜像 + 本地派生指标
+迁移：
+- 新建 `audience_segments`：`id`、`channel`、`name`、`platform_resource_name`、`targeting_json`、`origin`（`google_sync|meta_sync`）、`synced_at`、`platform_removed`、时间戳。RLS + GRANT 按现有镜像表（如 `ad_groups`）的口径。
+- 新建 `audience_segment_facts`（本地派生，可写）：`segment_id`、`expected_cvr`、`expected_disb_rate`、`sample_size`、`maturity`、`window_from/to`。
+- `ad_groups` 增加 `audience_segment_id`（可空，外键），保留现有 `audience` 文本作为回退显示。
 
-**权威边界**：受众圈选（兴趣、地域、Lookalike、自定义人群）的真相源在 Google / Meta 广告后台，不在本平台。因此 `AudienceSegment` 与现有 `campaigns` / `ad_groups` 的结构同步保持同一范式——**只拉不推、UI 只读**，本地不提供圈人能力，也不向平台推送定向变更。
+代码：
+- `google-ads-sync.server.ts` / `meta-ads-sync.server.ts` 在结构同步时一并 upsert 受众镜像并回填 `ad_groups.audience_segment_id`；平台侧删除标 `platform_removed`。
+- `StructureTab.tsx` 受众字段改为只读展示 + 「在平台后台修改」提示。
+- Agent 侧不产生受众写操作；如判断受众需调整，只出「建议人工在平台后台修改」的 PENDING 卡。
 
-```text
-AudienceSegment（镜像字段，只读）
-  - id / channel
-  - name（平台侧受众名）
-  - platform_resource_name（Google audience / Meta ad set targeting 引用）
-  - targeting_json（平台原生定向参数，原样存档）
-  - origin: google_sync | meta_sync
-  - synced_at / platform_removed
+验收：同步后广告组能显示平台真实受众名；UI 上无任何本地圈人入口。
 
-AudienceSegmentFacts（本地派生，可写）
-  - segment_id
-  - expected_cvr / expected_disb_rate（由本地 leads + lead_events 算出）
-  - maturity / sample_size（时滞成熟度、样本量）
-  - competitive_intensity（可选外部信号，需标置信度）
-```
+---
 
-关系：
-- `AdGroup --targets--> AudienceSegment`（把 `ad_groups.audience` 文本换成对镜像实体的引用）
-- `AudienceSegment --has_facts--> AudienceSegmentFacts`（本地后端真相）
-- `AudienceSegment --performs_in--> Placement`（不同版位下的表现基准）
+## 阶段六：因果归因绑定到实体（1 步，纯代码）
 
-价值：
-- 让 LLM 在生成建议时引用平台真实定向对象，而不是自由文本，杜绝幻觉受众。
-- 归因可下钻到「哪个受众段带来的线索资质差」，而这正是平台侧看不到的后端真相。
-- Agent 的动作仍只落在预算 / 出价 / 启停上；受众调整只产出「建议人工在平台后台修改」的卡片，不做自动写入。
+把现有 `attribution.ts` 的杜邦分解结果，从「一堆数字」变成「挂在实体上的因子贡献图」。
 
-## 6. 风险与边界
+- `attribution.server.ts`：分组维度增加 `audienceSegmentId`，按受众段聚合一份分解。
+- `attribution.ts`：新增 `attributeFactorToEntities()`，把 CPC / CVR / 放款率三个因子的变化，归到 AdGroup、AudienceSegment、CreativePlacement 三类节点上，并按贡献额排序。
+- `AttributionPanel.tsx`：新增「因子归属」区块——「CPC 恶化 82% 来自受众段 A 在 Reels 版位」，每行可下钻到对应实体。
 
-| 风险 | 说明 |
-|------|------|
-| 过度工程 | 本体论层如果设计过重，会增加每次 schema 变更的成本。建议先对核心实体做语义封装，而非全量迁移到图数据库。 |
-| LLM 推理成本 | 把完整图谱喂给 LLM 会导致 token 暴涨。应使用「子图抽取」：根据问题只取相关 2-3 跳子图。 |
-| 实时性 | 本体层不应替代现有的 `get_agent_snapshot` 聚合 RPC。它应作为元数据/规则层，热数据仍走 SQL + RPC。 |
-| 外部数据可信度 | 竞品定向、市场利率等外部实体质量不稳定，应标注置信度，避免污染决策。 |
+验收：归因面板能回答「这次 CPS 上涨主要由哪个实体造成」。
 
-## 7. 下一步建议
+---
 
-1. **先做一个最小本体层映射**：把现有 `campaigns / ad_groups / creative_assets / leads / agent_decisions` 的字段和关系整理成一份显式的「实体-关系-动作」文档，作为团队共识。
-2. **在归因模块试点**：把 `AttributionPanel` 的杜邦分解结果绑定到具体 AdGroup / AudienceSegment 节点，验证「因子贡献图」对产品价值的提升。
-3. **把受众从字符串升级为「平台同步的只读实体」**：圈选标签仍在 Google / Meta 后台维护，本地新增 `audience_segments` 只做平台定向的镜像（随结构同步拉取、`origin=google_sync/meta_sync`、UI 只读），把 `ad_groups.audience` 自由文本换成对镜像实体的引用；本地只额外写「派生指标」（历史 CVR / 放款率 / 成熟度）这类平台不提供、且由我方数据算出的字段，不做本地圈人。
-4. **动作本体化**：把 `agent_decisions` 的 `action_type` 扩展为带输入/输出/前置条件的 Action Type，并在 `guardrails` 中增加本体一致性检查。
-5. **暂不引入图数据库**：当前 Postgres + JSONB + 应用层图谱抽象已足够。只有当多跳归因、复杂关系查询成为瓶颈时，再考虑 Neo4j / TigerGraph 等专业图库。
+## 阶段七：LLM Analyst 改吃子图（1 步，纯代码）
+
+- `advisor.server.ts`：prompt 上下文从「全量 snapshot 摘要」换成「问题相关子图（阶段二的 serialize 输出）」。
+- 建议输出 schema 要求显式给出 `objectType + objectId`，落库前先过 `invariants.ts` 的引用完整性检查，失败直接丢弃并记入 `advisor_runs.dropped`。
+- 保持现有约束：只插 PENDING，不写业务表。
+
+验收：`advisor_runs` 中 token 用量下降、幻觉 ID 丢弃数下降。
+
+---
+
+## 阶段八（可选）：本体浏览器页面
+
+新增 `/ontology` 路由：可视化实体关系图、点选实体查看属性与近期决策、查看本体不变量清单与近期违规。用于给客户演示「白盒可穿透」。
+
+---
+
+## 排期建议
+
+| 阶段 | 内容 | 依赖 | 是否含迁移 |
+|------|------|------|-----------|
+| 一 | 本体注册表 | — | 否 |
+| 二 | 子图查询层 | 一 | 否 |
+| 三 | 本体护栏 | 一 | 否 |
+| 四 | 决策图谱差分 | 二、三 | 是 |
+| 五 | 受众镜像实体 | 一 | 是 |
+| 六 | 因果归因绑实体 | 二、五 | 否 |
+| 七 | LLM 吃子图 | 二、三 | 否 |
+| 八 | 本体浏览器 | 全部 | 否 |
+
+建议先做一到三（无迁移、零风险、立刻提升安全性），确认手感后再推进四、五。
+
+---
+
+## 边界与不做的事
+
+- 不引入图数据库；热数据仍走 `get_agent_snapshot` RPC。
+- 不给 LLM 任何写库或 Ads mutate 工具。
+- 不在本地做受众圈选或向平台推送定向变更。
+- 不新增第二套护栏阈值；限额仍统一读 `agent_settings`。
