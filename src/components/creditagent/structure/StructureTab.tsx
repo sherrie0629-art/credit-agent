@@ -733,7 +733,13 @@ function AdGroupEditor({
             maxLength={240}
             disabled={fromGoogle}
           />
+          {fromGoogle && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              受众为平台侧只读镜像，本系统不做圈选；如需调整定向，请在广告平台后台修改后重新同步。
+            </p>
+          )}
         </Field>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="日预算 $">
             <Input
