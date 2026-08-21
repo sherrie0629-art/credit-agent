@@ -972,6 +972,19 @@ export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "E
 
   const baseId = await nextDecisionId();
   const notes = await Promise.all(paused.map((g) => feedbackNote(g.channel)));
+  const { buildDecisionOntology } = await import("./ontology/decision-diff.server");
+  const ontologies = await Promise.all(
+    paused.map((g) =>
+      buildDecisionOntology({
+        rootType: "AdGroup",
+        rootId: g.id,
+        changes: [
+          { type: "AdGroup", id: g.id, name: g.name, field: "status", from: "ACTIVE", to: "PAUSED" },
+          { type: "AdGroup", id: g.id, name: g.name, field: "daily_budget", from: g.dailyBudget, to: 0 },
+        ],
+      }),
+    ),
+  );
   const rows = paused.map((g, i) => ({
     id: `${baseId}_${i}`,
     timestamp: new Date().toISOString(),
@@ -1002,6 +1015,8 @@ export async function autoPauseRiskyGroups(triggerSource: "EVENT" | "SWEEP" = "E
     status: executed ? "EXECUTED" : "PENDING_APPROVAL",
     effect: `广告组「${g.name}」自动暂停`,
     rollback_to: `${g.name} ACTIVE / $${g.dailyBudget}`,
+    ontology_before: ontologies[i]?.ontology_before ?? null,
+    ontology_diff: ontologies[i]?.ontology_diff ?? [],
   }));
 
   await supabase.from("agent_decisions").insert(rows as never);
