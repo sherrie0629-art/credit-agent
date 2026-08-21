@@ -64,15 +64,20 @@ function emptyBundle(note: string): AttributionBundle {
 export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<AttributionBundle> {
   const supabase = await db();
 
-  const [{ data: metricRows, error: metricErr }, { data: groupRows }] = await Promise.all([
-    supabase
-      .from("creative_metrics")
-      .select("ad_group_id, day, spend, clicks, impressions, cpl, cps")
-      .not("ad_group_id", "is", null)
-      .order("day", { ascending: true })
-      .limit(5000),
-    supabase.from("ad_groups").select("id, name, channel, campaign_id, daily_budget, spent_today"),
-  ]);
+  const [{ data: metricRows, error: metricErr }, { data: groupRows }, { data: segmentRows }, { data: creativeRows }] =
+    await Promise.all([
+      supabase
+        .from("creative_metrics")
+        .select("ad_group_id, creative_id, day, spend, clicks, impressions, cpl, cps")
+        .not("ad_group_id", "is", null)
+        .order("day", { ascending: true })
+        .limit(5000),
+      supabase
+        .from("ad_groups")
+        .select("id, name, channel, campaign_id, daily_budget, spent_today, audience, audience_segment_id"),
+      supabase.from("audience_segments").select("id, name, channel"),
+      supabase.from("creative_assets").select("id, headline"),
+    ]);
 
   const metrics = (metricRows ?? []) as Row[];
   if (metricErr || metrics.length === 0) {
@@ -84,14 +89,32 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const priorTo = addDays(curFrom, -1);
   const priorFrom = addDays(priorTo, -(WINDOW_DAYS - 1));
 
-  const groupMeta = new Map<string, { name: string; channel: string; campaignId: string }>();
+  const segmentName = new Map<string, string>();
+  for (const s of (segmentRows ?? []) as Row[]) {
+    segmentName.set(String(s.id), String(s.name ?? s.id));
+  }
+  const creativeName = new Map<string, string>();
+  for (const c of (creativeRows ?? []) as Row[]) {
+    creativeName.set(String(c.id), String(c.headline ?? c.id));
+  }
+
+  const groupMeta = new Map<
+    string,
+    { name: string; channel: string; campaignId: string; segmentId: string; segmentLabel: string }
+  >();
   for (const g of (groupRows ?? []) as Row[]) {
+    const segId = g.audience_segment_id ? String(g.audience_segment_id) : "";
     groupMeta.set(String(g.id), {
       name: String(g.name ?? g.id),
       channel: String(g.channel ?? "-"),
       campaignId: String(g.campaign_id ?? ""),
+      segmentId: segId || `text:${String(g.audience ?? "未标注受众")}`,
+      segmentLabel: segId
+        ? (segmentName.get(segId) ?? segId)
+        : String(g.audience ?? "未标注受众"),
     });
   }
+
 
   // —— 花费 / 点击 / 线索 / 放款：统一以日级投放指标为准，保证口径同源 ——
   // leads = spend / CPL，disbursed = spend / CPS（平台日报口径），
