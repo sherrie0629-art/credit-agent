@@ -216,6 +216,33 @@ export function DecisionCard({
         </div>
       </div>
 
+      {impact.length > 0 && (
+        <Collapsible open={impactOpen} onOpenChange={setImpactOpen}>
+          <CollapsibleTrigger className="mt-3 flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-left text-[11px] tracking-wide text-muted-foreground transition-colors hover:text-foreground">
+            <ChevronRight className={cn("size-3.5 transition-transform", impactOpen && "rotate-90")} />
+            影响面 · 将改动 {impact.length} 处实体字段
+            {decision.ontologyBefore ? ` · 关联实体 ${decision.ontologyBefore.nodes.length}` : ""}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="mt-2 space-y-1.5">
+              {impact.map((c, i) => (
+                <li
+                  key={`${c.type}-${c.id}-${c.field}-${i}`}
+                  className="rounded-md border border-border bg-background/40 px-2.5 py-1.5 font-mono text-[11px] text-foreground/85"
+                >
+                  {describeChange(c)}
+                </li>
+              ))}
+            </ul>
+            {decision.ontologyBefore?.truncated && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                子图快照已截断，仅保留最相关的一部分实体。
+              </p>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger className="mt-3 flex w-full items-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-left text-[11px] tracking-wide text-muted-foreground transition-colors hover:text-foreground">
           <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
