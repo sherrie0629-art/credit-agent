@@ -122,6 +122,12 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const cur = new Map<string, FactorSample>();
   const prior = new Map<string, FactorSample>();
   const dailyCps = new Map<string, { day: string; cps: number }[]>();
+  // 因子归属所需的另外两个实体维度
+  const segCur = new Map<string, FactorSample>();
+  const segPrior = new Map<string, FactorSample>();
+  const placeCur = new Map<string, FactorSample>();
+  const placePrior = new Map<string, FactorSample>();
+
 
   const [{ data: leadRows }, { data: eventRows }] = await Promise.all([
     supabase.from("leads").select("id, ad_group_id, click_at").limit(5000),
