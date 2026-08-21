@@ -154,13 +154,27 @@ export async function syncGoogleStructure(): Promise<GoogleStructureSyncResult> 
         parentBudget?.budgetMicros != null
           ? Math.max(0, Math.round(microsToDollars(parentBudget.budgetMicros)))
           : 0;
+      // 受众镜像：只拉不推，本地不提供圈选入口。
+      const audienceName = `${g.name || `Google Ad Group ${g.id}`} · 平台定向`;
+      const segmentId = await upsertAudienceSegment(supabase, {
+        id: `g_aud_${g.id}`,
+        channel: "Google",
+        name: audienceName,
+        platformResourceName: g.resourceName,
+        targeting: { source: "google_ads", adGroupResourceName: g.resourceName },
+        origin: "google_sync",
+        syncAt,
+      });
+      if (segmentId) seenSegmentIds.add(segmentId);
       const row = {
         id,
         campaign_id: campaignId,
         name: g.name || `Google Ad Group ${g.id}`,
         channel: "Google",
         placement: "Google Sync",
-        audience: "Google 同步受众（详见广告后台）",
+        audience: audienceName,
+        audience_segment_id: segmentId,
+
         bid_strategy: "Maximize Conversions",
         bid_target: null,
         status: mapStatus(g.status),
