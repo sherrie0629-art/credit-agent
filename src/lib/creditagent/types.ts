@@ -55,6 +55,10 @@ export interface AgentDecision {
   /** Google Ads（test）mutate 结果，便于值班排障。 */
   externalMutateStatus?: string;
   externalMutateDetail?: string;
+  /** 本体图谱：本次动作预期改动的实体与字段（影响面）。 */
+  ontologyDiff?: import("./ontology/decision-diff").OntologyChange[];
+  /** 本体图谱：决策生成时的相关子图快照（裁剪版）。 */
+  ontologyBefore?: import("./ontology/decision-diff").OntologySnapshot | null;
 }
 
 

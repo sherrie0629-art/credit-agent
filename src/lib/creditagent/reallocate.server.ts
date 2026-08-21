@@ -254,6 +254,31 @@ export async function runReallocation(triggerSource: "EVENT" | "SWEEP" | "MANUAL
       : "托管模式 = Semi-Auto：整张转移方案待人工确认，期间资金在池中冻结。",
   ];
 
+  const { buildDecisionOntology } = await import("./ontology/decision-diff.server");
+  const ontology = await buildDecisionOntology({
+    rootType: "AdGroup",
+    rootId: top.adGroupId,
+    changes: [
+      ...plan.allocations.map((a) => ({
+        type: "AdGroup" as const,
+        id: a.adGroupId,
+        name: a.adGroupName,
+        field: "daily_budget",
+        from: a.fromBudget,
+        to: a.toBudget,
+      })),
+      ...sources.map((s) => ({
+        type: "BudgetPoolEntry" as const,
+        id: String(s.id),
+        name: s.adGroupName ?? s.adGroupId,
+        field: "amount",
+        fieldLabel: "资金来源（已释放）",
+        from: s.amount,
+        to: s.amount,
+      })),
+    ],
+  });
+
   await supabase.from("agent_decisions").insert({
     id: decisionId,
     timestamp: new Date().toISOString(),
@@ -276,6 +301,8 @@ export async function runReallocation(triggerSource: "EVENT" | "SWEEP" | "MANUAL
     rollback_to: plan.allocations
       .map((a) => `${a.adGroupName} $${a.fromBudget.toLocaleString()}`)
       .join(" / "),
+    ontology_before: ontology.ontology_before,
+    ontology_diff: ontology.ontology_diff,
   } as never);
 
   // 每笔分配都落一条 ALLOCATE 流水，PENDING 表示资金已冻结但尚未生效。
