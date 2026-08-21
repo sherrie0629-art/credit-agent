@@ -299,6 +299,45 @@ export async function getAttributionBundle(maxBudgetDeltaPct = 30): Promise<Attr
   const curFactors = computeFactors(curTotal);
   const priorFactors = computeFactors(priorTotal);
 
+  // —— 因子归属：三类实体各出一份 ——
+  const buildSamples = (
+    kind: FactorEntityKind,
+    curMap: Map<string, FactorSample>,
+    priorMap: Map<string, FactorSample>,
+    label: (id: string) => string,
+  ): FactorEntitySample[] =>
+    [...new Set([...curMap.keys(), ...priorMap.keys()])].map((id) => ({
+      kind,
+      id,
+      name: label(id),
+      cur: curMap.get(id) ?? EMPTY_SAMPLE(),
+      prior: priorMap.get(id) ?? EMPTY_SAMPLE(),
+    }));
+
+  const factorEntities = [
+    attributeFactorToEntities(
+      "AdGroup",
+      buildSamples("AdGroup", cur, prior, (id) => groupMeta.get(id)?.name ?? id),
+    ),
+    attributeFactorToEntities(
+      "AudienceSegment",
+      buildSamples("AudienceSegment", segCur, segPrior, (id) => {
+        if (id.startsWith("text:")) return `${id.slice(5)}（未镜像）`;
+        return segmentName.get(id) ?? id;
+      }),
+    ),
+    attributeFactorToEntities(
+      "CreativePlacement",
+      buildSamples("CreativePlacement", placeCur, placePrior, (id) => {
+        const [creativeId, adGroupId] = id.split("|");
+        const c = creativeName.get(String(creativeId)) ?? String(creativeId);
+        const g = groupMeta.get(String(adGroupId))?.name ?? String(adGroupId);
+        return `${c} @ ${g}`;
+      }),
+    ),
+  ].filter((x): x is NonNullable<typeof x> => x !== null);
+
+
   return {
     available: groups.length > 0,
     note: `归因窗口锚定日级数据最后一天 ${dataThrough}；本期 ${curFrom} ~ ${dataThrough}，对比期 ${priorFrom} ~ ${priorTo}。花费/点击/线索/放款均取自日级投放指标（同源口径），放款金额按历史平均单笔额折算；时滞曲线取自真实线索的点击→放款间隔。`,
