@@ -108,30 +108,35 @@ Agent 的预算调整、启停、素材替换都是资金动作。本体论可�
 - 候选节点：哪些 AdGroup 符合接收条件，各自的胜率、CPS、成熟度如何。
 - 资金路径：从 A 到 B 的每一笔 BudgetPoolEntry 都有完整的图谱路径，便于后续归因「这笔预算增量带来了多少真实放款」。
 
-## 5. 受众本体：从字符串标签到结构化实体
+## 5. 受众本体：平台同步的只读镜像 + 本地派生指标
 
-当前 `ad_groups.audience` 是文本字段。建议引入 `AudienceSegment` 作为一等实体：
+**权威边界**：受众圈选（兴趣、地域、Lookalike、自定义人群）的真相源在 Google / Meta 广告后台，不在本平台。因此 `AudienceSegment` 与现有 `campaigns` / `ad_groups` 的结构同步保持同一范式——**只拉不推、UI 只读**，本地不提供圈人能力，也不向平台推送定向变更。
 
 ```text
-AudienceSegment
-  - id
-  - name（如 "25-34 一线城市 有信用卡"）
-  - channel
-  - targeting_json（平台原生定向参数）
-  - expected_cvr / expected_disb_rate（历史基准）
-  - competitive_intensity（竞争强度，可外部接入）
-  - lookalike_seed（种子人群，可选）
+AudienceSegment（镜像字段，只读）
+  - id / channel
+  - name（平台侧受众名）
+  - platform_resource_name（Google audience / Meta ad set targeting 引用）
+  - targeting_json（平台原生定向参数，原样存档）
+  - origin: google_sync | meta_sync
+  - synced_at / platform_removed
+
+AudienceSegmentFacts（本地派生，可写）
+  - segment_id
+  - expected_cvr / expected_disb_rate（由本地 leads + lead_events 算出）
+  - maturity / sample_size（时滞成熟度、样本量）
+  - competitive_intensity（可选外部信号，需标置信度）
 ```
 
 关系：
-- `AdGroup --targets--> AudienceSegment`
-- `Campaign --has_primary_audience--> AudienceSegment`
+- `AdGroup --targets--> AudienceSegment`（把 `ad_groups.audience` 文本换成对镜像实体的引用）
+- `AudienceSegment --has_facts--> AudienceSegmentFacts`（本地后端真相）
 - `AudienceSegment --performs_in--> Placement`（不同版位下的表现基准）
 
 价值：
-- 让 LLM 在生成建议时基于结构化受众，而不是自由文本。
-- 支持「受众 × 素材 × 版位」的实验设计。
-- 未来可接入外部数据源（征信分段、竞品定向情报）。
+- 让 LLM 在生成建议时引用平台真实定向对象，而不是自由文本，杜绝幻觉受众。
+- 归因可下钻到「哪个受众段带来的线索资质差」，而这正是平台侧看不到的后端真相。
+- Agent 的动作仍只落在预算 / 出价 / 启停上；受众调整只产出「建议人工在平台后台修改」的卡片，不做自动写入。
 
 ## 6. 风险与边界
 
@@ -146,6 +151,6 @@ AudienceSegment
 
 1. **先做一个最小本体层映射**：把现有 `campaigns / ad_groups / creative_assets / leads / agent_decisions` 的字段和关系整理成一份显式的「实体-关系-动作」文档，作为团队共识。
 2. **在归因模块试点**：把 `AttributionPanel` 的杜邦分解结果绑定到具体 AdGroup / AudienceSegment 节点，验证「因子贡献图」对产品价值的提升。
-3. **把受众从字符串升级为实体**：新增 `audience_segments` 表，逐步替换 `ad_groups.audience` 自由文本。
+3. **把受众从字符串升级为「平台同步的只读实体」**：圈选标签仍在 Google / Meta 后台维护，本地新增 `audience_segments` 只做平台定向的镜像（随结构同步拉取、`origin=google_sync/meta_sync`、UI 只读），把 `ad_groups.audience` 自由文本换成对镜像实体的引用；本地只额外写「派生指标」（历史 CVR / 放款率 / 成熟度）这类平台不提供、且由我方数据算出的字段，不做本地圈人。
 4. **动作本体化**：把 `agent_decisions` 的 `action_type` 扩展为带输入/输出/前置条件的 Action Type，并在 `guardrails` 中增加本体一致性检查。
 5. **暂不引入图数据库**：当前 Postgres + JSONB + 应用层图谱抽象已足够。只有当多跳归因、复杂关系查询成为瓶颈时，再考虑 Neo4j / TigerGraph 等专业图库。
