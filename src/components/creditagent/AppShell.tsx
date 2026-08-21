@@ -4,6 +4,7 @@ import {
   Activity,
   BarChart3,
   FlaskConical,
+  Network,
   Radio,
   RefreshCw,
   SlidersHorizontal,
@@ -15,7 +16,7 @@ import { refreshAgentState, useAgentBootstrap, useAgentStore } from "@/lib/credi
 import { cn } from "@/lib/utils";
 
 const NAV: {
-  to: "/" | "/campaigns" | "/creative" | "/analytics" | "/conversions";
+  to: "/" | "/campaigns" | "/creative" | "/analytics" | "/conversions" | "/ontology";
   label: string;
   sub: string;
   icon: LucideIcon;
@@ -44,6 +45,13 @@ const NAV: {
     search: { tab: "ops", week: "this" },
   },
   { to: "/conversions", label: "离线转化回传", sub: "Google OCI · Meta CAPI", icon: Radio },
+  {
+    to: "/ontology",
+    label: "业务本体",
+    sub: "实体图谱 · 动作护栏",
+    icon: Network,
+    search: { tab: "schema" },
+  },
 ];
 
 

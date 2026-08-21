@@ -47,3 +47,10 @@ export const checkActionFn = createServerFn({ method: "POST" })
       automated: true,
     });
   });
+
+export const fetchOntologyAuditFn = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ limit: z.number().int().min(1).max(100).optional() }).parse(d ?? {}))
+  .handler(async ({ data }) => {
+    const { listOntologyGuardrailEvents } = await import("./audit.server");
+    return listOntologyGuardrailEvents(data.limit ?? 20);
+  });
