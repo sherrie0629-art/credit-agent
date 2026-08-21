@@ -4,6 +4,7 @@ import {
   Activity,
   BarChart3,
   FlaskConical,
+  Network,
   Radio,
   RefreshCw,
   SlidersHorizontal,
@@ -15,7 +16,7 @@ import { refreshAgentState, useAgentBootstrap, useAgentStore } from "@/lib/credi
 import { cn } from "@/lib/utils";
 
 const NAV: {
-  to: "/" | "/campaigns" | "/creative" | "/analytics" | "/conversions";
+  to: "/" | "/campaigns" | "/creative" | "/analytics" | "/conversions" | "/ontology";
   label: string;
   sub: string;
   icon: LucideIcon;

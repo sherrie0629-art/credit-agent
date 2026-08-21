@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as OntologyRouteImport } from './routes/ontology'
 import { Route as LpRouteImport } from './routes/lp'
 import { Route as CreativeRouteImport } from './routes/creative'
 import { Route as ConversionsRouteImport } from './routes/conversions'
@@ -33,6 +34,11 @@ import { Route as ApiPublicCreativeImageSplatRouteImport } from './routes/api/pu
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OntologyRoute = OntologyRouteImport.update({
+  id: '/ontology',
+  path: '/ontology',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LpRoute = LpRouteImport.update({
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
+  '/ontology': typeof OntologyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/continue-creative-video': typeof ApiContinueCreativeVideoRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
+  '/ontology': typeof OntologyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/continue-creative-video': typeof ApiContinueCreativeVideoRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/conversions': typeof ConversionsRoute
   '/creative': typeof CreativeRoute
   '/lp': typeof LpRoute
+  '/ontology': typeof OntologyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/continue-creative-video': typeof ApiContinueCreativeVideoRoute
   '/api/creative-video-status': typeof ApiCreativeVideoStatusRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/conversions'
     | '/creative'
     | '/lp'
+    | '/ontology'
     | '/sitemap.xml'
     | '/api/continue-creative-video'
     | '/api/creative-video-status'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/conversions'
     | '/creative'
     | '/lp'
+    | '/ontology'
     | '/sitemap.xml'
     | '/api/continue-creative-video'
     | '/api/creative-video-status'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/conversions'
     | '/creative'
     | '/lp'
+    | '/ontology'
     | '/sitemap.xml'
     | '/api/continue-creative-video'
     | '/api/creative-video-status'
@@ -280,6 +292,7 @@ export interface RootRouteChildren {
   ConversionsRoute: typeof ConversionsRoute
   CreativeRoute: typeof CreativeRoute
   LpRoute: typeof LpRoute
+  OntologyRoute: typeof OntologyRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiContinueCreativeVideoRoute: typeof ApiContinueCreativeVideoRoute
   ApiCreativeVideoStatusRoute: typeof ApiCreativeVideoStatusRoute
@@ -303,6 +316,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ontology': {
+      id: '/ontology'
+      path: '/ontology'
+      fullPath: '/ontology'
+      preLoaderRoute: typeof OntologyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lp': {
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConversionsRoute: ConversionsRoute,
   CreativeRoute: CreativeRoute,
   LpRoute: LpRoute,
+  OntologyRoute: OntologyRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiContinueCreativeVideoRoute: ApiContinueCreativeVideoRoute,
   ApiCreativeVideoStatusRoute: ApiCreativeVideoStatusRoute,
