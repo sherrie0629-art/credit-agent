@@ -1,19 +1,21 @@
 // Planner 的 LLM「分析师」层：只读快照 → 产出跨广告组诊断与建议 → 全部落为待审批。
-// 严格边界：无 tool-calling、无 DB 写权限交给模型、输出必须过 sanitizeAdvice 净化。
+// 严格边界：无 tool-calling、无 DB 写权限交给模型、输出必须过本体 Action 契约。
 // 执行权仍在硬编码风控层（guardrails.ts），批准时会再过一次闸门。
 import type { AgentSnapshot } from "./types";
-import {
-  BUDGET_DELTA_MAX,
-  BUDGET_DELTA_MIN,
-  MAX_SUGGESTIONS,
-  isNoop,
-  sanitizeAdvice,
-  type AdvisorSuggestion,
-} from "./advisor";
+import { MAX_SUGGESTIONS } from "./advisor";
 import { checkBudgetChange } from "./guardrails";
 import { loadLimits } from "./guardrails.server";
 import { getSnapshot } from "./agent.server";
-import { buildSubgraphContext, type AdvisorContext } from "./advisor-context.server";
+import { buildSubgraphContext, snapshotKnownRefs, type AdvisorContext } from "./advisor-context.server";
+import { ACTION_TYPES, type ActionTypeId } from "./ontology/actions";
+import {
+  advisorPromptSchemaBlock,
+  describeActionEffect,
+  screenAdvisorSuggestions,
+  type ScreenedSuggestion,
+} from "./ontology/action-schema";
+import type { OntologyChange } from "./ontology/decision-diff";
+import { change } from "./ontology/decision-diff";
 
 export const ADVISOR_MODEL = "openai/gpt-5.6-sol";
 /** 定时轨的降频间隔：规则扫描 15 分钟一次，参谋提案 3 小时一次。 */
@@ -25,12 +27,6 @@ async function db() {
   const { getAdminClient } = await import("./read-client.server");
   return getAdminClient();
 }
-
-const ACTION_LABEL: Record<string, string> = {
-  BUDGET_SHIFT: "调整预算",
-  CREATIVE_PAUSE: "暂停投放",
-  CREATIVE_REFRESH: "刷新素材",
-};
 
 /** 压缩成只含数字的紧凑事实包——不传自由文本，减少提示注入面。 */
 export function buildAdvisorContext(snapshot: AgentSnapshot) {
@@ -86,16 +82,15 @@ function systemPrompt() {
 - 沿关系穿透的解释（同一素材/受众段在多个广告组上共同恶化）
 
 硬性输出约束：
-1. action 只能是 BUDGET_SHIFT / CREATIVE_PAUSE / CREATIVE_REFRESH / NO_ACTION 之一。
-2. 每条建议必须给出 objectType 与 objectId；objectType 当前只允许 "AdGroup"，objectId 必须逐字来自子图中出现过的 AdGroup 实体 ID，禁止编造。
-3. budgetDeltaPct 是整数百分比，范围 ${BUDGET_DELTA_MIN} 到 ${BUDGET_DELTA_MAX}，仅 BUDGET_SHIFT 使用。
-4. 最多给 ${MAX_SUGGESTIONS} 条建议，每条必须给出中文 rationale，并引用具体数字与实体。
-5. metric 从 CPL / ApprovalRate / CostPerDisbursement / ROAS 中选一个，currentValue 与 thresholdValue 必须是数字。
-6. confidence 为 0 到 1 的小数。
-7. 没有值得动作的对象时返回空数组，不要为了凑数编建议。
+1. 只返回符合下方 JSON Schema 的 JSON，不要 markdown 围栏。
+2. actionType 必须是 BUDGET_SHIFT / BID_ADJUST / CREATIVE_PAUSE / CREATIVE_REFRESH / VARIANT_PROMOTE / COMPLIANCE_REJECT / NO_ACTION 之一。
+3. params 必须符合该 actionType 对应的 params schema；其中的实体 ID 必须逐字来自子图，禁止编造。
+4. BUDGET_SHIFT 请给出 toAdGroupId、amount、nextDailyBudget（可选 fromAdGroupId），不要再报百分比。
+5. 最多给 ${MAX_SUGGESTIONS} 条建议，每条必须给出中文 rationale，并引用具体数字与实体。
+6. 没有值得动作的对象时 suggestions 为空数组，不要为了凑数编建议。
 
-只返回 JSON，格式：
-{"summary":"一句话全局诊断","suggestions":[{"objectType":"AdGroup","objectId":"","action":"","budgetDeltaPct":0,"rationale":"","metric":"","currentValue":0,"thresholdValue":0,"confidence":0.7}]}`;
+输出契约（JSON Schema）：
+${advisorPromptSchemaBlock()}`;
 }
 
 /**
@@ -225,9 +220,9 @@ export async function runPlannerAdvisor(
   } catch {
     context = null;
   }
-  const promptInput = context && context.focusIds.length > 0 ? context.text : buildAdvisorContext(snapshot);
-  const allowedIds =
-    context && context.focusIds.length > 0 ? context.focusIds : snapshot.adGroups.map((g) => g.id);
+  const promptInput = context && context.knownRefs.size > 0 ? context.text : JSON.stringify(buildAdvisorContext(snapshot));
+  const knownRefs =
+    context && context.knownRefs.size > 0 ? context.knownRefs : snapshotKnownRefs(snapshot);
 
   let raw: any = {};
   let rawText = "";
@@ -249,28 +244,48 @@ export async function runPlannerAdvisor(
     return { ok: false, created: 0, dropped: 0, error: message };
   }
 
-  const { kept, dropped } = sanitizeAdvice(raw, allowedIds);
-  // 引用完整性：建议指向的实体必须真实存在于本体子图中（与 sanitizeAdvice 互补）。
-  const refDropped: { index: number; reason: string }[] = [];
-  const actionable = kept.filter((s, i) => {
-    if (isNoop(s)) return false;
-    if (context && context.knownRefs.size > 0 && !context.knownRefs.has(`AdGroup:${s.adGroupId}`)) {
-      refDropped.push({ index: i, reason: `本体引用不存在：AdGroup:${s.adGroupId}` });
-      return false;
-    }
-    return true;
-  });
-  const summary = typeof raw?.summary === "string" ? raw.summary.slice(0, 300) : "";
+  const screened = screenAdvisorSuggestions(raw, knownRefs);
+  if (!screened.ok) {
+    await supabase.from("advisor_runs").insert({
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      trigger_source: triggerSource,
+      ok: false,
+      model: ADVISOR_MODEL,
+      duration_ms: Date.now() - t0,
+      raw_output: rawText.slice(0, 20000),
+      error: screened.error ?? "ENVELOPE_INVALID",
+    } as never);
+    return { ok: false, created: 0, dropped: 0, error: screened.error };
+  }
 
-  const groupById = new Map(snapshot.adGroups.map((g) => [g.id, g]));
-  const pendingGroups = new Set(
-    snapshot.decisions
-      .filter((d) => d.status === "PENDING_APPROVAL" && d.adGroupId)
-      .map((d) => d.adGroupId as string),
-  );
+  const { ontologyPreflight } = await import("./ontology/preflight.server");
+  const preflightDropped: { index: number; reason: string }[] = [];
+  const actionable: ScreenedSuggestion[] = [];
+  for (const [i, s] of screened.kept.entries()) {
+    const gate = await ontologyPreflight({
+      actionType: s.actionType,
+      params: s.params,
+      automated: true,
+    });
+    if (!gate.ok) {
+      preflightDropped.push({
+        index: i,
+        reason: gate.paramError
+          ? `ACTION_SCHEMA: ${gate.paramError}`
+          : (gate.result?.violations.map((v) => v.detail).join(" / ") ?? "本体不变量未通过"),
+      });
+      continue;
+    }
+    actionable.push(s);
+  }
 
   const stamp = Date.now().toString(36);
-  const rows = actionable.map((s, i) => buildDecisionRow(s, i, stamp, groupById, pendingGroups, limits, summary));
+  const rows = (
+    await Promise.all(
+      actionable.map((s, i) => buildDecisionRow(s, i, stamp, snapshot, limits, screened.summary)),
+    )
+  ).filter(Boolean);
 
   if (rows.length) await supabase.from("agent_decisions").insert(rows as never);
 
@@ -282,36 +297,149 @@ export async function runPlannerAdvisor(
     model: ADVISOR_MODEL,
     duration_ms: Date.now() - t0,
     raw_output: rawText.slice(0, 20000),
-    suggestions_raw: kept.length + dropped.length,
+    suggestions_raw: screened.kept.length + screened.dropped.length,
     suggestions_kept: rows.length,
     dropped: [
-      ...dropped.map((d) => ({ index: d.index, reason: d.reason })),
-      ...refDropped,
+      ...screened.dropped.map((d) => ({ index: d.index, reason: d.reason })),
+      ...preflightDropped,
     ] as never,
   } as never);
 
-  return { ok: true, created: rows.length, dropped: dropped.length + refDropped.length, summary };
+  return {
+    ok: true,
+    created: rows.length,
+    dropped: screened.dropped.length + preflightDropped.length,
+    summary: screened.summary,
+  };
 }
 
-function buildDecisionRow(
-  s: AdvisorSuggestion,
+function resolveTargets(s: ScreenedSuggestion, snapshot: AgentSnapshot) {
+  const adGroupId =
+    String(s.params["toAdGroupId"] ?? s.params["adGroupId"] ?? s.params["fromAdGroupId"] ?? "") ||
+    undefined;
+  const creativeId = String(s.params["creativeId"] ?? "") || undefined;
+  const group = adGroupId ? snapshot.adGroups.find((g) => g.id === adGroupId) : undefined;
+  const creative = creativeId ? snapshot.creatives.find((c) => c.id === creativeId) : undefined;
+  const placement =
+    creativeId && adGroupId
+      ? snapshot.placements.find((p) => p.creativeId === creativeId && p.adGroupId === adGroupId)
+      : creativeId
+        ? snapshot.placements.find((p) => p.creativeId === creativeId)
+        : undefined;
+  const experiment =
+    s.actionType === "VARIANT_PROMOTE"
+      ? snapshot.experiments.find((e) => e.id === String(s.params["experimentId"] ?? ""))
+      : undefined;
+  const viaPlacementGroup = placement
+    ? snapshot.adGroups.find((g) => g.id === placement.adGroupId)
+    : undefined;
+  const g = group ?? viaPlacementGroup;
+  return { adGroupId: g?.id ?? adGroupId, group: g, creative, placement, experiment };
+}
+
+function ontologyChangesFor(s: ScreenedSuggestion, snapshot: AgentSnapshot): OntologyChange[] {
+  const { group, creative, placement, experiment } = resolveTargets(s, snapshot);
+  switch (s.actionType) {
+    case "BUDGET_SHIFT":
+      return [
+        change({
+          type: "AdGroup",
+          id: group?.id ?? s.targetId,
+          name: group?.name,
+          field: "daily_budget",
+          from: group?.dailyBudget ?? null,
+          to: Number(s.params["nextDailyBudget"]),
+        }),
+      ];
+    case "BID_ADJUST":
+      return [
+        change({
+          type: "AdGroup",
+          id: group?.id ?? s.targetId,
+          name: group?.name,
+          field: "bid_target",
+          from: group?.bidTarget ?? null,
+          to: Number(s.params["nextBidTarget"]),
+        }),
+      ];
+    case "CREATIVE_PAUSE":
+      return [
+        change({
+          type: "CreativePlacement",
+          id: placement ? `${placement.creativeId}|${placement.adGroupId}` : s.targetId,
+          name: creative?.headline,
+          field: "status",
+          from: placement?.status ?? "ACTIVE",
+          to: "PAUSED",
+        }),
+      ];
+    case "CREATIVE_REFRESH":
+      return [
+        change({
+          type: "CreativeAsset",
+          id: creative?.id ?? s.targetId,
+          name: creative?.headline,
+          field: "fatigue_level",
+          from: creative?.fatigueLevel ?? null,
+          to: "HEALTHY",
+        }),
+      ];
+    case "VARIANT_PROMOTE":
+      return [
+        change({
+          type: "CreativeExperiment",
+          id: experiment?.id ?? s.targetId,
+          field: "status",
+          from: experiment?.status ?? "RUNNING",
+          to: "DECIDED",
+        }),
+        change({
+          type: "CreativeExperiment",
+          id: experiment?.id ?? s.targetId,
+          field: "winner_variant_id",
+          from: experiment?.winnerVariantId ?? null,
+          to: String(s.params["winnerVariantId"] ?? ""),
+        }),
+      ];
+    case "COMPLIANCE_REJECT":
+      return [
+        change({
+          type: "CreativeAsset",
+          id: creative?.id ?? s.targetId,
+          name: creative?.headline,
+          field: "compliance_status",
+          from: creative?.complianceStatus ?? null,
+          to: "FAILED",
+        }),
+      ];
+    default:
+      return [];
+  }
+}
+
+async function buildDecisionRow(
+  s: ScreenedSuggestion,
   i: number,
   stamp: string,
-  groupById: Map<string, AgentSnapshot["adGroups"][number]>,
-  pendingGroups: Set<string>,
+  snapshot: AgentSnapshot,
   limits: Awaited<ReturnType<typeof loadLimits>>,
   summary: string,
-): Row {
-  const g = groupById.get(s.adGroupId)!;
-  const nextBudget =
-    s.action === "BUDGET_SHIFT"
-      ? Math.max(1, Math.round(g.dailyBudget * (1 + s.budgetDeltaPct / 100)))
-      : g.dailyBudget;
+): Promise<Row> {
+  const { group, creative, adGroupId } = resolveTargets(s, snapshot);
+  const pendingHit =
+    (adGroupId &&
+      snapshot.decisions.some(
+        (d) => d.status === "PENDING_APPROVAL" && d.adGroupId === adGroupId,
+      )) ||
+    (creative &&
+      snapshot.decisions.some(
+        (d) => d.status === "PENDING_APPROVAL" && d.creativeId === creative.id,
+      ));
 
-  // 风控 dry-run：提前告诉审批人"批了会不会被规则层挡下"。
   const notes: string[] = [];
-  if (s.action === "BUDGET_SHIFT") {
-    const verdict = checkBudgetChange(limits, { current: g.dailyBudget, next: nextBudget });
+  if (s.actionType === "BUDGET_SHIFT" && group) {
+    const nextBudget = Number(s.params["nextDailyBudget"]);
+    const verdict = checkBudgetChange(limits, { current: group.dailyBudget, next: nextBudget });
     if (verdict.verdict === "DENY") {
       notes.push(`预判：批准时将被规则层拒绝（${verdict.rule}）——${verdict.detail}`);
     } else if (verdict.verdict === "CLAMP") {
@@ -320,35 +448,56 @@ function buildDecisionRow(
       notes.push("预判：该建议在当前风控限额内，批准后可执行。");
     }
   } else {
-    notes.push("预判：非预算类动作，批准时仍需过风控姿态熔断与频次闸门。");
+    notes.push("预判：非预算类动作，批准时仍需过风控姿态熔断、频次闸门与本体不变量。");
   }
-  if (pendingGroups.has(s.adGroupId)) {
-    notes.push("与规则层建议冲突：该广告组已有待审批的规则决策，两条并列，请人工裁决。");
+  if (pendingHit) {
+    notes.push("与规则层建议冲突：同一目标已有待审批决策，两条并列，请人工裁决。");
   }
 
-  const effect =
-    s.action === "BUDGET_SHIFT"
-      ? `建议：广告组「${g.name}」日预算 $${g.dailyBudget} → $${nextBudget}（${s.budgetDeltaPct > 0 ? "+" : ""}${s.budgetDeltaPct}%）`
-      : `建议：广告组「${g.name}」${ACTION_LABEL[s.action] ?? s.action}`;
+  const targetName = group?.name ?? creative?.headline;
+  const effect = describeActionEffect(s.actionType, s.params, { targetName });
+  const def = ACTION_TYPES[s.actionType as ActionTypeId];
+  const rootType =
+    s.actionType === "CREATIVE_PAUSE" || s.actionType === "CREATIVE_REFRESH" || s.actionType === "COMPLIANCE_REJECT"
+      ? "CreativeAsset"
+      : def.actsOn;
+  const rootId =
+    rootType === "CreativeAsset" ? String(s.params["creativeId"] ?? s.targetId) : s.targetId;
+
+  const { buildDecisionOntology } = await import("./ontology/decision-diff.server");
+  const ontology = await buildDecisionOntology({
+    rootType,
+    rootId,
+    changes: ontologyChangesFor(s, snapshot),
+  });
+
+  const campaignId = group?.campaignId ?? snapshot.campaigns[0]?.id ?? "unknown";
+  const campaignName = group?.campaignName ?? snapshot.campaigns[0]?.name ?? campaignId;
 
   return {
     id: `dec_llm_${stamp}_${i}`,
     timestamp: new Date().toISOString(),
     agent_type: "Planner",
-    action_type: s.action,
-    target_channel: g.channel,
-    campaign_id: g.campaignId,
-    campaign_name: g.campaignName,
-    ad_group_id: g.id,
-    ad_group_name: g.name,
+    action_type: s.actionType,
+    target_channel: group?.channel ?? "Google",
+    campaign_id: campaignId,
+    campaign_name: campaignName,
+    ad_group_id: adGroupId ?? null,
+    ad_group_name: group?.name ?? null,
+    creative_id: creative?.id ?? (s.params["creativeId"] as string | undefined) ?? null,
+    creative_name: creative?.headline ?? null,
     confidence_score: s.confidence,
     trigger_source: "LLM",
     guardrail_note: notes.join(" "),
     reasoning_chain: [
-      summary ? `全局诊断：${summary}` : "AI 参谋读取当前快照做跨广告组比较。",
-      `广告组「${g.name}」：日预算 $${g.dailyBudget}、CPL $${g.cpl.toFixed(2)}、CPS $${g.cps.toFixed(2)}、近 20 条线索通过率 ${(g.last20ApprovalRate * 100).toFixed(1)}%。`,
+      summary ? `全局诊断：${summary}` : "AI 参谋读取当前业务子图做跨对象比较。",
+      group
+        ? `广告组「${group.name}」：日预算 $${group.dailyBudget}、CPL $${group.cpl.toFixed(2)}、CPS $${group.cps.toFixed(2)}。`
+        : creative
+          ? `素材「${creative.headline}」：疲劳 ${creative.fatigueLevel}、合规 ${creative.complianceStatus}。`
+          : `目标 ${s.actionType}:${s.targetId}`,
       `参谋理由：${s.rationale}`,
-      "本条由 AI 参谋提出，未经执行；执行权仍在硬编码风控规则层。",
+      "本条由 AI 参谋提出，未经执行；执行权仍在硬编码风控规则层与本体不变量。",
       ...notes,
     ],
     trigger_metric: s.metric,
@@ -356,7 +505,14 @@ function buildDecisionRow(
     trigger_threshold_value: s.thresholdValue,
     status: "PENDING_APPROVAL",
     effect,
-    rollback_to: `${g.name} ${g.status} / $${g.dailyBudget}`,
+    rollback_to: group
+      ? `${group.name} ${group.status} / $${group.dailyBudget}`
+      : creative
+        ? `${creative.headline} ${creative.complianceStatus}`
+        : s.targetId,
+    action_params: s.params,
+    ontology_before: ontology.ontology_before,
+    ontology_diff: ontology.ontology_diff,
   };
 }
 

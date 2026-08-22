@@ -500,7 +500,7 @@ function accumulate(arm: ExperimentArm, index: number): ExperimentArm {
   };
 }
 
-export async function settleExperiment(experimentId: string) {
+export async function settleExperiment(experimentId: string, winnerVariantId?: string) {
   const supabase = await db();
   const { data } = await supabase
     .from("creative_experiments")
@@ -531,11 +531,12 @@ export async function settleExperiment(experimentId: string) {
     arm.confidence = Number(Math.min(0.999, Math.max(0, normalCdf(z))).toFixed(3));
   }
 
+  const named = winnerVariantId ? arms.find((a) => a.armId === winnerVariantId) : undefined;
   const eligible = arms.filter(
     (a) => a.kind === "VARIANT" && a.impressions >= 1000 && a.confidence >= 0.95,
   );
 
-  if (eligible.length === 0) {
+  if (!named && eligible.length === 0) {
     await supabase
       .from("creative_experiments")
       .update({ arm_stats: arms } as never)
@@ -547,7 +548,8 @@ export async function settleExperiment(experimentId: string) {
     };
   }
 
-  const winner = eligible.reduce((best, a) => (a.cps < best.cps ? a : best), eligible[0]);
+  const winner =
+    named ?? eligible.reduce((best, a) => (a.cps < best.cps ? a : best), eligible[0]);
   const now = new Date().toISOString();
 
   await supabase

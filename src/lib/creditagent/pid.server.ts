@@ -291,6 +291,11 @@ async function considerAdGroup(
     status: "PENDING_APPROVAL",
     effect: `日预算 $${g.dailyBudget.toLocaleString()} → $${targetBudget.toLocaleString()}`,
     rollback_to: `$${g.dailyBudget.toLocaleString()}`,
+    action_params: {
+      toAdGroupId: g.id,
+      amount: Math.max(1, Math.abs(targetBudget - g.dailyBudget)),
+      nextDailyBudget: targetBudget,
+    },
     ontology_before: ontology.ontology_before,
     ontology_diff: ontology.ontology_diff,
   } as never);

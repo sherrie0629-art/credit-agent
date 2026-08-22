@@ -17,6 +17,7 @@ import {
 import { fetchAdvisorScheduleFn } from "@/lib/creditagent/advisor.functions";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DEMO_ONTOLOGY_IMPACT_DECISION } from "@/lib/creditagent/ontology/demo-impact-decision";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -80,8 +81,14 @@ function CommandCenter() {
   const [advisorSchedule, setAdvisorSchedule] = useState<AdvisorScheduleStatus | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const pending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
+  const livePending = decisions.filter((d) => d.status === "PENDING_APPROVAL");
   const history = decisions.filter((d) => d.status !== "PENDING_APPROVAL");
+  const pending = import.meta.env.DEV
+    ? [
+        DEMO_ONTOLOGY_IMPACT_DECISION,
+        ...livePending.filter((d) => d.id !== DEMO_ONTOLOGY_IMPACT_DECISION.id),
+      ]
+    : livePending;
   const holds = campaigns.filter((c) => c.status === "COMPLIANCE_HOLD").length;
 
   useEffect(() => {

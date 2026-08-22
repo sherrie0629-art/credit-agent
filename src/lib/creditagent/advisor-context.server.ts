@@ -9,6 +9,8 @@ import { TARGET_CPS } from "./reallocate";
 const MAX_FOCUS_GROUPS = 5;
 const SUBGRAPH_DEPTH = 2;
 const SUBGRAPH_NODE_CAP = 50;
+const MAX_EXTRA_CREATIVES = 3;
+const MAX_EXTRA_EXPERIMENTS = 3;
 
 export interface AdvisorContext {
   /** 喂给模型的文本上下文 */
@@ -36,6 +38,20 @@ export function pickFocusGroups(snapshot: AgentSnapshot): AgentSnapshot["adGroup
     .map((x) => x.g);
 }
 
+export function snapshotKnownRefs(snapshot: AgentSnapshot): Set<string> {
+  const refs = new Set<string>();
+  for (const g of snapshot.adGroups) refs.add(`AdGroup:${g.id}`);
+  for (const c of snapshot.creatives) refs.add(`CreativeAsset:${c.id}`);
+  for (const e of snapshot.experiments) refs.add(`CreativeExperiment:${e.id}`);
+  for (const v of snapshot.variants) refs.add(`CreativeVariant:${v.id}`);
+  for (const p of snapshot.placements) {
+    refs.add(`CreativePlacement:${p.creativeId}|${p.adGroupId}`);
+    refs.add(`CreativeAsset:${p.creativeId}`);
+    refs.add(`AdGroup:${p.adGroupId}`);
+  }
+  return refs;
+}
+
 function accountHeader(snapshot: AgentSnapshot) {
   const l = snapshot.guardrailLimits;
   return [
@@ -45,23 +61,51 @@ function accountHeader(snapshot: AgentSnapshot) {
   ].join("\n");
 }
 
-/** 拉取聚焦广告组的 2 跳子图并序列化。 */
+async function trySubgraph(
+  rootType: "AdGroup" | "CreativeAsset" | "CreativeExperiment",
+  rootId: string,
+): Promise<Subgraph | null> {
+  try {
+    const sg = await getSubgraph({
+      rootType,
+      rootId,
+      depth: SUBGRAPH_DEPTH,
+      nodeCap: SUBGRAPH_NODE_CAP,
+    });
+    return sg.nodes.length > 0 ? sg : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 拉取聚焦广告组的 2 跳子图，并补疲劳素材 / 进行中实验根，避免 3 跳外的 ID 不可见。 */
 export async function buildSubgraphContext(snapshot: AgentSnapshot): Promise<AdvisorContext> {
   const focus = pickFocusGroups(snapshot);
   const subgraphs: Subgraph[] = [];
+  const seenRoots = new Set<string>();
+
+  const push = (sg: Subgraph | null) => {
+    if (!sg) return;
+    const key = `${sg.root.type}:${sg.root.id}`;
+    if (seenRoots.has(key)) return;
+    seenRoots.add(key);
+    subgraphs.push(sg);
+  };
 
   for (const g of focus) {
-    try {
-      const sg = await getSubgraph({
-        rootType: "AdGroup",
-        rootId: g.id,
-        depth: SUBGRAPH_DEPTH,
-        nodeCap: SUBGRAPH_NODE_CAP,
-      });
-      if (sg.nodes.length > 0) subgraphs.push(sg);
-    } catch {
-      // 单个子图失败不影响整轮分析
-    }
+    push(await trySubgraph("AdGroup", g.id));
+  }
+
+  const tired = snapshot.creatives
+    .filter((c) => c.fatigueLevel && c.fatigueLevel !== "HEALTHY")
+    .slice(0, MAX_EXTRA_CREATIVES);
+  for (const c of tired) {
+    push(await trySubgraph("CreativeAsset", c.id));
+  }
+
+  const running = snapshot.experiments.filter((e) => e.status === "RUNNING").slice(0, MAX_EXTRA_EXPERIMENTS);
+  for (const e of running) {
+    push(await trySubgraph("CreativeExperiment", e.id));
   }
 
   const knownRefs = new Set<string>();
@@ -74,7 +118,7 @@ export async function buildSubgraphContext(snapshot: AgentSnapshot): Promise<Adv
 
   return {
     text,
-    focusIds: subgraphs.map((sg) => sg.root.id),
+    focusIds: focus.map((g) => g.id),
     knownRefs,
     nodeCount: knownRefs.size,
   };

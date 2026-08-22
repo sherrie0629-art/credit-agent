@@ -2,6 +2,7 @@
 // 与 guardrails.server.ts 的 preflight 串联使用：先熔断/频次，再结构性不变量。
 import { ACTION_TYPES, type ActionTypeId } from "./actions";
 import { OBJECT_TYPES } from "./objects";
+import { targetIdOf } from "./action-schema";
 import {
   checkInvariants,
   validateActionParams,
@@ -21,24 +22,6 @@ async function one(table: string, column: string, value: string): Promise<Row | 
   const supabase = await db();
   const { data } = await (supabase as any).from(table).select("*").eq(column, value).maybeSingle();
   return (data as Row) ?? null;
-}
-
-/** 从动作参数里解析出目标实体主键。 */
-function targetIdOf(actionType: ActionTypeId, params: Row): string {
-  switch (actionType) {
-    case "BUDGET_SHIFT":
-      return String(params["toAdGroupId"] ?? "");
-    case "BID_ADJUST":
-      return String(params["adGroupId"] ?? "");
-    case "CREATIVE_PAUSE":
-    case "CREATIVE_REFRESH":
-    case "COMPLIANCE_REJECT":
-      return String(params["creativeId"] ?? "");
-    case "VARIANT_PROMOTE":
-      return String(params["experimentId"] ?? "");
-    default:
-      return "";
-  }
 }
 
 async function buildContext(actionType: ActionTypeId, params: Row): Promise<InvariantContext> {

@@ -9,6 +9,7 @@ import { toastForExternal } from "@/lib/creditagent/google-ads";
 import { agentApi } from "@/lib/creditagent/store";
 import type { AgentDecision } from "@/lib/creditagent/types";
 import { describeChange } from "@/lib/creditagent/ontology/decision-diff";
+import { DEMO_ONTOLOGY_IMPACT_ID } from "@/lib/creditagent/ontology/demo-impact-decision";
 import { cn } from "@/lib/utils";
 
 const METRIC_LABEL: Record<AgentDecision["dataMetricsTrigger"]["metric"], string> = {
@@ -32,7 +33,7 @@ export function DecisionCard({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [impactOpen, setImpactOpen] = useState(false);
+  const [impactOpen, setImpactOpen] = useState(decision.id === DEMO_ONTOLOGY_IMPACT_ID);
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState<"approve" | "reject" | "rollback" | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -52,6 +53,12 @@ export function DecisionCard({
   }, [busy, busyKind]);
 
   const act = async (kind: "approve" | "reject" | "rollback") => {
+    if (decision.id === DEMO_ONTOLOGY_IMPACT_ID) {
+      toast("这是影响面预览样例", {
+        description: "未写入数据库，批准 / 否决不会真正执行。",
+      });
+      return;
+    }
     if (busy) return;
     setBusy(true);
     setBusyKind(kind);

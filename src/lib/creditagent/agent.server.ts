@@ -131,6 +131,10 @@ function mapDecision(r: Row): AgentDecision {
     externalMutateDetail: r.external_mutate_detail ?? undefined,
     ontologyDiff: Array.isArray(r.ontology_diff) ? r.ontology_diff : undefined,
     ontologyBefore: r.ontology_before ?? null,
+    actionParams:
+      r.action_params && typeof r.action_params === "object" && !Array.isArray(r.action_params)
+        ? (r.action_params as Record<string, string | number | boolean | null>)
+        : null,
   };
 
 }
@@ -172,6 +176,141 @@ export type ApproveDecisionPatch = {
     aiSuggestion?: string;
   } | null;
 };
+
+function budgetFromEffect(effect: string): number {
+  return Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(effect)?.[1]?.replace(/,/g, "") ?? NaN);
+}
+
+function nextBudgetOf(decision: AgentDecision, current: number): number {
+  const n = Number(decision.actionParams?.["nextDailyBudget"]);
+  if (Number.isFinite(n) && n > 0) return n;
+  const fromEffect = budgetFromEffect(decision.effect);
+  return Number.isFinite(fromEffect) ? fromEffect : current;
+}
+
+async function pauseCreativePlacement(params: Record<string, unknown>) {
+  const supabase = await db();
+  const creativeId = String(params["creativeId"] ?? "");
+  const adGroupId = params["adGroupId"] ? String(params["adGroupId"]) : "";
+  let q = supabase
+    .from("creative_placements")
+    .update({ status: "PAUSED" } as never)
+    .eq("creative_id", creativeId);
+  if (adGroupId) q = q.eq("ad_group_id", adGroupId);
+  await q;
+}
+
+async function executeOntologyAction(
+  actionType: AgentDecision["actionType"],
+  params: Record<string, unknown>,
+  limits: Awaited<ReturnType<typeof loadLimits>>,
+): Promise<{
+  external: import("./google-ads").ExternalMutateResult | null;
+  adGroupPatch: ApproveDecisionPatch["adGroup"];
+  note?: string;
+  failed?: string;
+}> {
+  const supabase = await db();
+  if (actionType === "BUDGET_SHIFT") {
+    const group = await getAdGroup(String(params["toAdGroupId"] ?? ""));
+    if (!group) return { external: null, adGroupPatch: null, failed: "找不到目标广告组" };
+    const nextBudget = Number(params["nextDailyBudget"]);
+    const verdict = checkBudgetChange(limits, { current: group.dailyBudget, next: nextBudget });
+    void recordGuardrail({
+      action: "APPROVE_LLM_ADVICE",
+      targetId: group.id,
+      decision: verdict,
+      requested: { from: group.dailyBudget, to: nextBudget },
+    });
+    if (verdict.verdict === "DENY") {
+      return { external: null, adGroupPatch: null, failed: `批准被规则层拒绝（${verdict.rule}）：${verdict.detail}` };
+    }
+    const applied = verdict.verdict === "CLAMP" ? (verdict.value ?? nextBudget) : nextBudget;
+    const { syncExternalAdGroupBudget } = await import("./external-ads.server");
+    const external = await syncExternalAdGroupBudget(group.id, applied);
+    const aiSuggestion = "按 AI 参谋建议调整，已过风控闸门";
+    await supabase
+      .from("ad_groups")
+      .update({
+        daily_budget: applied,
+        ai_suggestion: aiSuggestion,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", group.id);
+    return {
+      external,
+      adGroupPatch: { id: group.id, dailyBudget: applied, aiSuggestion },
+      note: verdict.verdict === "CLAMP" ? `风控层已截断（${verdict.rule}）：${verdict.detail}` : undefined,
+    };
+  }
+
+  if (actionType === "BID_ADJUST") {
+    const group = await getAdGroup(String(params["adGroupId"] ?? ""));
+    if (!group) return { external: null, adGroupPatch: null, failed: "找不到目标广告组" };
+    const nextBid = Number(params["nextBidTarget"]);
+    await supabase
+      .from("ad_groups")
+      .update({
+        bid_target: nextBid,
+        ai_suggestion: "按 AI 参谋建议调整出价目标",
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", group.id);
+    return {
+      external: {
+        mode: "off",
+        pushed: false,
+        status: "SKIPPED_OFF",
+        detail: "出价目标已写入本地本体；平台侧 bid mutate 尚未对称同步。",
+      },
+      adGroupPatch: { id: group.id, aiSuggestion: "按 AI 参谋建议调整出价目标" },
+    };
+  }
+
+  if (actionType === "CREATIVE_PAUSE") {
+    await pauseCreativePlacement(params);
+    return {
+      external: {
+        mode: "off",
+        pushed: false,
+        status: "SKIPPED_OFF",
+        detail: "已暂停素材投放关系（未暂停整个广告组）。",
+      },
+      adGroupPatch: null,
+    };
+  }
+
+  if (actionType === "CREATIVE_REFRESH") {
+    const { generateVariants } = await import("./creative.server");
+    await generateVariants(String(params["creativeId"] ?? ""));
+    return { external: null, adGroupPatch: null };
+  }
+
+  if (actionType === "VARIANT_PROMOTE") {
+    const { settleExperiment } = await import("./creative.server");
+    const res = await settleExperiment(
+      String(params["experimentId"] ?? ""),
+      String(params["winnerVariantId"] ?? ""),
+    );
+    if (!res.decided) {
+      return { external: null, adGroupPatch: null, failed: res.message };
+    }
+    return { external: null, adGroupPatch: null };
+  }
+
+  if (actionType === "COMPLIANCE_REJECT") {
+    await supabase
+      .from("creative_assets")
+      .update({
+        compliance_status: "FAILED",
+        compliance_logs: [String(params["reason"] ?? "合规驳回")],
+      } as never)
+      .eq("id", String(params["creativeId"] ?? ""));
+    return { external: null, adGroupPatch: null };
+  }
+
+  return { external: null, adGroupPatch: null, failed: `未支持的动作 ${actionType}` };
+}
 
 export async function approveDecision(id: string): Promise<ApproveDecisionPatch> {
   const supabase = await db();
@@ -247,10 +386,39 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
       return finish();
     }
 
-    if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
+    const params = (decision.actionParams ?? {}) as Record<string, unknown>;
+    if (Object.keys(params).length > 0) {
+      const { ontologyPreflight } = await import("./ontology/preflight.server");
+      const ont = await ontologyPreflight({
+        actionType: decision.actionType,
+        params,
+        automated: false,
+      });
+      if (!ont.ok) {
+        guardrailNote = ont.paramError
+          ? `批准被动作契约拒绝：${ont.paramError}`
+          : `批准被本体不变量拒绝：${ont.result?.violations.map((v) => v.detail).join(" / ")}`;
+        await supabase
+          .from("agent_decisions")
+          .update({ guardrail_note: guardrailNote } as never)
+          .eq("id", id);
+        return finish();
+      }
+      const exec = await executeOntologyAction(decision.actionType, params, gate.limits);
+      if (exec.failed) {
+        guardrailNote = exec.failed;
+        await supabase
+          .from("agent_decisions")
+          .update({ guardrail_note: guardrailNote } as never)
+          .eq("id", id);
+        return finish();
+      }
+      external = exec.external;
+      adGroupPatch = exec.adGroupPatch;
+      if (exec.note) guardrailNote = exec.note;
+    } else if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
       const group = await getAdGroup(decision.adGroupId);
-      const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
-      const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+      const nextBudget = group ? nextBudgetOf(decision, group.dailyBudget) : 0;
       if (group) {
         const verdict = checkBudgetChange(gate.limits, {
           current: group.dailyBudget,
@@ -296,7 +464,10 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
     }
 
     status = "EXECUTED";
-    await supabase.from("agent_decisions").update({ status: "EXECUTED" }).eq("id", id);
+    await supabase.from("agent_decisions").update({
+      status: "EXECUTED",
+      guardrail_note: guardrailNote,
+    } as never).eq("id", id);
     void bumpTakeovers(1);
     return finish();
   }
@@ -304,8 +475,7 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
   // —— SWEEP / 事件驱动的预算调整卡（含 PID 贴 CPS） ——
   if (decision.actionType === "BUDGET_SHIFT" && decision.adGroupId) {
     const [group, limits] = await Promise.all([getAdGroup(decision.adGroupId), loadLimits()]);
-    const target = Number(/→\s*\$([\d,]+(?:\.\d+)?)/.exec(decision.effect)?.[1]?.replace(/,/g, "") ?? NaN);
-    const nextBudget = Number.isFinite(target) ? target : (group?.dailyBudget ?? 0);
+    const nextBudget = group ? nextBudgetOf(decision, group.dailyBudget) : 0;
 
     if (group) {
       const verdict = checkBudgetChange(limits, {
@@ -362,19 +532,23 @@ export async function approveDecision(id: string): Promise<ApproveDecisionPatch>
     return finish();
   }
 
-  const targetGroup = decision.adGroupId;
-  if (targetGroup && decision.actionType === "CREATIVE_PAUSE") {
-    const { syncExternalAdGroupStatus } = await import("./external-ads.server");
-    external = await syncExternalAdGroupStatus(targetGroup, "PAUSED");
-    const aiSuggestion = "低质素材已暂停，合规变体接量中";
-    await supabase
-      .from("ad_groups")
-      .update({
-        status: "PAUSED",
-        ai_suggestion: aiSuggestion,
-      } as never)
-      .eq("id", targetGroup);
-    adGroupPatch = { id: targetGroup, status: "PAUSED", aiSuggestion };
+  if (decision.actionType === "CREATIVE_PAUSE") {
+    const params = (decision.actionParams ?? {}) as Record<string, unknown>;
+    if (params["creativeId"]) {
+      await pauseCreativePlacement(params);
+    } else if (decision.adGroupId) {
+      const { syncExternalAdGroupStatus } = await import("./external-ads.server");
+      external = await syncExternalAdGroupStatus(decision.adGroupId, "PAUSED");
+      const aiSuggestion = "低质素材已暂停，合规变体接量中";
+      await supabase
+        .from("ad_groups")
+        .update({
+          status: "PAUSED",
+          ai_suggestion: aiSuggestion,
+        } as never)
+        .eq("id", decision.adGroupId);
+      adGroupPatch = { id: decision.adGroupId, status: "PAUSED", aiSuggestion };
+    }
   }
 
   status = "EXECUTED";

@@ -59,6 +59,8 @@ export interface AgentDecision {
   ontologyDiff?: import("./ontology/decision-diff").OntologyChange[];
   /** 本体图谱：决策生成时的相关子图快照（裁剪版）。 */
   ontologyBefore?: import("./ontology/decision-diff").OntologySnapshot | null;
+  /** 本体动作契约的 params 快照，批准时不再从 effect 文案反推。 */
+  actionParams?: Record<string, string | number | boolean | null> | null;
 }
 
 

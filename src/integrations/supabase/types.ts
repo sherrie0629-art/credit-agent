@@ -176,6 +176,7 @@ export type Database = {
           external_mutate_status: string | null
           guardrail_note: string | null
           id: string
+          action_params: Json | null
           ontology_before: Json | null
           ontology_diff: Json | null
           reasoning_chain: Json
@@ -204,6 +205,7 @@ export type Database = {
           external_mutate_status?: string | null
           guardrail_note?: string | null
           id: string
+          action_params?: Json | null
           ontology_before?: Json | null
           ontology_diff?: Json | null
           reasoning_chain?: Json
@@ -232,6 +234,7 @@ export type Database = {
           external_mutate_status?: string | null
           guardrail_note?: string | null
           id?: string
+          action_params?: Json | null
           ontology_before?: Json | null
           ontology_diff?: Json | null
           reasoning_chain?: Json
